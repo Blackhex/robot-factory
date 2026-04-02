@@ -8,6 +8,7 @@ import { MachinePanelPage } from './screens/MachinePanelPage'
 import { BeltPanelPage } from './screens/BeltPanelPage'
 import { TutorialOverlayPage } from './screens/TutorialOverlayPage'
 import { ScoreScreenPage } from './screens/ScoreScreenPage'
+import { LevelFailedScreenPage } from './screens/LevelFailedScreenPage'
 import { LevelBriefPage } from './screens/LevelBriefPage'
 import { FactoryGridPage } from './canvas/FactoryGridPage'
 import { BeltObject } from './canvas/BeltObject'
@@ -30,6 +31,7 @@ type Pages = {
   beltPanel: BeltPanelPage
   tutorial: TutorialOverlayPage
   scoreScreen: ScoreScreenPage
+  levelFailed: LevelFailedScreenPage
   levelBrief: LevelBriefPage
   grid: FactoryGridPage
   belt: BeltObject
@@ -53,6 +55,7 @@ export const test = base.extend<Pages>({
   beltPanel: async ({ page }, use) => { await use(new BeltPanelPage(page)) },
   tutorial: async ({ page }, use) => { await use(new TutorialOverlayPage(page)) },
   scoreScreen: async ({ page }, use) => { await use(new ScoreScreenPage(page)) },
+  levelFailed: async ({ page }, use) => { await use(new LevelFailedScreenPage(page)) },
   levelBrief: async ({ page }, use) => { await use(new LevelBriefPage(page)) },
   probe: async ({ page }, use) => { await use(new SimulationProbe(page)) },
   grid: async ({ page, probe }, use) => { await use(new FactoryGridPage(page, probe)) },
