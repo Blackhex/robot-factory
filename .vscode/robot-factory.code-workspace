@@ -1,0 +1,39 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		"workspaceTasks.enabledTaskTypes": {
+			"ant": false,
+			"ruby": false,
+			"cake": false,
+			"cmake": false,
+			"composer": false,
+			"cargo": false,
+			"cargo-make": false,
+			"deno": false,
+			"docker": false,
+			"eslint": false,
+			"go": false,
+			"gradle": false,
+			"grunt": false,
+			"gulp": false,
+			"jupyter": false,
+			"just": false,
+			"webpack": false,
+			"venv": false,
+			"typescript": false,
+			"shell": false,
+			"rake": false,
+			"poetry": false,
+			"pipenv": false,
+			"poe": false,
+			"mise": false,
+			"msbuild": false,
+			"maven": false,
+			"make": false
+		}
+	}
+}

@@ -1,0 +1,34 @@
+{
+  "name": "robot-factory",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:pxt:staticpkg": "cd pxt-target && node ./node_modules/pxt-core/built/pxt.js staticpkg --no-appcache --route /pxt-editor --output ../public",
+    "build:pxt:patch": "node scripts/update-build-artifacts.cjs",
+    "build:pxt:dev": "npm run build:pxt:staticpkg && npm run build:pxt:patch",
+    "build:pxt": "npm run build:pxt:dev && npm install",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run --exclude e2e/**",
+    "test:e2e": "playwright test",
+    "test:e2e:sandbox-simulation": "playwright test e2e/sandbox-simulation.spec.ts --headed",
+    "test:e2e:machine-panel": "playwright test e2e/machine-panel.spec.ts --headed -g \"drag-and-drop moves a machine to a new cell\"",
+    "test:all": "vitest run && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@types/node": "^25.5.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.0.1"
+  },
+  "dependencies": {
+    "@types/three": "^0.183.1",
+    "i18next": "^26.0.3",
+    "three": "^0.183.2",
+    "vitest": "^4.1.2"
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "inputs": [
+    {
+      "args": "http://localhost:5173",
+      "command": "simpleBrowser.api.open",
+      "id": "openSimpleBrowser",
+      "type": "command"
+    }
+  ],
+  "tasks": [
+    {
+      "dependsOn": [
+        "Install"
+      ],
+      "isBackground": true,
+      "label": "Dev Server",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "silent"
+      },
+      "problemMatcher": {
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "Local:\\s+http"
+        },
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^$"
+        }
+      },
+      "runOptions": {
+        "instanceLimit": 1,
+        "runOn": "folderOpen"
+      },
+      "script": "dev",
+      "type": "npm"
+    },
+    {
+      "command": "${input:openSimpleBrowser}",
+      "dependsOn": [
+        "Dev Server"
+      ],
+      "label": "Open in Browser",
+      "problemMatcher": [],
+      "runOptions": {
+        "instanceLimit": 1,
+        "runOn": "folderOpen"
+      },
+      "type": "shell"
+    },
+    {
+      "command": "npm install",
+      "label": "Install",
+      "type": "shell"
+    },
+    {
+      "command": "npm update",
+      "label": "Update",
+      "type": "shell"
+    },
+    {
+      "command": "npm audit --fix",
+      "label": "Fix Audit",
+      "type": "shell"
+    },
+    {
+      "label": "Build PXT",
+      "script": "build:pxt",
+      "type": "npm"
+    },
+  ],
+  "version": "2.0.0"
+}

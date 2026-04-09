@@ -1,0 +1,17 @@
+{
+  "name": "core",
+  "description": "Robot Factory blocks",
+  "files": [
+    "pxt-core.d.ts",
+    "pxt-helpers.ts",
+    "enums.d.ts",
+    "sims.d.ts",
+    "ns.ts",
+    "factory.ts"
+  ],
+  "testFiles": [
+    "test.ts"
+  ],
+  "public": true,
+  "dependencies": {}
+}

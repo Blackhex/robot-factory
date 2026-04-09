@@ -1,0 +1,191 @@
+{
+  "app_title": "Továrna na roboty",
+  "toolbar": {
+    "save": "Uložit",
+    "load": "Načíst",
+    "export": "Export"
+  },
+  "machines": {
+    "part_fabricator": "Výrobce dílů",
+    "assembler": "Montážní stroj",
+    "quality_checker": "Kontrola kvality",
+    "painter": "Lakovač",
+    "recycler": "Recyklátor",
+    "splitter": "Rozdělovač"
+  },
+  "actions": {
+    "start": "Spustit",
+    "pause": "Pozastavit",
+    "restart": "Restartovat",
+    "open_editor": "Otevřít editor"
+  },
+  "machine_panel": {
+    "type": "Typ",
+    "delete": "Smazat"
+  },
+  "language": "Jazyk",
+  "main_menu": {
+    "title": "Továrna na roboty",
+    "subtitle": "Stavěj. Programuj. Vyráběj.",
+    "start": "Spustit hru",
+    "sandbox": "Volná hra"
+  },
+  "blocks": {
+    "category_actions": "Akce",
+    "produce_part": "vyrobit %1",
+    "produce_part_tooltip": "Vyrobí díl zadaného typu",
+    "set_recipe": "nastavit recept %1 na %2",
+    "set_recipe_tooltip": "Nastaví recept pro stroj",
+    "start_machine": "spustit stroj %1",
+    "start_machine_tooltip": "Spustí zadaný stroj",
+    "stop_machine": "zastavit stroj %1",
+    "stop_machine_tooltip": "Zastaví zadaný stroj",
+    "set_belt_speed": "nastavit rychlost pásu %1 na %2",
+    "set_belt_speed_tooltip": "Nastaví rychlost dopravního pásu",
+    "route_to": "směrovat do %1",
+    "route_to_tooltip": "Směruje položky k cílovému stroji",
+    "category_loops": "Smyčky",
+    "repeat_times": "opakuj %1 krát",
+    "repeat_times_tooltip": "Opakuje vložené akce zadaný počet krát",
+    "while_condition": "dokud %1",
+    "while_condition_tooltip": "Opakuje dokud je podmínka splněna",
+    "category_conditionals": "Podmínky",
+    "if_quality": "pokud kvalita %1 %2 %3",
+    "if_quality_tooltip": "Zkontroluje kvalitu položky proti prahu",
+    "if_item_type": "pokud typ položky je %1",
+    "if_item_type_tooltip": "Rozvětvení podle typu položky",
+    "if_else": "pokud %1",
+    "if_else_tooltip": "Podmíněné rozvětvení",
+    "else": "jinak %1",
+    "category_variables": "Proměnné",
+    "set_variable": "nastav %1 na %2",
+    "set_variable_tooltip": "Nastaví proměnnou na hodnotu",
+    "get_variable": "hodnota %1",
+    "get_variable_tooltip": "Získá hodnotu proměnné",
+    "change_variable": "změň %1 o %2",
+    "change_variable_tooltip": "Změní proměnnou o částku",
+    "category_functions": "Funkce",
+    "define_procedure": "definuj proceduru %1",
+    "define_procedure_tooltip": "Definuje znovupoužitelnou proceduru",
+    "call_procedure": "zavolej proceduru %1",
+    "call_procedure_tooltip": "Zavolá definovanou proceduru",
+    "category_events": "Události",
+    "on_order_received": "když přijde objednávka",
+    "on_order_received_tooltip": "Spustí se při přijetí nové objednávky",
+    "on_belt_jam": "když se pás zasekne",
+    "on_belt_jam_tooltip": "Spustí se když se pás zasekne",
+    "on_machine_idle": "když stroj %1 je nečinný",
+    "on_machine_idle_tooltip": "Spustí se když se stroj stane nečinným"
+  },
+  "conditions": {
+    "belt_has_items": "pás má položky",
+    "machine_idle": "stroj je nečinný",
+    "items_remaining": "zbývají položky"
+  },
+  "items": {
+    "current_item": "aktuální položka"
+  },
+  "belts": {
+    "belt_1": "Pás 1",
+    "belt_2": "Pás 2",
+    "belt_3": "Pás 3"
+  },
+  "parts": {
+    "wheel_small": "Malé kolo",
+    "sensor_proximity": "Senzor přiblížení",
+    "frame_basic": "Základní rám",
+    "motor_standard": "Standardní motor"
+  },
+  "recipes": {
+    "basic_wheel": "Základní kolo",
+    "sensor_unit": "Senzorová jednotka",
+    "robot_frame": "Rám robota"
+  },
+  "levels": {
+    "level_1": {
+      "name": "Ahoj, továrno!",
+      "description": "Umísti stroje, propoj je pásem a postav svého prvního robota."
+    },
+    "level_2": {
+      "name": "Montážní linka",
+      "description": "Nastav sekvenci: lisuj, montuj a odešli 3 roboty."
+    },
+    "level_3": {
+      "name": "Hromadná výroba",
+      "description": "Použij smyčky k efektivní výrobě 10 dílů."
+    },
+    "level_4": {
+      "name": "Na kvalitě záleží",
+      "description": "Použij podmínky k přesměrování vadných dílů do recyklátoru."
+    },
+    "level_5": {
+      "name": "Chytré směrování",
+      "description": "Použij proměnné a rozdělovače k výrobě více typů robotů."
+    },
+    "level_6": {
+      "name": "Vlastní roboti",
+      "description": "Definuj funkce pro stavbu tří různých modelů robotů."
+    },
+    "level_7": {
+      "name": "Urgentní objednávka!",
+      "description": "Reaguj na události a stihni napjatý termín."
+    },
+    "level_8": {
+      "name": "Optimalizuj vše",
+      "description": "Vyvažuj rychlost, náklady a kvalitu pro maximum hvězd."
+    },
+    "level_9": {
+      "name": "Výstava robotů",
+      "description": "Volná ukázka — postav cokoliv chceš!"
+    },
+    "level_10": {
+      "name": "Tovární magnát",
+      "description": "Řiď vícelinkovou výrobní halu pro všechny typy robotů."
+    }
+  },
+  "scoring": {
+    "speed": "Rychlost",
+    "cost": "Náklady",
+    "quality": "Kvalita",
+    "total_stars": "Celkem hvězd",
+    "stars_1": "1 hvězda",
+    "stars_2": "2 hvězdy",
+    "stars_3": "3 hvězdy"
+  },
+  "hud": {
+    "items_produced": "Položky",
+    "robots_completed": "Roboti",
+    "time": "Čas",
+    "quality": "Kvalita"
+  },
+  "level_select": {
+    "title": "Výběr úrovně",
+    "locked": "🔒 Zamčeno",
+    "back": "Zpět do menu"
+  },
+  "score": {
+    "next_level": "Další úroveň",
+    "retry": "Znovu",
+    "back_to_menu": "Zpět do menu"
+  },
+  "belt_panel": {
+    "title": "Pás",
+    "segments": "Segmenty",
+    "source": "Zdroj",
+    "target": "Cíl",
+    "delete": "Smazat pás"
+  },
+  "tutorial": {
+    "skip": "Přeskočit",
+    "next": "Další",
+    "finish": "Hotovo",
+    "step_1": "Vítej! Klikni na panel nástrojů a vyber typ stroje.",
+    "step_2": "Klikni na mřížku a umísti svůj stroj.",
+    "step_3": "Teď vyber 'Umístit pás' a propoj své stroje.",
+    "step_4": "Otevři editor klávesou E a napiš svůj program.",
+    "step_5": "Stiskni Spustit pro zahájení simulace a sleduj svou továrnu!",
+    "step_6": "Použij smyčky k efektivnímu opakování akcí.",
+    "step_7": "Kontroluj kvalitu položek podmínkami a přesměruj vadné kusy.",
+    "step_8": "Použij proměnné k sledování počtů a rozhodování."
+  }
+}

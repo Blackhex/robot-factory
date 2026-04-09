@@ -1,0 +1,99 @@
+{
+  "id": "robot-factory",
+  "nickname": "robot-factory",
+  "name": "Robot Factory",
+  "title": "Robot Factory - MakeCode",
+  "description": "A visual programming target for the Robot Factory game.",
+  "corepkg": "core",
+  "bundleddirs": [
+    "libs/core"
+  ],
+  "cloud": {
+    "workspace": false,
+    "packages": false,
+    "sharing": false,
+    "publishing": false,
+    "importing": false,
+    "githubPackages": false
+  },
+  "compile": {
+    "isNative": false,
+    "hasHex": false,
+    "deployDrives": {},
+    "floatingPoint": true,
+    "taggedInts": false,
+    "nativeType": "none"
+  },
+  "runtime": {
+    "mathBlocks": false,
+    "loopsBlocks": true,
+    "logicBlocks": true,
+    "variablesBlocks": true,
+    "textBlocks": false,
+    "listsBlocks": false,
+    "functionBlocks": true
+  },
+  "simulator": {
+    "autoRun": false
+  },
+  "appTheme": {
+    "accentColor": "#6366f1",
+    "logoUrl": "",
+    "homeUrl": "",
+    "embedUrl": "",
+    "privacyUrl": "",
+    "termsOfUseUrl": "",
+    "allowParentController": true,
+    "allowPackageExtensions": false,
+    "showHomeScreen": false,
+    "hideHomeSteps": true,
+    "hideSideDocs": true,
+    "hideReplaceMyCode": true,
+    "docMenu": [],
+    "blocklyOptions": {
+      "grid": {
+        "spacing": 20,
+        "length": 3,
+        "colour": "#ccc",
+        "snap": true
+      }
+    },
+    "coloredToolbox": true,
+    "monacoToolbox": true,
+    "invertedMenu": true,
+    "simAnimationEnter": "fly right in",
+    "simAnimationExit": "fly right out"
+  },
+  "tsprj": {
+    "files": {
+      "main.ts": "",
+      "main.blocks": ""
+    },
+    "dependencies": {
+      "core": "file:libs/core"
+    },
+    "config": {
+      "name": "{0} robot-factory",
+      "dependencies": {
+        "core": "*"
+      },
+      "files": ["main.ts", "main.blocks"]
+    }
+  },
+  "blocksprj": {
+    "files": {
+      "main.ts": "",
+      "main.blocks": ""
+    },
+    "dependencies": {
+      "core": "file:libs/core"
+    },
+    "config": {
+      "name": "{0} robot-factory",
+      "dependencies": {
+        "core": "*"
+      },
+      "files": ["main.ts", "main.blocks"]
+    }
+  }
+}

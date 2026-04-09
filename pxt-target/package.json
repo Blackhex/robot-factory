@@ -1,0 +1,15 @@
+{
+  "name": "pxt-robot-factory",
+  "version": "1.0.0",
+  "description": "MakeCode target for Robot Factory",
+  "private": true,
+  "dependencies": {
+    "pxt-core": "7.4.21"
+  },
+  "devDependencies": {
+    "typescript": "^4.9.5"
+  },
+  "scripts": {
+    "build": "pxt staticpkg --no-appcache --output ../public/pxt-editor"
+  }
+}

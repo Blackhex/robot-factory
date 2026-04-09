@@ -1,0 +1,191 @@
+{
+  "app_title": "Robot Factory",
+  "toolbar": {
+    "save": "Save",
+    "load": "Load",
+    "export": "Export"
+  },
+  "machines": {
+    "part_fabricator": "Part Fabricator",
+    "assembler": "Assembler",
+    "quality_checker": "Quality Checker",
+    "painter": "Painter",
+    "recycler": "Recycler",
+    "splitter": "Splitter"
+  },
+  "actions": {
+    "start": "Start",
+    "pause": "Pause",
+    "restart": "Restart",
+    "open_editor": "Open Editor"
+  },
+  "machine_panel": {
+    "type": "Type",
+    "delete": "Delete"
+  },
+  "language": "Language",
+  "main_menu": {
+    "title": "Robot Factory",
+    "subtitle": "Build. Program. Manufacture.",
+    "start": "Start Game",
+    "sandbox": "Sandbox Mode"
+  },
+  "blocks": {
+    "category_actions": "Actions",
+    "produce_part": "produce %1",
+    "produce_part_tooltip": "Produce a part of the specified type",
+    "set_recipe": "set recipe of %1 to %2",
+    "set_recipe_tooltip": "Set the recipe for a machine",
+    "start_machine": "start machine %1",
+    "start_machine_tooltip": "Start the specified machine",
+    "stop_machine": "stop machine %1",
+    "stop_machine_tooltip": "Stop the specified machine",
+    "set_belt_speed": "set belt %1 speed to %2",
+    "set_belt_speed_tooltip": "Set the speed of a conveyor belt",
+    "route_to": "route to %1",
+    "route_to_tooltip": "Route items to the target machine",
+    "category_loops": "Loops",
+    "repeat_times": "repeat %1 times",
+    "repeat_times_tooltip": "Repeat the enclosed actions a number of times",
+    "while_condition": "while %1",
+    "while_condition_tooltip": "Repeat while the condition is true",
+    "category_conditionals": "Conditionals",
+    "if_quality": "if quality of %1 %2 %3",
+    "if_quality_tooltip": "Check item quality against a threshold",
+    "if_item_type": "if item type is %1",
+    "if_item_type_tooltip": "Branch based on item type",
+    "if_else": "if %1",
+    "if_else_tooltip": "Conditional branching",
+    "else": "else %1",
+    "category_variables": "Variables",
+    "set_variable": "set %1 to %2",
+    "set_variable_tooltip": "Set a variable to a value",
+    "get_variable": "get %1",
+    "get_variable_tooltip": "Get the value of a variable",
+    "change_variable": "change %1 by %2",
+    "change_variable_tooltip": "Change a variable by an amount",
+    "category_functions": "Functions",
+    "define_procedure": "define procedure %1",
+    "define_procedure_tooltip": "Define a reusable procedure",
+    "call_procedure": "call procedure %1",
+    "call_procedure_tooltip": "Call a defined procedure",
+    "category_events": "Events",
+    "on_order_received": "when order received",
+    "on_order_received_tooltip": "Run when a new order is received",
+    "on_belt_jam": "when belt jams",
+    "on_belt_jam_tooltip": "Run when a belt jams",
+    "on_machine_idle": "when machine %1 is idle",
+    "on_machine_idle_tooltip": "Run when a machine becomes idle"
+  },
+  "conditions": {
+    "belt_has_items": "belt has items",
+    "machine_idle": "machine is idle",
+    "items_remaining": "items remaining"
+  },
+  "items": {
+    "current_item": "current item"
+  },
+  "belts": {
+    "belt_1": "Belt 1",
+    "belt_2": "Belt 2",
+    "belt_3": "Belt 3"
+  },
+  "parts": {
+    "wheel_small": "Small Wheel",
+    "sensor_proximity": "Proximity Sensor",
+    "frame_basic": "Basic Frame",
+    "motor_standard": "Standard Motor"
+  },
+  "recipes": {
+    "basic_wheel": "Basic Wheel",
+    "sensor_unit": "Sensor Unit",
+    "robot_frame": "Robot Frame"
+  },
+  "levels": {
+    "level_1": {
+      "name": "Hello Factory",
+      "description": "Place machines, connect a belt, and build your first robot."
+    },
+    "level_2": {
+      "name": "Assembly Line",
+      "description": "Set up a sequence to stamp, assemble, and ship 3 robots."
+    },
+    "level_3": {
+      "name": "Mass Production",
+      "description": "Use loops to produce 10 parts efficiently."
+    },
+    "level_4": {
+      "name": "Quality Matters",
+      "description": "Use conditionals to route defective items to the recycler."
+    },
+    "level_5": {
+      "name": "Smart Routing",
+      "description": "Use variables and splitters to produce multiple robot types."
+    },
+    "level_6": {
+      "name": "Custom Robots",
+      "description": "Define functions to build three different robot models."
+    },
+    "level_7": {
+      "name": "Rush Order!",
+      "description": "React to events and meet a tight deadline."
+    },
+    "level_8": {
+      "name": "Optimize Everything",
+      "description": "Balance speed, cost, and quality to earn maximum stars."
+    },
+    "level_9": {
+      "name": "Robot Expo",
+      "description": "Sandbox showcase — build anything you want!"
+    },
+    "level_10": {
+      "name": "Factory Tycoon",
+      "description": "Run a multi-line production facility for all robot types."
+    }
+  },
+  "scoring": {
+    "speed": "Speed",
+    "cost": "Cost",
+    "quality": "Quality",
+    "total_stars": "Total Stars",
+    "stars_1": "1 Star",
+    "stars_2": "2 Stars",
+    "stars_3": "3 Stars"
+  },
+  "hud": {
+    "items_produced": "Items",
+    "robots_completed": "Robots",
+    "time": "Time",
+    "quality": "Quality"
+  },
+  "level_select": {
+    "title": "Select Level",
+    "locked": "🔒 Locked",
+    "back": "Back to Menu"
+  },
+  "score": {
+    "next_level": "Next Level",
+    "retry": "Retry",
+    "back_to_menu": "Back to Menu"
+  },
+  "belt_panel": {
+    "title": "Belt",
+    "segments": "Segments",
+    "source": "Source",
+    "target": "Target",
+    "delete": "Delete Belt"
+  },
+  "tutorial": {
+    "skip": "Skip",
+    "next": "Next",
+    "finish": "Finish",
+    "step_1": "Welcome! Click on the toolbar to select a machine type.",
+    "step_2": "Click on the grid to place your machine.",
+    "step_3": "Now select 'Place Belt' and connect your machines.",
+    "step_4": "Open the editor with the E key to write your program.",
+    "step_5": "Press Play to start the simulation and watch your factory!",
+    "step_6": "Use loops to repeat actions efficiently.",
+    "step_7": "Check item quality with conditionals to route defective items.",
+    "step_8": "Use variables to track counts and make decisions."
+  }
+}
