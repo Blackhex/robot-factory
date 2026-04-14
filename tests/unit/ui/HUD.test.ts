@@ -45,4 +45,52 @@ describe('HUD', () => {
     // THEN it exists
     expect(parent.querySelector('.ui-hud-level')).not.toBeNull()
   })
+
+  it('should display outputsDelivered instead of itemsProduced', () => {
+    // GIVEN a fresh parent with its own HUD instance
+    const ownParent = document.createElement('div')
+    const hud = new HUD(ownParent)
+
+    // WHEN update is called with both itemsProduced and outputsDelivered
+    hud.update({
+      itemsProduced: 5,
+      robotsCompleted: 0,
+      timeElapsed: 0,
+      qualityPercent: 100,
+      outputsDelivered: 3,
+    })
+
+    // THEN the first metric value (items counter) should show outputsDelivered (3), not itemsProduced (5)
+    const values = ownParent.querySelectorAll('.ui-hud-metric-value')
+    expect(values[0].textContent).toBe('3')
+  })
+
+  it('should use hud.items_delivered label for the first metric', () => {
+    // WHEN we query the first metric label
+    const labels = parent.querySelectorAll('.ui-hud-metric-label')
+
+    // THEN the first label should show "Items Delivered" (en translation of hud.items_delivered)
+    expect(labels[0].textContent).toBe('Items Delivered')
+    // AND the label should store the correct i18n key for language switching
+    expect((labels[0] as HTMLElement).dataset.i18nKey).toBe('hud.items_delivered')
+  })
+
+  it('should format time as minutes:seconds with zero-padded seconds', () => {
+    // GIVEN a fresh HUD
+    const ownParent = document.createElement('div')
+    const hud = new HUD(ownParent)
+
+    // WHEN update is called with 125 seconds elapsed
+    hud.update({
+      itemsProduced: 0,
+      robotsCompleted: 0,
+      timeElapsed: 125,
+      qualityPercent: 100,
+      outputsDelivered: 0,
+    })
+
+    // THEN formatted time should be "2:05"
+    const values = ownParent.querySelectorAll('.ui-hud-metric-value')
+    expect(values[2].textContent).toBe('2:05')
+  })
 })

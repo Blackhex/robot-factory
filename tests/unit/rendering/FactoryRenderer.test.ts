@@ -101,6 +101,7 @@ vi.mock('three', () => {
     },
     BoxGeometry: class { dispose = vi.fn(); groups: any[] = []; clearGroups() { this.groups = [] }; addGroup(start: number, count: number, materialIndex: number) { this.groups.push({start, count, materialIndex}) } },
     PlaneGeometry: class { dispose = vi.fn() },
+    Color: class { value = 0; constructor(v?: number) { if (v !== undefined) this.value = v } },
     MeshStandardMaterial: class {
       dispose = vi.fn()
       map: any = null
@@ -343,7 +344,7 @@ describe('FactoryRenderer', () => {
     const materials = iconMats(renderer)
     const types: MachineType[] = [
       'part_fabricator', 'assembler', 'quality_checker',
-      'painter', 'recycler', 'splitter',
+      'painter', 'recycler', 'splitter', 'factory_output',
     ]
     expect(materials.size).toBe(types.length)
     for (const type of types) {
@@ -394,6 +395,99 @@ describe('FactoryRenderer', () => {
       for (const m of arrowPair.inputs) expect(scene.children).not.toContain(m)
       for (const m of arrowPair.outputs) expect(scene.children).not.toContain(m)
     }
+  })
+
+  // ── Machine body highlight (machine selection) ─────────────────
+
+  describe('highlightMachine()', () => {
+    it('swaps machine mesh material to highlight material', () => {
+      // GIVEN a machine at (2, 2)
+      factory.placeMachine(2, 2, 'assembler')
+      renderer.updateMachines()
+      const machine = factory.getMachineAt(2, 2)!
+      const meshBefore = (renderer as any).machineMeshes.get(machine.id)
+      const baseMat = meshBefore.material
+
+      // WHEN highlighting the machine
+      renderer.highlightMachine(machine.id)
+
+      // THEN material is swapped to highlight version
+      expect(meshBefore.material).not.toBe(baseMat)
+      expect((renderer as any).highlightedMachineId).toBe(machine.id)
+    })
+
+    it('restores previous machine material when switching highlight', () => {
+      // GIVEN two machines
+      factory.placeMachine(1, 1, 'assembler')
+      factory.placeMachine(3, 3, 'painter')
+      renderer.updateMachines()
+      const m1 = factory.getMachineAt(1, 1)!
+      const m2 = factory.getMachineAt(3, 3)!
+      const mesh1 = (renderer as any).machineMeshes.get(m1.id)
+      const baseMat1 = (renderer as any).machineMaterials.get('assembler')
+
+      // WHEN highlighting first then second
+      renderer.highlightMachine(m1.id)
+      renderer.highlightMachine(m2.id)
+
+      // THEN first machine is restored to base material
+      expect(mesh1.material).toBe(baseMat1)
+    })
+
+    it('does nothing when machineId is not found', () => {
+      // WHEN highlighting a non-existent machine
+      renderer.highlightMachine('nonexistent_id')
+
+      // THEN highlightedMachineId is set but no crash
+      expect((renderer as any).highlightedMachineId).toBe('nonexistent_id')
+    })
+  })
+
+  describe('clearMachineHighlight()', () => {
+    it('restores machine mesh to base material', () => {
+      // GIVEN a highlighted machine
+      factory.placeMachine(2, 2, 'assembler')
+      renderer.updateMachines()
+      const machine = factory.getMachineAt(2, 2)!
+      const mesh = (renderer as any).machineMeshes.get(machine.id)
+      const baseMat = (renderer as any).machineMaterials.get('assembler')
+      renderer.highlightMachine(machine.id)
+      expect(mesh.material).not.toBe(baseMat)
+
+      // WHEN clearing the highlight
+      renderer.clearMachineHighlight()
+
+      // THEN material is restored
+      expect(mesh.material).toBe(baseMat)
+    })
+
+    it('does not throw when no machine is highlighted', () => {
+      expect(() => renderer.clearMachineHighlight()).not.toThrow()
+    })
+
+    it('resets highlightedMachineId to null', () => {
+      factory.placeMachine(2, 2, 'assembler')
+      renderer.updateMachines()
+      renderer.highlightMachine(factory.getMachineAt(2, 2)!.id)
+      expect((renderer as any).highlightedMachineId).not.toBeNull()
+
+      renderer.clearMachineHighlight()
+
+      expect((renderer as any).highlightedMachineId).toBeNull()
+    })
+  })
+
+  describe('dispose() highlight material cleanup', () => {
+    it('disposes highlight materials on dispose()', () => {
+      const hlMaterials = (renderer as any).machineHighlightMaterials as Map<string, any>
+      const disposeFns = Array.from(hlMaterials.values()).map((m: any) => m.dispose)
+
+      renderer.dispose()
+
+      for (const fn of disposeFns) {
+        expect(fn).toHaveBeenCalled()
+      }
+    })
   })
 })
 

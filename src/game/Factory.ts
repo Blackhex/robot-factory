@@ -507,6 +507,36 @@ export class Factory implements GridReader {
   // ─── Belt chain facade ────────────────────────────────
 
   placeBeltChain(from: MachineInfo, to: MachineInfo, sourceSlotType: 'input' | 'output' = 'output', fixedRotations?: boolean, lockedMachinePos?: GridPosition, ignoreBeltIds?: ReadonlySet<string>): boolean {
+    // Try without ignoring any existing belts first (matches ghost preview behavior).
+    // This avoids crossings with existing belts when a clean path exists.
+    const savedFromRot = from.rotation
+    const savedToRot = to.rotation
+    if (this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, fixedRotations, lockedMachinePos, ignoreBeltIds)) {
+      return true
+    }
+    // Restore rotations that the failed attempt may have changed
+    this.setMachineRotation(from.x, from.z, savedFromRot)
+    this.setMachineRotation(to.x, to.z, savedToRot)
+
+    // Fall back to ignoring existing belts between the same machine pair.
+    // This allows bidirectional belts to share slot cells in tight geometries
+    // where the only path goes through the other belt's cells.
+    if (!ignoreBeltIds) {
+      const merged = this.mergeIgnoreBeltIds(from.id, to.id)
+      if (merged) {
+        return this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, fixedRotations, lockedMachinePos, merged)
+      }
+    }
+    return false
+  }
+
+  private tryPlaceBeltWithIgnore(
+    from: MachineInfo, to: MachineInfo,
+    sourceSlotType: 'input' | 'output',
+    fixedRotations: boolean | undefined,
+    lockedMachinePos: GridPosition | undefined,
+    ignoreBeltIds: ReadonlySet<string> | undefined,
+  ): boolean {
     const fromPos: GridPosition = { x: from.x, z: from.z }
     const toPos: GridPosition = { x: to.x, z: to.z }
     // When a specific machine's rotation is locked, use forcedHasBelts to prevent
@@ -514,10 +544,7 @@ export class Factory implements GridReader {
     const forcedHasBelts = lockedMachinePos
       ? new Set([`${lockedMachinePos.x},${lockedMachinePos.z}`]) as ReadonlySet<string>
       : undefined
-    // Ignore existing belts between the same two machines at slot boundaries so that
-    // bidirectional belts can share slot cells.
-    const effectiveIgnore = ignoreBeltIds ?? this.mergeIgnoreBeltIds(from.id, to.id)
-    const plan = this.planner.computePlacementPlan(fromPos, toPos, sourceSlotType, effectiveIgnore, fixedRotations, undefined, undefined, forcedHasBelts)
+    const plan = this.planner.computePlacementPlan(fromPos, toPos, sourceSlotType, ignoreBeltIds, fixedRotations, undefined, undefined, forcedHasBelts)
 
     if (!plan || plan.collides) return false
 
@@ -542,11 +569,13 @@ export class Factory implements GridReader {
     const srcSlot = offsetToSlotPosition(srcSlotOffset, srcMachine.rotation)
     const dstSlot = offsetToSlotPosition(dstSlotOffset, dstMachine.rotation)
     if (!srcSlot || !dstSlot) return false
-    // Ensure the resolved slot is a genuine I/O for this machine type
-    // (offsetToSlotPosition maps geometrically but doesn't know the machine's actual slots)
-    const validSrcSlots = [...srcMachine.slots.outputs, ...srcMachine.slots.inputs]
-    const validDstSlots = [...dstMachine.slots.outputs, ...dstMachine.slots.inputs]
-    if (!validSrcSlots.includes(srcSlot) || !validDstSlots.includes(dstSlot)) return false
+    // Ensure the resolved slots match the correct I/O type:
+    // source machine must use an output slot, destination machine must use an input slot
+    if (!srcMachine.slots.outputs.includes(srcSlot) || !dstMachine.slots.inputs.includes(dstSlot)) return false
+
+    // Reject if either slot is already occupied by another belt
+    if (!this.isSlotFreeExcluding(srcMachine, srcSlotOffset, ignoreBeltIds) ||
+        !this.isSlotFreeExcluding(dstMachine, dstSlotOffset, ignoreBeltIds)) return false
 
     const id = `belt_${this.nextBeltId++}`
     const belt: BeltInfo = {
@@ -567,9 +596,54 @@ export class Factory implements GridReader {
     ignoreBeltIds?: ReadonlySet<string>,
     fixedRotations?: boolean,
   ): { path: GridPosition[], collides: boolean } | null {
+    // Try without ignoring existing belts between the same pair first
     const plan = this.planner.computePlacementPlan(from, to, sourceSlotType, ignoreBeltIds, fixedRotations)
-    if (!plan) return null
-    return { path: plan.path, collides: plan.collides }
+    if (plan && !plan.collides && this.isValidSlotPath(plan.path, sourceSlotType)) {
+      return { path: plan.path, collides: false }
+    }
+
+    // Fall back to ignoring existing belts between the same machine pair
+    // (mirrors placeBeltChain behavior for ghost/final parity)
+    if (!ignoreBeltIds) {
+      const fromMachine = this.getMachineAt(from.x, from.z)
+      const toMachine = this.getMachineAt(to.x, to.z)
+      if (fromMachine && toMachine) {
+        const merged = this.mergeIgnoreBeltIds(fromMachine.id, toMachine.id)
+        if (merged) {
+          const mergedPlan = this.planner.computePlacementPlan(from, to, sourceSlotType, merged, fixedRotations)
+          if (mergedPlan && this.isValidSlotPath(mergedPlan.path, sourceSlotType)) {
+            return { path: mergedPlan.path, collides: mergedPlan.collides }
+          }
+        }
+      }
+    }
+
+    // Return colliding result for ghost preview
+    if (plan) return { path: plan.path, collides: plan.collides }
+    return null
+  }
+
+  /**
+   * Validate that a path's endpoints map to valid I/O slots on the source/destination machines.
+   * Mirrors the slot validation in placeBeltChain to ensure ghost/final parity.
+   */
+  private isValidSlotPath(path: GridPosition[], sourceSlotType: 'input' | 'output'): boolean {
+    if (path.length < 2) return false
+    const srcMachine = sourceSlotType === 'output'
+      ? this.getMachineAt(path[0].x, path[0].z)
+      : this.getMachineAt(path[path.length - 1].x, path[path.length - 1].z)
+    const dstMachine = sourceSlotType === 'output'
+      ? this.getMachineAt(path[path.length - 1].x, path[path.length - 1].z)
+      : this.getMachineAt(path[0].x, path[0].z)
+    if (!srcMachine || !dstMachine) return false
+
+    const srcSlotOffset = { x: path[1].x - path[0].x, z: path[1].z - path[0].z }
+    const dstSlotOffset = { x: path[path.length - 2].x - path[path.length - 1].x, z: path[path.length - 2].z - path[path.length - 1].z }
+    const srcSlot = offsetToSlotPosition(srcSlotOffset, srcMachine.rotation)
+    const dstSlot = offsetToSlotPosition(dstSlotOffset, dstMachine.rotation)
+    if (!srcSlot || !dstSlot) return false
+    if (!srcMachine.slots.outputs.includes(srcSlot) || !dstMachine.slots.inputs.includes(dstSlot)) return false
+    return true
   }
 
   findBestBeltPath(
@@ -595,8 +669,9 @@ export class Factory implements GridReader {
     machineType: MachineType, rotation: Direction,
     otherEnd: GridPosition, machineIsSource: boolean,
     ignoreBeltIds?: ReadonlySet<string>,
+    extraBlockedCells?: ReadonlySet<string>,
   ): { path: GridPosition[], collides: boolean } | null {
-    return this.planner.computeReconnectPath(mx, mz, machineType, rotation, otherEnd, machineIsSource, ignoreBeltIds)
+    return this.planner.computeReconnectPath(mx, mz, machineType, rotation, otherEnd, machineIsSource, ignoreBeltIds, extraBlockedCells)
   }
 
   // ─── Bulk restore (for deserialization) ────────────────
@@ -724,19 +799,8 @@ export class Factory implements GridReader {
     }
   }
 
-  private getConnectedBeltInfos(machineId: string): BeltInfo[] {
-    const result: BeltInfo[] = []
-    for (const belt of this.belts.values()) {
-      if (belt.sourceMachine.id === machineId || belt.destinationMachine.id === machineId) {
-        result.push(belt)
-      }
-    }
-    return result
-  }
-
-  /** Merge caller-provided ignoreBeltIds with IDs of existing belts between the same
-   *  two machines. This allows bidirectional belts to coexist by ignoring each other's
-   *  segments during collision checks at shared slot cells. */
+  /** Return IDs of existing belts between the same two machines.
+   *  Used as fallback ignoreBeltIds when clean path can't be found. */
   private mergeIgnoreBeltIds(fromId: string, toId: string): ReadonlySet<string> | undefined {
     const merged = new Set<string>()
     for (const belt of this.belts.values()) {
@@ -746,6 +810,16 @@ export class Factory implements GridReader {
       if (connectsSamePair) merged.add(belt.id)
     }
     return merged.size > 0 ? merged : undefined
+  }
+
+  private getConnectedBeltInfos(machineId: string): BeltInfo[] {
+    const result: BeltInfo[] = []
+    for (const belt of this.belts.values()) {
+      if (belt.sourceMachine.id === machineId || belt.destinationMachine.id === machineId) {
+        result.push(belt)
+      }
+    }
+    return result
   }
 
   /** Check whether any two belts share intermediate cells (crossing paths). */

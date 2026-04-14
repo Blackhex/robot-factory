@@ -56,6 +56,8 @@ export function getSlotPositions(type: MachineType): SlotPositions {
       return { inputs: ['back'], outputs: ['front', 'right', 'left'] }
     case 'assembler':
       return { inputs: ['back', 'right', 'left'], outputs: ['front'] }
+    case 'factory_output':
+      return { inputs: ['back', 'right', 'left', 'front'], outputs: [] }
     default:
       return { inputs: ['back'], outputs: ['front'] }
   }

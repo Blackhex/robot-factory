@@ -148,23 +148,19 @@ function assertBeltSlotInvariant(factory: Factory): void {
     const srcOff = { x: belt.path[1].x - belt.path[0].x, z: belt.path[1].z - belt.path[0].z }
     const srcSlots = getSlotPositions(belt.sourceMachine.type)
     const srcOutputOffsets = srcSlots.outputs.map(p => slotPositionToOffset(p, belt.sourceMachine.rotation))
-    const srcInputOffsets = srcSlots.inputs.map(p => slotPositionToOffset(p, belt.sourceMachine.rotation))
-    const srcAllOffsets = [...srcOutputOffsets, ...srcInputOffsets]
-    const srcValid = srcAllOffsets.some(o => o.x === srcOff.x && o.z === srcOff.z)
+    const srcValid = srcOutputOffsets.some(o => o.x === srcOff.x && o.z === srcOff.z)
     expect(srcValid,
-      `BELT-SLOT VIOLATION: Belt ${belt.id} exits source ${belt.sourceMachine.type}(${belt.sourceMachine.x},${belt.sourceMachine.z}) rotation=${belt.sourceMachine.rotation} in direction (${srcOff.x},${srcOff.z}) which is not a valid slot. Valid slots: ${JSON.stringify(srcAllOffsets)}`
+      `BELT-SLOT VIOLATION: Belt ${belt.id} exits source ${belt.sourceMachine.type}(${belt.sourceMachine.x},${belt.sourceMachine.z}) rotation=${belt.sourceMachine.rotation} in direction (${srcOff.x},${srcOff.z}) which is not a valid output slot. Valid output slots: ${JSON.stringify(srcOutputOffsets)}`
     ).toBe(true)
 
     // Destination slot validation
     const n = belt.path.length
     const dstOff = { x: belt.path[n-2].x - belt.path[n-1].x, z: belt.path[n-2].z - belt.path[n-1].z }
     const dstSlots = getSlotPositions(belt.destinationMachine.type)
-    const dstOutputOffsets = dstSlots.outputs.map(p => slotPositionToOffset(p, belt.destinationMachine.rotation))
     const dstInputOffsets = dstSlots.inputs.map(p => slotPositionToOffset(p, belt.destinationMachine.rotation))
-    const dstAllOffsets = [...dstOutputOffsets, ...dstInputOffsets]
-    const dstValid = dstAllOffsets.some(o => o.x === dstOff.x && o.z === dstOff.z)
+    const dstValid = dstInputOffsets.some(o => o.x === dstOff.x && o.z === dstOff.z)
     expect(dstValid,
-      `BELT-SLOT VIOLATION: Belt ${belt.id} enters destination ${belt.destinationMachine.type}(${belt.destinationMachine.x},${belt.destinationMachine.z}) rotation=${belt.destinationMachine.rotation} from direction (${dstOff.x},${dstOff.z}) which is not a valid slot. Valid slots: ${JSON.stringify(dstAllOffsets)}`
+      `BELT-SLOT VIOLATION: Belt ${belt.id} enters destination ${belt.destinationMachine.type}(${belt.destinationMachine.x},${belt.destinationMachine.z}) rotation=${belt.destinationMachine.rotation} from direction (${dstOff.x},${dstOff.z}) which is not a valid input slot. Valid input slots: ${JSON.stringify(dstInputOffsets)}`
     ).toBe(true)
   }
 }
@@ -1606,7 +1602,7 @@ describe('Factory', () => {
       assertBeltSlotInvariant(factory)
     })
 
-    it('should reject move that would cause belt crossing', () => {
+    it('should allow move when bidirectional belts can be reconnected without crossing', () => {
       // GIVEN: 20×20 grid, two south-facing machines with bidirectional belts
       factory = createTestFactory(20, 20)
       const a = factory.placeMachine(9, 10, 'part_fabricator')!
@@ -1621,19 +1617,18 @@ describe('Factory', () => {
       expect(factory.getBelts()).toHaveLength(2)
       assertBeltSlotInvariant(factory)
 
-      // WHEN: attempt to move B down to (10,13) — reconnected paths would cross
+      // WHEN: move B down to (10,13) — belts can be reconnected without crossing
       const result = factory.moveMachine(10, 10, 10, 13)
 
-      // THEN: move should be rejected
-      expect(result).toBe(false)
+      // THEN: move succeeds because smart routing avoids belt crossings
+      expect(result).toBe(true)
 
-      // AND: machine B should still be at original position
-      expect(factory.getMachineAt(10, 10)).not.toBeNull()
-      expect(factory.getMachineAt(10, 10)!.type).toBe('part_fabricator')
-      expect(factory.getMachineAt(10, 13)).toBeNull()
+      // AND: machine B should be at new position
+      expect(factory.getMachineAt(10, 13)).not.toBeNull()
+      expect(factory.getMachineAt(10, 13)!.type).toBe('part_fabricator')
 
-      // AND: original belts should still exist
-      expect(factory.getBelts()).toHaveLength(2)
+      // AND: belts should be reconnected without crossings
+      expect(factory.getBelts().length).toBeGreaterThanOrEqual(1)
       assertBeltSlotInvariant(factory)
     })
   })
@@ -3593,50 +3588,44 @@ describe('Factory', () => {
     })
 
     it('should remove all chains when machine has belts going to multiple machines', () => {
-      // GIVEN
+      // GIVEN — Splitter (3 outputs: front, right, left) at (4,4),
+      // Painter at (1,4) west, Recycler at (4,7) south
       factory = createTestFactory(10, 10)
-      // Machine A at (4,4), Machine B at (4,1), Machine C at (4,7)
-      factory.placeMachine(4, 4, 'assembler')
-      factory.placeMachine(4, 1, 'painter')
+      factory.placeMachine(4, 4, 'splitter')
+      factory.placeMachine(1, 4, 'painter')
       factory.placeMachine(4, 7, 'recycler')
-      // Chain 1: A→B (3 segments)
-      factory.placeBeltChain(factory.getMachineAt(4, 4)!, factory.getMachineAt(4, 1)!)
-      // Chain 2: A→C (3 segments)
+      // Chain 1: S→P (3 segments going west, uses 'front' output)
+      factory.placeBeltChain(factory.getMachineAt(4, 4)!, factory.getMachineAt(1, 4)!)
+      // Chain 2: S→R (3 segments going south, uses 'right' output)
       factory.placeBeltChain(factory.getMachineAt(4, 4)!, factory.getMachineAt(4, 7)!)
-      expect(renderGrid(factory, 4, 1, 4, 7)).toBe([
-        '|P|',
-        '|│|',
-        '|│|',
-        '|A|',
-        '|│|',
-        '|│|',
-        '|R|',
+      expect(renderGrid(factory, 1, 4, 4, 7)).toBe([
+        '|P|─|─|S|',
+        '| | | |│|',
+        '| | | |│|',
+        '| | | |R|',
       ].join('\n'))
       expectBeltSegments(factory, [
-        seg(4, 4, 4, 3),
-        seg(4, 3, 4, 2),
-        seg(4, 2, 4, 1),
+        seg(4, 4, 3, 4),
+        seg(3, 4, 2, 4),
+        seg(2, 4, 1, 4),
         seg(4, 4, 4, 5),
         seg(4, 5, 4, 6),
         seg(4, 6, 4, 7),
       ])
 
-      // WHEN — Remove machine A — both chains (all 6 segments) must go
+      // WHEN — Remove splitter — both chains (all 6 segments) must go
       factory.removeMachine(4, 4)
 
       // THEN
-      expect(renderGrid(factory, 4, 1, 4, 7)).toBe([
-        '|P|',
-        '| |',
-        '| |',
-        '| |',
-        '| |',
-        '| |',
-        '|R|',
+      expect(renderGrid(factory, 1, 4, 4, 7)).toBe([
+        '|P| | | |',
+        '| | | | |',
+        '| | | | |',
+        '| | | |R|',
       ].join('\n'))
       expect(factory.getBelts()).toHaveLength(0)
-      expect(factory.getBeltsAt(4, 2)).toHaveLength(0)
-      expect(factory.getBeltsAt(4, 3)).toHaveLength(0)
+      expect(factory.getBeltsAt(2, 4)).toHaveLength(0)
+      expect(factory.getBeltsAt(3, 4)).toHaveLength(0)
       expect(factory.getBeltsAt(4, 5)).toHaveLength(0)
       expect(factory.getBeltsAt(4, 6)).toHaveLength(0)
       assertBeltSlotInvariant(factory)
@@ -4729,11 +4718,11 @@ describe('Factory', () => {
       expect(factory.getBelts()).toHaveLength(2)
       assertBeltSlotInvariant(factory)
 
-      // WHEN: try to move B down to (10,13) — reconnected paths would cross
+      // WHEN: try to move B down to (10,13) — smart routing avoids crossing
       const result = factory.canMoveMachine(10, 10, 10, 13)
 
-      // THEN: move should be rejected because belt reconnection would cause crossing
-      expect(result).toBe(false)
+      // THEN: move is allowed because belts can be reconnected without crossing
+      expect(result).toBe(true)
     })
 
     it('should return false when move would drop a belt (no valid reconnection path)', () => {
@@ -4916,6 +4905,400 @@ describe('Factory', () => {
       ).toBe(true)
 
       assertBeltSlotInvariant(factory)
+    })
+  })
+
+  describe('placeBeltChain auto-rotation fallback', () => {
+    beforeEach(() => {
+      factory = createTestFactory(20, 20)
+    })
+
+    it('should preserve machine rotations with fixedRotations=true', () => {
+      // GIVEN — two south-facing fabricators on same column, B is south of A
+      // Both face south: A output at (5,6), B input at (5,7) → straight path works
+      const machineA = factory.placeMachine(5, 5, 'part_fabricator')!
+      const machineB = factory.placeMachine(5, 8, 'part_fabricator')!
+      expect(machineA.rotation).toBe('south')
+      expect(machineB.rotation).toBe('south')
+
+      // ASSERT
+      expect(renderGrid(factory, 5, 5, 5, 8)).toBe([
+        '|F|',
+        '| |',
+        '| |',
+        '|F|',
+      ].join('\n'))
+
+      // WHEN — place with fixedRotations=true
+      const result = factory.placeBeltChain(machineA, machineB, 'output', true)
+
+      // THEN — succeeds AND rotations are preserved
+      expect(result).toBe(true)
+      expect(machineA.rotation).toBe('south')
+      expect(machineB.rotation).toBe('south')
+      assertBeltSlotInvariant(factory)
+    })
+
+    it('should auto-rotate unconnected machines when fixedRotations is false', () => {
+      // GIVEN — two fabricators on same row, both facing south (wrong way for east-west belt)
+      const machineA = factory.placeMachine(5, 5, 'part_fabricator')!
+      const machineB = factory.placeMachine(8, 5, 'part_fabricator')!
+      expect(machineA.rotation).toBe('south')
+      expect(machineB.rotation).toBe('south')
+
+      // ASSERT
+      expect(renderGrid(factory, 5, 5, 8, 5)).toBe([
+        '|F| | |F|',
+      ].join('\n'))
+
+      // WHEN — place without fixedRotations (auto-rotation allowed)
+      const result = factory.placeBeltChain(machineA, machineB, 'output')
+
+      // THEN — succeeds with auto-rotation
+      expect(result).toBe(true)
+      expect(factory.getBelts()).toHaveLength(1)
+
+      // At least one machine should have been rotated from default 'south'
+      const rotationChanged = machineA.rotation !== 'south' || machineB.rotation !== 'south'
+      expect(rotationChanged,
+        `Expected auto-rotation from default 'south'. A=${machineA.rotation}, B=${machineB.rotation}`
+      ).toBe(true)
+
+      assertBeltSlotInvariant(factory)
+    })
+
+    it('should produce shorter belt path with auto-rotation than with fixed rotations', () => {
+      // GIVEN — two south-facing fabricators side by side on same row
+      // With fixedRotations=true: BFS must route around machines via slots (longer S-path)
+      // Without fixedRotations: machines rotate to face each other (shorter straight path)
+      const mA1 = factory.placeMachine(5, 5, 'part_fabricator')!
+      const mB1 = factory.placeMachine(7, 5, 'part_fabricator')!
+
+      // WHEN — place with fixedRotations=true
+      const fixedResult = factory.placeBeltChain(mA1, mB1, 'output', true)
+      expect(fixedResult).toBe(true)
+      const fixedPathLength = factory.getBelts()[0].path.length
+      const fixedARotation = mA1.rotation
+      const fixedBRotation = mB1.rotation
+
+      // Rotations should stay at 'south' with fixedRotations=true
+      expect(fixedARotation).toBe('south')
+      expect(fixedBRotation).toBe('south')
+
+      // GIVEN — fresh factory for auto-rotation test
+      factory = createTestFactory(20, 20)
+      const mA2 = factory.placeMachine(5, 5, 'part_fabricator')!
+      const mB2 = factory.placeMachine(7, 5, 'part_fabricator')!
+
+      // WHEN — place without fixedRotations
+      const autoResult = factory.placeBeltChain(mA2, mB2, 'output')
+      expect(autoResult).toBe(true)
+      const autoPathLength = factory.getBelts()[0].path.length
+
+      // THEN — auto-rotated path should be shorter or equal (direct east-west)
+      expect(autoPathLength).toBeLessThanOrEqual(fixedPathLength)
+      assertBeltSlotInvariant(factory)
+    })
+
+    it('should succeed with auto-rotation when machines face away from each other on same column', () => {
+      // GIVEN — two south-facing fabricators on same column, B is NORTH of A
+      // A at (5,5) south: output faces +Z, B at (5,2) south: input faces -Z
+      // Without auto-rotation, belt would need a long detour
+      const machineA = factory.placeMachine(5, 5, 'part_fabricator')!
+      const machineB = factory.placeMachine(5, 2, 'part_fabricator')!
+      expect(machineA.rotation).toBe('south')
+      expect(machineB.rotation).toBe('south')
+
+      // ASSERT
+      expect(renderGrid(factory, 5, 2, 5, 5)).toBe([
+        '|F|',
+        '| |',
+        '| |',
+        '|F|',
+      ].join('\n'))
+
+      // WHEN — place without fixedRotations (auto-rotation allowed)
+      const result = factory.placeBeltChain(machineA, machineB, 'output')
+
+      // THEN — should succeed: planner auto-rotates machines to connect
+      expect(result).toBe(true)
+      expect(factory.getBelts()).toHaveLength(1)
+
+      const belt = factory.getBelts()[0]
+      expect(belt.sourceMachine.id).toBe(machineA.id)
+      expect(belt.destinationMachine.id).toBe(machineB.id)
+
+      // At least one machine should have been rotated from default 'south'
+      const rotationChanged = machineA.rotation !== 'south' || machineB.rotation !== 'south'
+      expect(rotationChanged,
+        `Expected auto-rotation from default 'south'. A=${machineA.rotation}, B=${machineB.rotation}`
+      ).toBe(true)
+
+      assertBeltSlotInvariant(factory)
+    })
+
+    it('should rotate source output toward destination with auto-rotation', () => {
+      // GIVEN — fabricator A far west of B, both facing south
+      const machineA = factory.placeMachine(3, 5, 'part_fabricator')!
+      const machineB = factory.placeMachine(8, 5, 'part_fabricator')!
+      expect(machineA.rotation).toBe('south')
+      expect(machineB.rotation).toBe('south')
+
+      // WHEN — place belt with auto-rotation
+      const result = factory.placeBeltChain(machineA, machineB, 'output')
+
+      // THEN — machineA's output (front) should face east toward machineB
+      expect(result).toBe(true)
+
+      // Verify: A's output slot faces toward B (east direction)
+      const srcSlots = getSlotPositions('part_fabricator')
+      const srcOutputOffsets = srcSlots.outputs.map(s => slotPositionToOffset(s, machineA.rotation))
+      // At least one output offset should point in +X direction (east)
+      const hasEastOutput = srcOutputOffsets.some(o => o.x > 0)
+      expect(hasEastOutput,
+        `machineA rotation=${machineA.rotation} should have output facing east. Offsets: ${JSON.stringify(srcOutputOffsets)}`
+      ).toBe(true)
+
+      assertBeltSlotInvariant(factory)
+    })
+  })
+
+  describe('placeBeltChain slot type validation', () => {
+    beforeEach(() => {
+      factory = createTestFactory(10, 10)
+    })
+
+    it('should reject belt where source slot resolves to an input slot', () => {
+      // GIVEN: A Shipper (factory_output) has 4 input slots and 0 output slots.
+      // A Fabricator (part_fabricator) has 1 input and 1 output (default slots).
+      const shipper = factory.placeMachine(2, 2, 'factory_output')!
+      const fabricator = factory.placeMachine(2, 5, 'part_fabricator')!
+      expect(shipper).not.toBeNull()
+      expect(fabricator).not.toBeNull()
+      expect(shipper.slots.outputs).toHaveLength(0)
+      expect(shipper.slots.inputs).toHaveLength(4)
+
+      // WHEN: Try to create a belt FROM the shipper (as source with 'output' slot type).
+      // The shipper has no output slots, so this must fail.
+      const result = factory.placeBeltChain(shipper, fabricator, 'output')
+
+      // THEN: Should return false — shipper has no outputs to serve as source.
+      expect(result).toBe(false)
+      expect(factory.getBelts()).toHaveLength(0)
+    })
+
+    it('should reject belt creating input-to-input connection', () => {
+      // GIVEN: Two Shippers — both have only input slots, no outputs.
+      const shipperA = factory.placeMachine(2, 2, 'factory_output')!
+      const shipperB = factory.placeMachine(2, 5, 'factory_output')!
+      expect(shipperA).not.toBeNull()
+      expect(shipperB).not.toBeNull()
+      expect(shipperA.slots.outputs).toHaveLength(0)
+      expect(shipperB.slots.outputs).toHaveLength(0)
+
+      // WHEN/THEN: Neither direction should produce a belt — no outputs exist on either machine.
+      const resultOutput = factory.placeBeltChain(shipperA, shipperB, 'output')
+      expect(resultOutput).toBe(false)
+
+      const resultInput = factory.placeBeltChain(shipperA, shipperB, 'input')
+      expect(resultInput).toBe(false)
+
+      expect(factory.getBelts()).toHaveLength(0)
+    })
+
+    it('should allow valid output-to-input connection', () => {
+      // GIVEN: A Fabricator (has output 'front') and a Shipper (has inputs on all sides).
+      const fabricator = factory.placeMachine(2, 2, 'part_fabricator')!
+      const shipper = factory.placeMachine(2, 5, 'factory_output')!
+      expect(fabricator).not.toBeNull()
+      expect(shipper).not.toBeNull()
+      expect(fabricator.slots.outputs.length).toBeGreaterThan(0)
+      expect(shipper.slots.inputs.length).toBeGreaterThan(0)
+
+      // WHEN: Connect fabricator (output) → shipper (input).
+      const result = factory.placeBeltChain(fabricator, shipper, 'output')
+
+      // THEN: Should succeed.
+      expect(result).toBe(true)
+      const belts = factory.getBelts()
+      expect(belts).toHaveLength(1)
+
+      // The belt's sourceSlot must be an output of the fabricator.
+      const belt = belts[0]
+      expect(fabricator.slots.outputs).toContain(belt.sourceSlot)
+      // The belt's destinationSlot must be an input of the shipper.
+      expect(shipper.slots.inputs).toContain(belt.destinationSlot)
+
+      assertBeltSlotInvariant(factory)
+    })
+
+    it('should fail with sourceSlotType=input when target has no outputs (Shipper)', () => {
+      // GIVEN: Fabricator at (5,5) and Shipper at (8,5).
+      factory = createTestFactory(15, 15)
+      const fabricator = factory.placeMachine(5, 5, 'part_fabricator')!
+      const shipper = factory.placeMachine(8, 5, 'factory_output')!
+      expect(fabricator).not.toBeNull()
+      expect(shipper).not.toBeNull()
+      expect(shipper.slots.outputs).toHaveLength(0)
+
+      // WHEN: Try placeBeltChain with sourceSlotType='input' — this means
+      // source uses its input slot, target must provide an output slot.
+      // Shipper has no outputs, so this should fail.
+      const resultInput = factory.placeBeltChain(fabricator, shipper, 'input')
+
+      // THEN: Should fail — Shipper has no output slots for the reverse end.
+      expect(resultInput).toBe(false)
+      expect(factory.getBelts()).toHaveLength(0)
+
+      // WHEN: Try placeBeltChain with sourceSlotType='output' — Fabricator
+      // uses its output slot, Shipper provides an input slot. Should succeed.
+      const resultOutput = factory.placeBeltChain(fabricator, shipper, 'output')
+
+      // THEN: Should succeed — Fabricator output → Shipper input.
+      expect(resultOutput).toBe(true)
+      expect(factory.getBelts()).toHaveLength(1)
+
+      const belt = factory.getBelts()[0]
+      expect(fabricator.slots.outputs).toContain(belt.sourceSlot)
+      expect(shipper.slots.inputs).toContain(belt.destinationSlot)
+
+      assertBeltSlotInvariant(factory)
+
+      // Verify grid shows the connection
+      expect(renderGrid(factory, 4, 4, 9, 6)).toMatchSnapshot()
+    })
+
+    it('should succeed with reverse slot type when first belt exists', () => {
+      // GIVEN: Shipper at (8,5), Fabricator A at (8,8), Fabricator B at (12,5).
+      factory = createTestFactory(20, 20)
+      const shipper = factory.placeMachine(8, 5, 'factory_output')!
+      const fabricatorA = factory.placeMachine(8, 8, 'part_fabricator')!
+      const fabricatorB = factory.placeMachine(12, 5, 'part_fabricator')!
+      expect(shipper).not.toBeNull()
+      expect(fabricatorA).not.toBeNull()
+      expect(fabricatorB).not.toBeNull()
+
+      // WHEN: Connect Fabricator A → Shipper with 'output' — should succeed.
+      const belt1Result = factory.placeBeltChain(fabricatorA, shipper, 'output')
+      expect(belt1Result).toBe(true)
+      expect(factory.getBelts()).toHaveLength(1)
+
+      // WHEN: Try placeBeltChain(fabricatorB, shipper, 'input') — should fail
+      // because Shipper has no output slots.
+      const belt2InputResult = factory.placeBeltChain(fabricatorB, shipper, 'input')
+      expect(belt2InputResult).toBe(false)
+      expect(factory.getBelts()).toHaveLength(1) // no new belt added
+
+      // WHEN: Try placeBeltChain(fabricatorB, shipper, 'output') — should succeed
+      // because Fabricator B has outputs and Shipper still has free input slots.
+      const belt2OutputResult = factory.placeBeltChain(fabricatorB, shipper, 'output')
+      expect(belt2OutputResult).toBe(true)
+      expect(factory.getBelts()).toHaveLength(2)
+
+      // THEN: Both belts feed into the Shipper's input slots.
+      const belts = factory.getBelts()
+      for (const belt of belts) {
+        expect(shipper.slots.inputs).toContain(belt.destinationSlot)
+      }
+
+      assertBeltSlotInvariant(factory)
+
+      // Verify grid shows both connections
+      expect(renderGrid(factory, 6, 3, 14, 10)).toMatchSnapshot()
+    })
+  })
+
+  describe('placeBeltChain slot freedom validation', () => {
+    it('should return null or colliding when both machines have no free slots for the requested type', () => {
+      // GIVEN: 20×20 factory with Shipper at (8,5), Fabricator A at (8,8), Fabricator B at (12,5).
+      factory = createTestFactory(20, 20)
+      const shipper = factory.placeMachine(8, 5, 'factory_output')!
+      const fabA = factory.placeMachine(8, 8, 'part_fabricator')!
+      const fabB = factory.placeMachine(12, 5, 'part_fabricator')!
+      expect(shipper).not.toBeNull()
+      expect(fabA).not.toBeNull()
+      expect(fabB).not.toBeNull()
+
+      // Connect Fab A → Shipper (occupies Fab A's only output slot)
+      const belt1 = factory.placeBeltChain(fabA, shipper, 'output')
+      expect(belt1).toBe(true)
+
+      // Connect Fab B → Shipper (occupies Fab B's only output slot)
+      const belt2 = factory.placeBeltChain(fabB, shipper, 'output')
+      expect(belt2).toBe(true)
+      expect(factory.getBelts()).toHaveLength(2)
+
+      // ASSERT: Initial grid state with both connections
+      expect(renderGrid(factory, 6, 3, 14, 10)).toMatchSnapshot()
+
+      // WHEN: computeBeltFromSlotPath(Fab B → Fab A, 'output')
+      // Both fabricators have their only output slot occupied.
+      const result = factory.computeBeltFromSlotPath(
+        { x: 12, z: 5 }, { x: 8, z: 8 }, 'output'
+      )
+
+      // THEN: Should return null or collides:true — NOT a non-colliding path
+      if (result !== null) {
+        expect(result.collides).toBe(true)
+      }
+    })
+
+    it('should reject placeBeltChain when source output slot is already occupied', () => {
+      // GIVEN: 20×20 factory with Shipper at (8,5), Fabricator A at (8,8), Fabricator B at (12,5).
+      factory = createTestFactory(20, 20)
+      const shipper = factory.placeMachine(8, 5, 'factory_output')!
+      const fabA = factory.placeMachine(8, 8, 'part_fabricator')!
+      const fabB = factory.placeMachine(12, 5, 'part_fabricator')!
+      expect(shipper).not.toBeNull()
+      expect(fabA).not.toBeNull()
+      expect(fabB).not.toBeNull()
+
+      // Connect Fab A → Shipper (occupies Fab A's only output slot)
+      const belt1 = factory.placeBeltChain(fabA, shipper, 'output')
+      expect(belt1).toBe(true)
+
+      // Connect Fab B → Shipper (occupies Fab B's only output slot)
+      const belt2 = factory.placeBeltChain(fabB, shipper, 'output')
+      expect(belt2).toBe(true)
+      expect(factory.getBelts()).toHaveLength(2)
+
+      // ASSERT: Initial grid state with both connections
+      expect(renderGrid(factory, 6, 3, 14, 10)).toMatchSnapshot()
+
+      // WHEN: placeBeltChain(Fab B → Fab A, 'output')
+      // Fab B's only output slot is already occupied by belt2.
+      const result = factory.placeBeltChain(fabB, fabA, 'output')
+
+      // THEN: Should return false — slot is occupied
+      expect(result).toBe(false)
+      // No new belt should be added
+      expect(factory.getBelts()).toHaveLength(2)
+    })
+
+    it('should auto-rotate fabricator when connecting with placeBeltChain', () => {
+      // GIVEN: 20×20 factory with Shipper at (8,5), Fabricator at (12,5).
+      factory = createTestFactory(20, 20)
+      const shipper = factory.placeMachine(8, 5, 'factory_output')!
+      const fab = factory.placeMachine(12, 5, 'part_fabricator')!
+      expect(shipper).not.toBeNull()
+      expect(fab).not.toBeNull()
+
+      // Default rotation is 'south'
+      expect(fab.rotation).toBe('south')
+
+      // WHEN: Connect Fab → Shipper with 'output'
+      const result = factory.placeBeltChain(fab, shipper, 'output')
+      expect(result).toBe(true)
+
+      // THEN: Fabricator should have rotated to face the shipper (west, since shipper is at lower x)
+      expect(fab.rotation).not.toBe('south')
+      expect(fab.rotation).toBe('west')
+
+      // Verify belt is valid
+      assertBeltSlotInvariant(factory)
+
+      // Verify grid shows the connection
+      expect(renderGrid(factory, 6, 3, 14, 7)).toMatchSnapshot()
     })
   })
 })

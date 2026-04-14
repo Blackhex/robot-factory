@@ -19,6 +19,7 @@ export type MachineType =
   | 'painter'
   | 'recycler'
   | 'splitter'
+  | 'factory_output'
 
 export interface MachineInfo {
   id: string
@@ -132,6 +133,7 @@ export type SimulationCommand =
 export type SimulationEventType =
   | 'item_produced'
   | 'item_delivered'
+  | 'output_delivered'
   | 'machine_state_changed'
   | 'order_complete'
   | 'belt_jam'

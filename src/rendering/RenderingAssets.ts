@@ -8,6 +8,7 @@ export const MACHINE_COLORS: Record<MachineType, number> = {
   painter: 0xcc44cc,
   recycler: 0xff8844,
   splitter: 0x44cccc,
+  factory_output: 0x66bb6a,
 }
 
 export const MACHINE_ICONS: Record<MachineType, string> = {
@@ -17,6 +18,7 @@ export const MACHINE_ICONS: Record<MachineType, string> = {
   painter: '\u25D0',          // ◐ circle with left half black
   recycler: '\u267B',         // ♻ recycling
   splitter: '\u22D4',         // ⋔ pitchfork
+  factory_output: '\u2B07',   // ⬇ downwards arrow
 }
 
 export function createMachineIconTexture(type: MachineType): THREE.CanvasTexture {

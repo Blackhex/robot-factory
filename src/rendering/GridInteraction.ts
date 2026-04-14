@@ -156,12 +156,14 @@ export class GridInteraction {
 
   deselectMachine(): void {
     this.selectedMachine = null
+    this.factoryRenderer?.clearMachineHighlight()
     this.onMachineSelected(null)
   }
 
   private selectMachine(machine: MachineInfo): void {
     this.deselectBelt()
     this.selectedMachine = machine
+    this.factoryRenderer?.highlightMachine(machine.id)
     this.onMachineSelected(machine)
   }
 
@@ -457,6 +459,58 @@ export class GridInteraction {
     this.ghostBeltGroup.visible = true
   }
 
+  // ─── Belt fallback helpers ────────────────────────────
+
+  /**
+   * Compute the best belt path, trying all fallback strategies:
+   * original slot type (strict → relaxed) → reverse slot type (strict → relaxed).
+   */
+  private computeBestBeltPath(
+    origin: GridPosition, target: GridPosition,
+    slotType: 'input' | 'output',
+    ignoreBeltIds?: ReadonlySet<string>,
+  ): { path: GridPosition[], collides: boolean } | null {
+    // Try original slot type
+    let result = this.factory.computeBeltFromSlotPath(origin, target, slotType, ignoreBeltIds, true)
+    if (!result || result.collides) {
+      const relaxed = this.factory.computeBeltFromSlotPath(origin, target, slotType, ignoreBeltIds)
+      if (relaxed && (!result || !relaxed.collides)) {
+        result = relaxed
+      }
+    }
+    // Try reverse slot type (auto-rotation only — preserving rotation makes no sense
+    // when already falling back to the opposite slot direction)
+    if (!result || result.collides) {
+      const reverseSlotType: 'input' | 'output' = slotType === 'input' ? 'output' : 'input'
+      const reversed = this.factory.computeBeltFromSlotPath(origin, target, reverseSlotType, ignoreBeltIds)
+      if (reversed && (!result || !reversed.collides)) {
+        result = reversed
+      }
+    }
+    return result
+  }
+
+  /**
+   * Try to place a belt chain with all fallback strategies:
+   * original slot type (strict → relaxed) → reverse slot type (strict → relaxed).
+   */
+  private tryPlaceBeltChain(
+    srcMachine: MachineInfo, dstMachine: MachineInfo,
+    slotType: 'input' | 'output',
+  ): boolean {
+    let placed = this.factory.placeBeltChain(srcMachine, dstMachine, slotType, true)
+    if (!placed) {
+      placed = this.factory.placeBeltChain(srcMachine, dstMachine, slotType)
+    }
+    // Reverse slot type: auto-rotation only — preserving rotation makes no sense
+    // when already falling back to the opposite slot direction
+    if (!placed) {
+      const reverseSlotType: 'input' | 'output' = slotType === 'input' ? 'output' : 'input'
+      placed = this.factory.placeBeltChain(srcMachine, dstMachine, reverseSlotType)
+    }
+    return placed
+  }
+
   // ─── Event Handlers ───────────────────────────────────
 
   private handlePointerMove(event: PointerEvent): void {
@@ -490,6 +544,7 @@ export class GridInteraction {
       }
       // Show ghost belt paths using slot-based routing (matches actual reconnection)
       this.clearGhostBelts()
+      const ghostBlockedCells = new Set<string>()
       for (const conn of this.dragConnectedMachines) {
         if (!draggedMachine) continue
         const result = this.factory.computeReconnectPath(
@@ -497,10 +552,15 @@ export class GridInteraction {
           draggedMachine.type, draggedMachine.rotation,
           conn.position, conn.machineIsSource,
           this.dragIgnoreBeltIds,
+          ghostBlockedCells.size > 0 ? ghostBlockedCells : undefined,
         )
         if (result) {
           const collides = !canMove || result.collides
           this.showGhostBeltPathFromPoints(result.path, collides, /* append */ true)
+          // Block intermediate cells for subsequent ghost paths (prevents crossings)
+          for (let i = 1; i < result.path.length - 1; i++) {
+            ghostBlockedCells.add(`${result.path[i].x},${result.path[i].z}`)
+          }
         }
       }
     } else if (this.dragMode === 'belt' && this.dragOrigin) {
@@ -519,8 +579,8 @@ export class GridInteraction {
           this.highlightMesh.position.set(snapWorld.x, 0.01, snapWorld.z)
         }
 
-        const result = this.factory.computeBeltFromSlotPath(
-          this.dragOrigin, effectiveTarget, this.dragSourceSlotType, this.dragIgnoreBeltIds, true,
+        const result = this.computeBestBeltPath(
+          this.dragOrigin, effectiveTarget, this.dragSourceSlotType, this.dragIgnoreBeltIds,
         )
         this.clearGhostBelts()
         if (result) {
@@ -529,6 +589,18 @@ export class GridInteraction {
           // Fallback: show ghost belt from source slot toward cursor cell
           const srcMachine = this.factory.getMachineAt(this.dragOrigin.x, this.dragOrigin.z)
           if (srcMachine) {
+            // Check if a valid connection is possible — if not, force red ghost
+            const srcHasFreeOutput = this.factory.getFreeSlotsOfType(srcMachine, 'output', this.dragIgnoreBeltIds).length > 0
+            const srcHasFreeInput = this.factory.getFreeSlotsOfType(srcMachine, 'input', this.dragIgnoreBeltIds).length > 0
+            let noFreeSlots = !srcHasFreeOutput && !srcHasFreeInput
+            // Also check target machine compatibility when hovering over one
+            const tgtMachine = this.factory.getMachineAt(effectiveTarget.x, effectiveTarget.z)
+            if (!noFreeSlots && tgtMachine && (tgtMachine.x !== srcMachine.x || tgtMachine.z !== srcMachine.z)) {
+              const tgtHasFreeInput = this.factory.getFreeSlotsOfType(tgtMachine, 'input', this.dragIgnoreBeltIds).length > 0
+              const tgtHasFreeOutput = this.factory.getFreeSlotsOfType(tgtMachine, 'output', this.dragIgnoreBeltIds).length > 0
+              const canConnect = (srcHasFreeOutput && tgtHasFreeInput) || (srcHasFreeInput && tgtHasFreeOutput)
+              if (!canConnect) noFreeSlots = true
+            }
             const slotList = (this.dragSourceSlotType === 'output' ? srcMachine.slots.outputs : srcMachine.slots.inputs)
               .map(p => slotPositionToOffset(p, srcMachine.rotation))
             const slotOff = pickBestSlotOffset(slotList, srcMachine.x, srcMachine.z, effectiveTarget)
@@ -536,12 +608,12 @@ export class GridInteraction {
               const slotCell = { x: srcMachine.x + slotOff.x, z: srcMachine.z + slotOff.z }
               if (slotCell.x === effectiveTarget.x && slotCell.z === effectiveTarget.z) {
                 this.showGhostBeltPathFromPoints(
-                  [{ x: srcMachine.x, z: srcMachine.z }, slotCell], false,
+                  [{ x: srcMachine.x, z: srcMachine.z }, slotCell], noFreeSlots,
                 )
               } else {
                 const mid = this.factory.findBestBeltPath(slotCell, effectiveTarget, this.dragIgnoreBeltIds, slotOff)
                 this.showGhostBeltPathFromPoints(
-                  [{ x: srcMachine.x, z: srcMachine.z }, ...mid.path], mid.collides,
+                  [{ x: srcMachine.x, z: srcMachine.z }, ...mid.path], noFreeSlots || mid.collides,
                 )
               }
             }
@@ -689,7 +761,8 @@ export class GridInteraction {
           const srcMachine = this.factory.getMachineAt(this.dragOrigin.x, this.dragOrigin.z)
           const dstMachine = this.factory.getMachineAt(effectiveTarget.x, effectiveTarget.z)
           if (srcMachine && dstMachine) {
-            const placed = this.factory.placeBeltChain(srcMachine, dstMachine, this.dragSourceSlotType ?? 'output', true)
+            const slotType = this.dragSourceSlotType ?? 'output'
+            const placed = this.tryPlaceBeltChain(srcMachine, dstMachine, slotType)
             if (placed) {
               this.onFactoryChanged()
             }

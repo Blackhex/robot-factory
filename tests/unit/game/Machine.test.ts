@@ -302,4 +302,78 @@ describe('Machine', () => {
       expect(machine.takeOutput()).toBeNull()
     })
   })
+
+  describe('factory_output machine', () => {
+    it('should always accept input', () => {
+      // GIVEN
+      const output = new Machine('out1', 'factory_output')
+
+      // THEN
+      expect(output.canAcceptInput()).toBe(true)
+    })
+
+    it('should still accept input after receiving items', () => {
+      // GIVEN
+      const output = new Machine('out1', 'factory_output')
+
+      // WHEN
+      output.addInput(createItem('wheel_small'))
+      output.addInput(createItem('wheel_small'))
+      output.addInput(createItem('wheel_small'))
+      output.addInput(createItem('wheel_small'))
+      output.addInput(createItem('wheel_small'))
+
+      // THEN — unlimited capacity
+      expect(output.canAcceptInput()).toBe(true)
+    })
+
+    it('should consume items on addInput (not store them)', () => {
+      // GIVEN
+      const output = new Machine('out1', 'factory_output')
+
+      // WHEN
+      const accepted = output.addInput(createItem('wheel_small'))
+
+      // THEN
+      expect(accepted).toBe(true)
+      expect(output.inputSlots).toHaveLength(0) // consumed, not stored
+    })
+
+    it('should have no output after tick', () => {
+      // GIVEN
+      const output = new Machine('out1', 'factory_output')
+
+      // WHEN
+      output.tick()
+
+      // THEN
+      expect(output.outputSlot).toBeNull()
+    })
+
+    it('should always remain idle', () => {
+      // GIVEN
+      const output = new Machine('out1', 'factory_output')
+
+      // WHEN
+      output.addInput(createItem('wheel_small'))
+      output.tick()
+
+      // THEN
+      expect(output.state).toBe('idle')
+    })
+
+    it('should remain idle after many ticks', () => {
+      // GIVEN
+      const output = new Machine('out1', 'factory_output')
+
+      // WHEN
+      for (let i = 0; i < 20; i++) {
+        output.tick()
+      }
+
+      // THEN
+      expect(output.state).toBe('idle')
+      expect(output.outputSlot).toBeNull()
+    })
+  })
 })

@@ -4,7 +4,7 @@ import { GameManager, type GameState } from './game/GameManager'
 import { getAllLevels, type LevelDefinition } from './game/Level'
 import { SceneManager } from './rendering/SceneManager'
 import { FactoryRenderer } from './rendering/FactoryRenderer'
-import { ItemRenderer, type BeltRenderData } from './rendering/ItemRenderer'
+import { ItemRenderer } from './rendering/ItemRenderer'
 import { GridInteraction } from './rendering/GridInteraction'
 import { CameraController } from './rendering/CameraController'
 import { ParticleEffects } from './rendering/ParticleEffects'
@@ -159,21 +159,35 @@ async function main(): Promise<void> {
   }
 
   function getTutorialSteps(levelIndex: number): TutorialStep[] {
-    if (levelIndex < 1 || levelIndex > 4) return []
-    const steps: TutorialStep[] = [
-      { messageKey: 'tutorial.step_1', highlightSelector: '.ui-toolbar', position: 'bottom' },
-      { messageKey: 'tutorial.step_2', highlightSelector: '#canvas-container', position: 'top' },
-      { messageKey: 'tutorial.step_3', highlightSelector: '#canvas-container', position: 'bottom' },
-      { messageKey: 'tutorial.step_4', highlightSelector: '#editor-container', position: 'left' },
-      { messageKey: 'tutorial.step_5', highlightSelector: '.ui-toolbar-btn--start', position: 'bottom' },
-    ]
-    if (levelIndex >= 3) {
-      steps.push({ messageKey: 'tutorial.step_6', position: 'bottom' })
+    switch (levelIndex) {
+      case 1:
+        return [
+          { messageKey: 'tutorial.level1_step1', highlightSelector: '#canvas-container', position: 'top' },
+          { messageKey: 'tutorial.level1_step2', highlightSelector: '#canvas-container', position: 'top' },
+          { messageKey: 'tutorial.level1_step3', highlightSelector: '#canvas-container', position: 'bottom' },
+          { messageKey: 'tutorial.level1_step4', highlightSelector: '.ui-toolbar-btn--editor', position: 'bottom' },
+          { messageKey: 'tutorial.level1_step5', highlightSelector: '.ui-toolbar-btn--editor', position: 'bottom' },
+          { messageKey: 'tutorial.level1_step6', highlightSelector: '.ui-toolbar-btn--start', position: 'bottom' },
+        ]
+      case 2:
+        return [
+          { messageKey: 'tutorial.level2_step1', highlightSelector: '#canvas-container', position: 'top' },
+          { messageKey: 'tutorial.level2_step2', highlightSelector: '#canvas-container', position: 'bottom' },
+          { messageKey: 'tutorial.level2_step3', highlightSelector: '.ui-toolbar-btn--editor', position: 'bottom' },
+        ]
+      case 3:
+        return [
+          { messageKey: 'tutorial.level3_step1', highlightSelector: '.ui-toolbar-btn--editor', position: 'bottom' },
+          { messageKey: 'tutorial.level3_step2', position: 'bottom' },
+        ]
+      case 4:
+        return [
+          { messageKey: 'tutorial.level4_step1', highlightSelector: '.ui-toolbar', position: 'bottom' },
+          { messageKey: 'tutorial.level4_step2', highlightSelector: '.ui-toolbar-btn--editor', position: 'bottom' },
+        ]
+      default:
+        return []
     }
-    if (levelIndex >= 4) {
-      steps.push({ messageKey: 'tutorial.step_7', position: 'bottom' })
-    }
-    return steps
   }
 
   function getFactorySaveKey(levelId?: string): string {
@@ -227,11 +241,40 @@ async function main(): Promise<void> {
 
   function populateSimulation(): void {
     gameManager.populateSimulation()
+    if (itemRenderer && gameManager.simulation) {
+      itemRenderer.cacheBeltTopology(gameManager.simulation.getBelts())
+    }
+  }
+
+  // Expose test helpers in dev mode
+  if (import.meta.env.DEV) {
+    (window as any).__test = {
+      getMachines: () => {
+        const factory = gameManager.factory
+        if (!factory) return []
+        return factory.getMachines().map(m => ({ id: m.id, type: m.type, x: m.x, z: m.z, rotation: m.rotation }))
+      },
+      placeBelt: (srcX: number, srcZ: number, dstX: number, dstZ: number) => {
+        const factory = gameManager.factory
+        if (!factory) return false
+        const src = factory.getMachineAt(srcX, srcZ)
+        const dst = factory.getMachineAt(dstX, dstZ)
+        if (!src || !dst) return false
+        const result = factory.placeBeltChain(src, dst, 'output')
+        factoryRenderer?.update()
+        return !!result
+      },
+      getBelts: () => {
+        const factory = gameManager.factory
+        if (!factory) return []
+        return factory.getBelts().map(b => ({ id: b.id, sourceMachine: b.sourceMachine.id, path: b.path }))
+      },
+    }
   }
 
   function getHUDStats() {
     return gameManager.simulation?.getStats() ??
-      { itemsProduced: 0, robotsCompleted: 0, timeElapsed: 0, qualityPercent: 100 }
+      { itemsProduced: 0, robotsCompleted: 0, timeElapsed: 0, qualityPercent: 100, outputsDelivered: 0 }
   }
 
   function setupBuildPhase(level: LevelDefinition): void {
@@ -255,6 +298,7 @@ async function main(): Promise<void> {
     const idx = getLevelIndex(level)
     pxtEditor.setLevel(idx)
     hud.setLevelName(i18next.t(level.nameKey))
+    machinePanel.setAvailableMachineTypes(level.availableMachines)
 
     // Auto-restore saved factory layout
     autoRestoreFactory()
@@ -290,6 +334,10 @@ async function main(): Promise<void> {
 
     pxtEditor.setLevel(10)
     hud.setLevelName(i18next.t('main_menu.sandbox'))
+    machinePanel.setAvailableMachineTypes([
+      'part_fabricator', 'assembler', 'quality_checker',
+      'painter', 'recycler', 'splitter', 'factory_output',
+    ])
 
     // Auto-restore sandbox factory layout
     autoRestoreFactory()
@@ -606,17 +654,8 @@ async function main(): Promise<void> {
     const sim = gameManager.simulation
     const factory = gameManager.factory
     if (itemRenderer && sim?.running && factory) {
-      const beltRenderData: BeltRenderData[] = []
-      for (const belt of sim.getBelts().values()) {
-        beltRenderData.push({
-          from: { x: belt.fromX, z: belt.fromZ },
-          to: { x: belt.toX, z: belt.toZ },
-          items: belt.getItems().map((item) => ({
-            type: item.type,
-            position: item.positionOnBelt,
-          })),
-        })
-      }
+      const beltRenderData = itemRenderer.buildRenderData(sim.getBelts())
+
       itemRenderer.update(beltRenderData, factory.width, factory.height)
 
       // Publish rendered item count as a data attribute for testability

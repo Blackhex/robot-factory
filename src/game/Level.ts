@@ -23,10 +23,10 @@ const levels: LevelDefinition[] = [
     nameKey: 'levels.level_1.name',
     descriptionKey: 'levels.level_1.description',
     gridSize: { width: 10, height: 10 },
-    availableMachines: ['part_fabricator', 'assembler'],
+    availableMachines: ['part_fabricator', 'assembler', 'factory_output'],
     unlockedBlocks: 1,
     goals: [
-      { type: 'produce_robots', target: 1, itemType: 'robot_explorer' },
+      { type: 'produce_parts', target: 3, itemType: 'wheel_small' },
     ],
     parScores: { speed: 1, cost: 10, quality: 80 },
   },
@@ -35,7 +35,7 @@ const levels: LevelDefinition[] = [
     nameKey: 'levels.level_2.name',
     descriptionKey: 'levels.level_2.description',
     gridSize: { width: 12, height: 12 },
-    availableMachines: ['part_fabricator', 'assembler'],
+    availableMachines: ['part_fabricator', 'assembler', 'factory_output'],
     unlockedBlocks: 1,
     goals: [
       { type: 'produce_robots', target: 3, itemType: 'robot_explorer' },
@@ -47,7 +47,7 @@ const levels: LevelDefinition[] = [
     nameKey: 'levels.level_3.name',
     descriptionKey: 'levels.level_3.description',
     gridSize: { width: 14, height: 14 },
-    availableMachines: ['part_fabricator', 'assembler'],
+    availableMachines: ['part_fabricator', 'assembler', 'factory_output'],
     unlockedBlocks: 2,
     goals: [
       { type: 'produce_parts', target: 10, itemType: 'wheel_small' },
@@ -59,7 +59,7 @@ const levels: LevelDefinition[] = [
     nameKey: 'levels.level_4.name',
     descriptionKey: 'levels.level_4.description',
     gridSize: { width: 14, height: 14 },
-    availableMachines: ['part_fabricator', 'assembler', 'quality_checker'],
+    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'factory_output'],
     unlockedBlocks: 3,
     goals: [
       { type: 'produce_robots', target: 5, itemType: 'robot_explorer' },
@@ -72,7 +72,7 @@ const levels: LevelDefinition[] = [
     nameKey: 'levels.level_5.name',
     descriptionKey: 'levels.level_5.description',
     gridSize: { width: 16, height: 16 },
-    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'splitter'],
+    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'splitter', 'factory_output'],
     unlockedBlocks: 4,
     goals: [
       { type: 'produce_robots', target: 3, itemType: 'robot_explorer' },
@@ -85,7 +85,7 @@ const levels: LevelDefinition[] = [
     nameKey: 'levels.level_6.name',
     descriptionKey: 'levels.level_6.description',
     gridSize: { width: 16, height: 16 },
-    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'splitter'],
+    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'splitter', 'factory_output'],
     unlockedBlocks: 5,
     goals: [
       { type: 'produce_robots', target: 2, itemType: 'robot_explorer' },
@@ -99,7 +99,7 @@ const levels: LevelDefinition[] = [
     nameKey: 'levels.level_7.name',
     descriptionKey: 'levels.level_7.description',
     gridSize: { width: 18, height: 18 },
-    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'splitter', 'painter'],
+    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'splitter', 'painter', 'factory_output'],
     unlockedBlocks: 6,
     goals: [
       { type: 'produce_robots', target: 10, itemType: 'robot_worker' },
@@ -112,7 +112,7 @@ const levels: LevelDefinition[] = [
     nameKey: 'levels.level_8.name',
     descriptionKey: 'levels.level_8.description',
     gridSize: { width: 20, height: 20 },
-    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'painter', 'recycler', 'splitter'],
+    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'painter', 'recycler', 'splitter', 'factory_output'],
     unlockedBlocks: 7,
     goals: [
       { type: 'produce_robots', target: 10, itemType: 'robot_explorer' },
@@ -125,7 +125,7 @@ const levels: LevelDefinition[] = [
     nameKey: 'levels.level_9.name',
     descriptionKey: 'levels.level_9.description',
     gridSize: { width: 20, height: 20 },
-    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'painter', 'recycler', 'splitter'],
+    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'painter', 'recycler', 'splitter', 'factory_output'],
     unlockedBlocks: 7,
     goals: [],
     parScores: { speed: 1, cost: 50, quality: 50 },
@@ -135,7 +135,7 @@ const levels: LevelDefinition[] = [
     nameKey: 'levels.level_10.name',
     descriptionKey: 'levels.level_10.description',
     gridSize: { width: 20, height: 20 },
-    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'painter', 'recycler', 'splitter'],
+    availableMachines: ['part_fabricator', 'assembler', 'quality_checker', 'painter', 'recycler', 'splitter', 'factory_output'],
     unlockedBlocks: 7,
     goals: [
       { type: 'produce_robots', target: 5, itemType: 'robot_explorer' },

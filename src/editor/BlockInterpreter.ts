@@ -3,177 +3,374 @@ import type { SimulationCommand } from '../game/types'
 const MAX_OPERATIONS = 10_000
 const MAX_CALL_DEPTH = 100
 
-/** Maps PascalCase PartType enum values to snake_case ItemType strings. */
-const PART_TYPE_MAP: Record<string, string> = {
-  WheelSmall: 'wheel_small',
-  WheelMedium: 'wheel_medium',
-  WheelLarge: 'wheel_large',
-  SensorProximity: 'sensor_proximity',
-  SensorCamera: 'sensor_camera',
-  SensorLidar: 'sensor_lidar',
-  BatteryStandard: 'battery_standard',
-  BatteryHighCapacity: 'battery_high_capacity',
-  ChassisLight: 'chassis_light',
-  ChassisHeavy: 'chassis_heavy',
-  CircuitBasic: 'circuit_basic',
-  CircuitAdvanced: 'circuit_advanced',
-  DrivetrainBasic: 'drivetrain_basic',
-  DrivetrainAdvanced: 'drivetrain_advanced',
-  SensorArrayBasic: 'sensor_array_basic',
-  SensorArrayAdvanced: 'sensor_array_advanced',
-  PowerUnitStandard: 'power_unit_standard',
-  PowerUnitHigh: 'power_unit_high',
-  RobotExplorer: 'robot_explorer',
-  RobotWorker: 'robot_worker',
-  RobotGuardian: 'robot_guardian',
-  RawMaterial: 'raw_material',
+// --- Enum-to-ID lookup arrays (index = enum numeric value) ---------------
+
+const MACHINE_IDS: string[] = [
+  'machine_1', 'machine_2', 'machine_3', 'machine_4',
+  'machine_5', 'machine_6', 'machine_7', 'machine_8',
+]
+
+const PART_TYPE_IDS: string[] = [
+  'wheel_small', 'wheel_medium', 'wheel_large',
+  'sensor_proximity', 'sensor_camera', 'sensor_lidar',
+  'battery_standard', 'battery_high_capacity',
+  'chassis_light', 'chassis_heavy',
+  'circuit_basic', 'circuit_advanced',
+  'drivetrain_basic', 'drivetrain_advanced',
+  'sensor_array_basic', 'sensor_array_advanced',
+  'power_unit_standard', 'power_unit_high',
+  'raw_material',
+  'robot_explorer', 'robot_worker', 'robot_guardian',
+]
+
+const RECIPE_IDS: string[] = [
+  'wheel_press_small', 'wheel_press_medium', 'wheel_press_large',
+  'sensor_fab_proximity', 'sensor_fab_camera', 'sensor_fab_lidar',
+  'battery_assembly_standard', 'battery_assembly_high',
+  'chassis_stamper_light', 'chassis_stamper_heavy',
+  'circuit_printer_basic', 'circuit_printer_advanced',
+  'assemble_drivetrain_basic', 'assemble_drivetrain_advanced',
+  'assemble_sensor_array_basic', 'assemble_sensor_array_advanced',
+  'assemble_power_unit_standard', 'assemble_power_unit_high',
+  'assemble_robot_explorer', 'assemble_robot_worker', 'assemble_robot_guardian',
+]
+
+const BELT_IDS: string[] = [
+  'belt_1', 'belt_2', 'belt_3', 'belt_4',
+  'belt_5', 'belt_6', 'belt_7', 'belt_8',
+]
+
+// --- Enum name-to-number maps (for string args from fallback textarea) ---
+
+const MACHINE_NAME_MAP: Record<string, number> = {
+  A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, G: 6, H: 7,
 }
 
-/** Maps Machine enum values to runtime machine IDs. */
-const MACHINE_MAP: Record<string, string> = {
-  A: 'machine_1', B: 'machine_2', C: 'machine_3', D: 'machine_4',
-  E: 'machine_5', F: 'machine_6', G: 'machine_7', H: 'machine_8',
+const PART_TYPE_NAME_MAP: Record<string, number> = {
+  WheelSmall: 0, WheelMedium: 1, WheelLarge: 2,
+  SensorProximity: 3, SensorCamera: 4, SensorLidar: 5,
+  BatteryStandard: 6, BatteryHighCapacity: 7,
+  ChassisLight: 8, ChassisHeavy: 9,
+  CircuitBasic: 10, CircuitAdvanced: 11,
+  DrivetrainBasic: 12, DrivetrainAdvanced: 13,
+  SensorArrayBasic: 14, SensorArrayAdvanced: 15,
+  PowerUnitStandard: 16, PowerUnitHigh: 17,
+  RawMaterial: 18,
+  RobotExplorer: 19, RobotWorker: 20, RobotGuardian: 21,
 }
 
-/** Maps Recipe enum values to recipe IDs matching Recipe.ts definitions. */
-const RECIPE_MAP: Record<string, string> = {
-  WheelPressSmall: 'wheel_press_small',
-  WheelPressMedium: 'wheel_press_medium',
-  WheelPressLarge: 'wheel_press_large',
-  SensorFabProximity: 'sensor_fab_proximity',
-  SensorFabCamera: 'sensor_fab_camera',
-  SensorFabLidar: 'sensor_fab_lidar',
-  BatteryAssemblyStandard: 'battery_assembly_standard',
-  BatteryAssemblyHigh: 'battery_assembly_high',
-  ChassisStamperLight: 'chassis_stamper_light',
-  ChassisStamperHeavy: 'chassis_stamper_heavy',
-  CircuitPrinterBasic: 'circuit_printer_basic',
-  CircuitPrinterAdvanced: 'circuit_printer_advanced',
-  AssembleDrivetrainBasic: 'assemble_drivetrain_basic',
-  AssembleDrivetrainAdvanced: 'assemble_drivetrain_advanced',
-  AssembleSensorArrayBasic: 'assemble_sensor_array_basic',
-  AssembleSensorArrayAdvanced: 'assemble_sensor_array_advanced',
-  AssemblePowerUnitStandard: 'assemble_power_unit_standard',
-  AssemblePowerUnitHigh: 'assemble_power_unit_high',
-  AssembleRobotExplorer: 'assemble_robot_explorer',
-  AssembleRobotWorker: 'assemble_robot_worker',
-  AssembleRobotGuardian: 'assemble_robot_guardian',
+const RECIPE_NAME_MAP: Record<string, number> = {
+  WheelPressSmall: 0, WheelPressMedium: 1, WheelPressLarge: 2,
+  SensorFabProximity: 3, SensorFabCamera: 4, SensorFabLidar: 5,
+  BatteryAssemblyStandard: 6, BatteryAssemblyHigh: 7,
+  ChassisStamperLight: 8, ChassisStamperHeavy: 9,
+  CircuitPrinterBasic: 10, CircuitPrinterAdvanced: 11,
+  AssembleDrivetrainBasic: 12, AssembleDrivetrainAdvanced: 13,
+  AssembleSensorArrayBasic: 14, AssembleSensorArrayAdvanced: 15,
+  AssemblePowerUnitStandard: 16, AssemblePowerUnitHigh: 17,
+  AssembleRobotExplorer: 18, AssembleRobotWorker: 19, AssembleRobotGuardian: 20,
 }
 
-/** Maps Belt enum values to runtime belt IDs. */
-const BELT_MAP: Record<string, string> = {
-  Belt1: 'belt_1', Belt2: 'belt_2', Belt3: 'belt_3', Belt4: 'belt_4',
-  Belt5: 'belt_5', Belt6: 'belt_6', Belt7: 'belt_7', Belt8: 'belt_8',
+const BELT_NAME_MAP: Record<string, number> = {
+  Belt1: 0, Belt2: 1, Belt3: 2, Belt4: 3,
+  Belt5: 4, Belt6: 5, Belt7: 6, Belt8: 7,
 }
 
-function resolvePartType(raw: string): string {
-  const stripped = parseStringArg(raw)
-  const name = stripped.replace(/^(factory\.|PartType\.)*/g, '')
-  return PART_TYPE_MAP[name] ?? name
+// --- Enum objects provided to executed code (for fallback textarea) -------
+
+const MachineEnum: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, G: 6, H: 7 }
+const PartTypeEnum: Record<string, number> = { ...PART_TYPE_NAME_MAP }
+const RecipeEnum: Record<string, number> = { ...RECIPE_NAME_MAP }
+const BeltEnum: Record<string, number> = { ...BELT_NAME_MAP }
+const FactoryConditionEnum: Record<string, number> = { BeltHasItems: 0, MachineIdle: 1, ItemsRemaining: 2 }
+
+// --- Resolvers: handle number (enum value), string enum name, or passthrough ---
+
+function resolveMachineId(raw: unknown): string {
+  if (typeof raw === 'number') return MACHINE_IDS[raw] ?? `machine_${raw + 1}`
+  const s = String(raw).replace(/^Machine\./, '')
+  if (s in MACHINE_NAME_MAP) return MACHINE_IDS[MACHINE_NAME_MAP[s]]
+  return s
 }
 
-function resolveMachine(raw: string): string {
-  const stripped = parseStringArg(raw)
-  const name = stripped.replace(/^(Machine\.)/, '')
-  return MACHINE_MAP[name] ?? stripped
+function resolvePartTypeId(raw: unknown): string {
+  if (typeof raw === 'number') return PART_TYPE_IDS[raw] ?? String(raw)
+  const s = String(raw).replace(/^(factory\.)?PartType\./, '')
+  if (s in PART_TYPE_NAME_MAP) return PART_TYPE_IDS[PART_TYPE_NAME_MAP[s]]
+  return s
 }
 
-function resolveRecipe(raw: string): string {
-  const stripped = parseStringArg(raw)
-  const name = stripped.replace(/^(Recipe\.)/, '')
-  return RECIPE_MAP[name] ?? stripped
+function resolveRecipeId(raw: unknown): string {
+  if (typeof raw === 'number') return RECIPE_IDS[raw] ?? String(raw)
+  const s = String(raw).replace(/^Recipe\./, '')
+  if (s in RECIPE_NAME_MAP) return RECIPE_IDS[RECIPE_NAME_MAP[s]]
+  return s
 }
 
-function resolveBelt(raw: string): string {
-  const stripped = parseStringArg(raw)
-  const name = stripped.replace(/^(Belt\.)/, '')
-  return BELT_MAP[name] ?? stripped
-}
-
-function parseStringArg(raw: string): string {
-  const trimmed = raw.trim()
-  if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
-  ) {
-    return trimmed.slice(1, -1)
-  }
-  return trimmed
-}
-
-interface FactoryCall {
-  method: string
-  argsRaw: string
+function resolveBeltId(raw: unknown): string {
+  if (typeof raw === 'number') return BELT_IDS[raw] ?? `belt_${raw + 1}`
+  const s = String(raw).replace(/^Belt\./, '')
+  if (s in BELT_NAME_MAP) return BELT_IDS[BELT_NAME_MAP[s]]
+  return s
 }
 
 /**
- * Parses PXT-compiled TypeScript source into SimulationCommand[].
+ * Executes PXT-compiled TypeScript source via `new Function()` and
+ * collects SimulationCommand[] produced by namespace method calls.
  *
- * Recognises `factory.xxx(...)` calls line-by-line with brace-matching
- * for compound statements (repeat, if, events, procedures).
+ * Provides namespace objects (machines, recipes, belts, loops, logic,
+ * variables_, functions_, events, factory) and enum objects (Machine,
+ * PartType, Recipe, Belt, FactoryCondition) to the executed code.
  *
- * Enforces a hard cap of 10 000 operations per interpret() call.
+ * Enforces a hard cap of 10,000 operations per interpret() call.
  * Variable store persists across calls; use reset() to clear it.
  */
 export class BlockInterpreter {
+  private commands: SimulationCommand[] = []
   private opCount = 0
   private overflow = false
   private variables = new Map<string, number>()
-  private procedures = new Map<string, string>()
-  private eventHandlers = new Map<string, string>()
+  private procedures = new Map<string, () => void>()
+  private eventHandlers = new Map<string, () => void>()
   private callDepth = 0
 
+  // --- Namespace objects -------------------------------------------------
+
+  private readonly machinesNs = {
+    startMachine: (machine: unknown) => {
+      if (this.guardOverflow()) return
+      this.commands.push({ type: 'START_MACHINE', machineId: resolveMachineId(machine) })
+    },
+    stopMachine: (machine: unknown) => {
+      if (this.guardOverflow()) return
+      this.commands.push({ type: 'STOP_MACHINE', machineId: resolveMachineId(machine) })
+    },
+    producePart: (machine: unknown, partType?: unknown) => {
+      if (this.guardOverflow()) return
+      if (partType === undefined) {
+        this.commands.push({ type: 'PRODUCE_PART', machineId: '', partType: resolvePartTypeId(machine) } as SimulationCommand)
+      } else {
+        this.commands.push({ type: 'PRODUCE_PART', machineId: resolveMachineId(machine), partType: resolvePartTypeId(partType) } as SimulationCommand)
+      }
+    },
+    setQualityThreshold: (machine: unknown, threshold: unknown) => {
+      if (this.guardOverflow()) return
+      this.commands.push({ type: 'SET_QUALITY_THRESHOLD', machineId: resolveMachineId(machine), threshold: Number(threshold) || 0 })
+    },
+  }
+
+  private readonly recipesNs = {
+    setRecipe: (machine: unknown, recipe: unknown) => {
+      if (this.guardOverflow()) return
+      this.commands.push({ type: 'SET_RECIPE', machineId: resolveMachineId(machine), recipeId: resolveRecipeId(recipe) })
+    },
+  }
+
+  private readonly beltsNs = {
+    setBeltSpeed: (belt: unknown, speed: unknown) => {
+      if (this.guardOverflow()) return
+      this.commands.push({ type: 'SET_BELT_SPEED', beltId: resolveBeltId(belt), speed: Number(speed) || 1 })
+    },
+    routeTo: (target: unknown) => {
+      if (this.guardOverflow()) return
+      this.commands.push({ type: 'ROUTE_TO', targetId: resolveMachineId(target) })
+    },
+  }
+
+  private readonly loopsNs = {
+    repeatTimes: (count: unknown, body: () => void) => {
+      const n = Number(count) || 0
+      for (let i = 0; i < n; i++) {
+        if (this.overflow) return
+        const before = this.opCount
+        body()
+        if (this.opCount === before && this.guardOverflow()) return
+      }
+    },
+    whileCondition: (_condition: unknown, body: () => void) => {
+      while (!this.overflow) {
+        const before = this.opCount
+        body()
+        if (this.opCount === before && this.guardOverflow()) return
+      }
+    },
+  }
+
+  private readonly logicNs = {
+    ifQuality: (_threshold: unknown, body: () => void) => {
+      body()
+    },
+    ifItemType: (_itemType: unknown, body: () => void) => {
+      body()
+    },
+  }
+
+  private readonly variablesNs = {
+    setVariable: (name: unknown, value: unknown) => {
+      if (this.guardOverflow()) return
+      const n = String(name)
+      if (n) this.variables.set(n, Number(value) || 0)
+    },
+    changeVariable: (name: unknown, delta: unknown) => {
+      if (this.guardOverflow()) return
+      const n = String(name)
+      if (n) {
+        const current = this.variables.get(n) ?? 0
+        this.variables.set(n, current + (Number(delta) || 0))
+      }
+    },
+  }
+
+  private readonly functionsNs = {
+    defineProcedure: (name: unknown, body: () => void) => {
+      const n = String(name)
+      if (n && typeof body === 'function') {
+        this.procedures.set(n, body)
+      }
+    },
+    callProcedure: (name: unknown) => {
+      if (this.guardOverflow()) return
+      const n = String(name)
+      const proc = this.procedures.get(n)
+      if (proc && this.callDepth < MAX_CALL_DEPTH) {
+        this.callDepth++
+        proc()
+        this.callDepth--
+      }
+    },
+  }
+
+  private readonly eventsNs = {
+    onOrderReceived: (body: () => void) => {
+      if (typeof body === 'function') this.eventHandlers.set('order_received', body)
+    },
+    onBeltJam: (body: () => void) => {
+      if (typeof body === 'function') this.eventHandlers.set('belt_jam', body)
+    },
+    onMachineIdle: (machine: unknown, body: () => void) => {
+      if (typeof body === 'function') {
+        this.eventHandlers.set(`machine_idle_${resolveMachineId(machine)}`, body)
+      }
+    },
+  }
+
   /**
-   * Parse TypeScript source and produce simulation commands.
-   *
-   * First pass registers procedure definitions and event handlers.
-   * Second pass executes all other top-level factory calls.
+   * Legacy `factory.*` namespace — provides backward-compatible methods
+   * that accept string arguments with quotes (e.g. `factory.startMachine("press_1")`).
+   * Also exposes enum objects (e.g. `factory.PartType.SensorCamera`).
    */
+  private readonly factoryNs = {
+    PartType: PartTypeEnum,
+    Machine: MachineEnum,
+    Recipe: RecipeEnum,
+    Belt: BeltEnum,
+    FactoryCondition: FactoryConditionEnum,
+    producePart: (...args: unknown[]) => {
+      this.machinesNs.producePart(...(args as [unknown, unknown?]))
+    },
+    setRecipe: (machine: unknown, recipe: unknown) => {
+      this.recipesNs.setRecipe(machine, recipe)
+    },
+    startMachine: (machine: unknown) => {
+      this.machinesNs.startMachine(machine)
+    },
+    stopMachine: (machine: unknown) => {
+      this.machinesNs.stopMachine(machine)
+    },
+    setBeltSpeed: (belt: unknown, speed: unknown) => {
+      this.beltsNs.setBeltSpeed(belt, speed)
+    },
+    routeTo: (target: unknown) => {
+      this.beltsNs.routeTo(target)
+    },
+    repeatTimes: (count: unknown, body: () => void) => {
+      this.loopsNs.repeatTimes(count, body)
+    },
+    whileCondition: (condition: unknown, body: () => void) => {
+      this.loopsNs.whileCondition(condition, body)
+    },
+    ifQuality: (threshold: unknown, body: () => void) => {
+      this.logicNs.ifQuality(threshold, body)
+    },
+    ifItemType: (itemType: unknown, body: () => void) => {
+      this.logicNs.ifItemType(itemType, body)
+    },
+    setVariable: (name: unknown, value: unknown) => {
+      this.variablesNs.setVariable(name, value)
+    },
+    changeVariable: (name: unknown, delta: unknown) => {
+      this.variablesNs.changeVariable(name, delta)
+    },
+    defineProcedure: (name: unknown, body: () => void) => {
+      this.functionsNs.defineProcedure(name, body)
+    },
+    callProcedure: (name: unknown) => {
+      this.functionsNs.callProcedure(name)
+    },
+    onOrderReceived: (body: () => void) => {
+      this.eventsNs.onOrderReceived(body)
+    },
+    onBeltJam: (body: () => void) => {
+      this.eventsNs.onBeltJam(body)
+    },
+    onMachineIdle: (machine: unknown, body: () => void) => {
+      this.eventsNs.onMachineIdle(machine, body)
+    },
+    setQualityThreshold: (machine: unknown, threshold: unknown) => {
+      this.machinesNs.setQualityThreshold(machine, threshold)
+    },
+  }
+
+  // --- Public API --------------------------------------------------------
+
   interpret(source: string): SimulationCommand[] {
     this.opCount = 0
     this.overflow = false
+    this.commands = []
     this.procedures.clear()
     this.eventHandlers.clear()
     this.callDepth = 0
 
     const clean = this.stripComments(source)
-    const calls = this.extractTopLevelCalls(clean)
 
-    // First pass: register definitions and event handlers
-    for (const call of calls) {
-      this.registerDefinition(call)
+    try {
+      const fn = new Function(
+        'machines', 'recipes', 'belts', 'loops', 'logic',
+        'variables_', 'functions_', 'events', 'factory',
+        'Machine', 'PartType', 'Recipe', 'Belt', 'FactoryCondition',
+        '"use strict";\n' + clean,
+      )
+      fn(
+        this.machinesNs, this.recipesNs, this.beltsNs, this.loopsNs, this.logicNs,
+        this.variablesNs, this.functionsNs, this.eventsNs, this.factoryNs,
+        MachineEnum, PartTypeEnum, RecipeEnum, BeltEnum, FactoryConditionEnum,
+      )
+    } catch {
+      // Syntax errors or runtime errors — return whatever was collected
     }
 
-    // Second pass: execute non-definition calls
-    const commands: SimulationCommand[] = []
-    for (const call of calls) {
-      if (this.overflow) break
-      if (this.isDefinitionCall(call.method)) continue
-      this.executeCall(call, commands)
-    }
-
-    return commands
+    return this.commands
   }
 
-  /** Alias kept for clarity in callers. */
   parseTypeScript(source: string): SimulationCommand[] {
     return this.interpret(source)
   }
 
-  /**
-   * Trigger a registered event handler and return the commands
-   * produced by its body. Each trigger gets its own op budget.
-   */
   triggerEvent(eventType: string): SimulationCommand[] {
     this.opCount = 0
     this.overflow = false
+    this.commands = []
 
-    const body = this.eventHandlers.get(eventType)
-    if (!body) return []
+    const handler = this.eventHandlers.get(eventType)
+    if (!handler) return []
 
-    const commands: SimulationCommand[] = []
-    this.executeBody(body, commands)
-    return commands
+    try {
+      handler()
+    } catch {
+      // Runtime errors — return whatever was collected
+    }
+
+    return this.commands
   }
 
   getOverflowOccurred(): boolean {
@@ -193,7 +390,7 @@ export class BlockInterpreter {
     this.callDepth = 0
   }
 
-  // --- private helpers ---------------------------------------------------
+  // --- Private helpers ---------------------------------------------------
 
   private stripComments(source: string): string {
     return source
@@ -201,318 +398,12 @@ export class BlockInterpreter {
       .replace(/\/\*[\s\S]*?\*\//g, '')
   }
 
-  /**
-   * Extract top-level `namespace.method(args)` calls from source.
-   * Recognises: machines., recipes., belts., loops., logic.,
-   * variables_., functions_., events., and legacy factory.
-   */
-  private extractTopLevelCalls(source: string): FactoryCall[] {
-    const calls: FactoryCall[] = []
-    const prefixes = [
-      'machines.', 'recipes.', 'belts.', 'loops.', 'logic.',
-      'variables_.', 'functions_.', 'events.', 'factory.',
-    ]
-
-    let pos = 0
-    while (pos < source.length) {
-      // Find the earliest namespace prefix
-      let earliest = -1
-      let prefixLen = 0
-      for (const prefix of prefixes) {
-        const idx = source.indexOf(prefix, pos)
-        if (idx !== -1 && (earliest === -1 || idx < earliest)) {
-          earliest = idx
-          prefixLen = prefix.length
-        }
-      }
-      if (earliest === -1) break
-
-      pos = earliest + prefixLen
-
-      const nameMatch = source.substring(pos).match(/^(\w+)\s*\(/)
-      if (!nameMatch) { pos++; continue }
-
-      const method = nameMatch[1]
-      pos += nameMatch[0].length
-
-      // pos is right after the opening paren — find matching close
-      const argsStart = pos
-      let depth = 1
-
-      while (pos < source.length && depth > 0) {
-        const ch = source[pos]
-        if (ch === '(') depth++
-        else if (ch === ')') { depth--; if (depth === 0) break }
-        else if (ch === '"' || ch === "'" || ch === '`') {
-          const quote = ch
-          pos++
-          while (pos < source.length && source[pos] !== quote) {
-            if (source[pos] === '\\') pos++
-            pos++
-          }
-        }
-        pos++
-      }
-
-      calls.push({ method, argsRaw: source.substring(argsStart, pos) })
-      pos++ // skip closing paren
-    }
-
-    return calls
-  }
-
-  /** Execute a callback body (for repeat, if, etc.) without re-registering defs. */
-  private executeBody(source: string, commands: SimulationCommand[]): void {
-    const clean = this.stripComments(source)
-    const calls = this.extractTopLevelCalls(clean)
-    for (const call of calls) {
-      if (this.overflow) break
-      this.executeCall(call, commands)
-    }
-  }
-
-  /** Extract the function body from an argsRaw string: `..., function () { BODY }` */
-  private extractCallbackBody(argsRaw: string): string | null {
-    let funcIdx = argsRaw.indexOf('function')
-    if (funcIdx === -1) {
-      // Try arrow function: `() => { ... }`
-      funcIdx = argsRaw.indexOf('=>')
-      if (funcIdx === -1) return null
-    }
-
-    const braceStart = argsRaw.indexOf('{', funcIdx)
-    if (braceStart === -1) return null
-
-    let depth = 1
-    let pos = braceStart + 1
-
-    while (pos < argsRaw.length && depth > 0) {
-      const ch = argsRaw[pos]
-      if (ch === '{') depth++
-      else if (ch === '}') { depth--; if (depth === 0) break }
-      else if (ch === '"' || ch === "'" || ch === '`') {
-        const q = ch
-        pos++
-        while (pos < argsRaw.length && argsRaw[pos] !== q) {
-          if (argsRaw[pos] === '\\') pos++
-          pos++
-        }
-      }
-      pos++
-    }
-
-    return argsRaw.substring(braceStart + 1, pos)
-  }
-
-  /** Extract simple (non-callback) arguments before the function keyword. */
-  private extractSimpleArgs(argsRaw: string): string[] {
-    // Cut off everything starting from 'function' or '=>'
-    let cutoff = argsRaw.length
-    const funcIdx = argsRaw.indexOf('function')
-    const arrowIdx = argsRaw.indexOf('=>')
-
-    if (funcIdx !== -1) {
-      const comma = argsRaw.lastIndexOf(',', funcIdx)
-      cutoff = comma !== -1 ? comma : 0
-    } else if (arrowIdx !== -1) {
-      const comma = argsRaw.lastIndexOf(',', arrowIdx)
-      cutoff = comma !== -1 ? comma : 0
-    }
-
-    const simple = argsRaw.substring(0, cutoff).trim()
-    if (!simple) return []
-
-    return simple.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
-  }
-
-  private isDefinitionCall(method: string): boolean {
-    return (
-      method === 'defineProcedure' ||
-      method === 'onOrderReceived' ||
-      method === 'onBeltJam' ||
-      method === 'onMachineIdle'
-    )
-  }
-
-  private registerDefinition(call: FactoryCall): void {
-    const body = this.extractCallbackBody(call.argsRaw)
-
-    switch (call.method) {
-      case 'defineProcedure': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        const name = args.length >= 1 ? parseStringArg(args[0]) : ''
-        if (name && body != null) {
-          this.procedures.set(name, body)
-        }
-        break
-      }
-      case 'onOrderReceived':
-        if (body != null) this.eventHandlers.set('order_received', body)
-        break
-      case 'onBeltJam':
-        if (body != null) this.eventHandlers.set('belt_jam', body)
-        break
-      case 'onMachineIdle': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        const machine = args.length >= 1 ? resolveMachine(args[0]) : ''
-        if (body != null) this.eventHandlers.set(`machine_idle_${machine}`, body)
-        break
-      }
-    }
-  }
-
-  private executeCall(call: FactoryCall, commands: SimulationCommand[]): void {
+  private guardOverflow(): boolean {
     if (this.opCount >= MAX_OPERATIONS) {
       this.overflow = true
-      return
+      return true
     }
     this.opCount++
-
-    switch (call.method) {
-      // === Actions ===
-      case 'producePart': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        let machineId = ''
-        let partType = ''
-        if (args.length >= 2) {
-          machineId = resolveMachine(args[0])
-          partType = resolvePartType(args[1])
-        } else if (args.length === 1) {
-          partType = resolvePartType(args[0])
-        }
-        commands.push({
-          type: 'PRODUCE_PART',
-          machineId,
-          partType,
-        } as SimulationCommand)
-        break
-      }
-
-      case 'setRecipe': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        commands.push({
-          type: 'SET_RECIPE',
-          machineId: args.length >= 1 ? resolveMachine(args[0]) : '',
-          recipeId: args.length >= 2 ? resolveRecipe(args[1]) : '',
-        })
-        break
-      }
-
-      case 'startMachine': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        commands.push({
-          type: 'START_MACHINE',
-          machineId: args.length >= 1 ? resolveMachine(args[0]) : '',
-        })
-        break
-      }
-
-      case 'stopMachine': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        commands.push({
-          type: 'STOP_MACHINE',
-          machineId: args.length >= 1 ? resolveMachine(args[0]) : '',
-        })
-        break
-      }
-
-      case 'setBeltSpeed': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        commands.push({
-          type: 'SET_BELT_SPEED',
-          beltId: args.length >= 1 ? resolveBelt(args[0]) : '',
-          speed: args.length >= 2 ? Number(args[1]) || 1 : 1,
-        })
-        break
-      }
-
-      case 'routeTo': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        commands.push({
-          type: 'ROUTE_TO',
-          targetId: args.length >= 1 ? resolveMachine(args[0]) : '',
-        })
-        break
-      }
-
-      // === Loops ===
-      case 'repeatTimes': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        const count = args.length >= 1 ? Number(args[0]) || 0 : 0
-        const body = this.extractCallbackBody(call.argsRaw)
-        if (body) {
-          for (let i = 0; i < count; i++) {
-            if (this.overflow) return
-            this.executeBody(body, commands)
-          }
-        }
-        break
-      }
-
-      case 'whileCondition': {
-        const body = this.extractCallbackBody(call.argsRaw)
-        if (body) {
-          while (!this.overflow) {
-            if (this.opCount >= MAX_OPERATIONS) {
-              this.overflow = true
-              return
-            }
-            this.executeBody(body, commands)
-          }
-        }
-        break
-      }
-
-      // === Conditionals ===
-      case 'ifQuality': {
-        // Runtime condition — execute body by default
-        const body = this.extractCallbackBody(call.argsRaw)
-        if (body) this.executeBody(body, commands)
-        break
-      }
-
-      case 'ifItemType': {
-        // Runtime condition — execute body by default
-        const body = this.extractCallbackBody(call.argsRaw)
-        if (body) this.executeBody(body, commands)
-        break
-      }
-
-      // === Variables ===
-      case 'setVariable': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        const name = args.length >= 1 ? parseStringArg(args[0]) : ''
-        const value = args.length >= 2 ? Number(args[1]) || 0 : 0
-        if (name) this.variables.set(name, value)
-        break
-      }
-
-      case 'changeVariable': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        const name = args.length >= 1 ? parseStringArg(args[0]) : ''
-        const delta = args.length >= 2 ? Number(args[1]) || 0 : 0
-        if (name) {
-          const current = this.variables.get(name) ?? 0
-          this.variables.set(name, current + delta)
-        }
-        break
-      }
-
-      // === Functions ===
-      case 'callProcedure': {
-        const args = this.extractSimpleArgs(call.argsRaw)
-        const name = args.length >= 1 ? parseStringArg(args[0]) : ''
-        const procBody = this.procedures.get(name)
-        if (procBody && this.callDepth < MAX_CALL_DEPTH) {
-          this.callDepth++
-          this.executeBody(procBody, commands)
-          this.callDepth--
-        }
-        break
-      }
-
-      default:
-        break
-    }
+    return false
   }
 }

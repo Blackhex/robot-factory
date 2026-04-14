@@ -14,6 +14,7 @@ export class TutorialOverlay {
   private tooltipArrow: HTMLDivElement
   private nextBtn: HTMLButtonElement
   private skipBtn: HTMLButtonElement
+  private backBtn: HTMLButtonElement
   private stepCounter: HTMLSpanElement
   private steps: TutorialStep[] = []
   private currentIndex = 0
@@ -49,6 +50,12 @@ export class TutorialOverlay {
     // Buttons row
     const buttons = document.createElement('div')
     buttons.className = 'ui-tutorial-buttons'
+
+    this.backBtn = document.createElement('button')
+    this.backBtn.className = 'ui-tutorial-btn ui-tutorial-btn--back'
+    this.backBtn.textContent = i18next.t('tutorial.back')
+    this.backBtn.addEventListener('click', () => this.prevStep())
+    buttons.appendChild(this.backBtn)
 
     this.skipBtn = document.createElement('button')
     this.skipBtn.className = 'ui-tutorial-btn ui-tutorial-btn--skip'
@@ -92,6 +99,12 @@ export class TutorialOverlay {
     this.showCurrentStep()
   }
 
+  prevStep(): void {
+    if (this.currentIndex <= 0) return
+    this.currentIndex--
+    this.showCurrentStep()
+  }
+
   skip(): void {
     this.hide()
     this.onComplete()
@@ -114,6 +127,8 @@ export class TutorialOverlay {
       ? i18next.t('tutorial.finish')
       : i18next.t('tutorial.next')
 
+    this.backBtn.style.display = this.currentIndex === 0 ? 'none' : ''
+
     // Position tooltip relative to highlighted element
     this.positionTooltip(step)
   }
@@ -133,6 +148,14 @@ export class TutorialOverlay {
       if (target) {
         const rect = target.getBoundingClientRect()
 
+        // Detect hidden/zero-dimension elements → center fallback
+        if (rect.width === 0 && rect.height === 0) {
+          this.backdrop.classList.remove('ui-tutorial-backdrop--spotlight')
+          this.backdrop.style.pointerEvents = ''
+          this.centerTooltip()
+          return
+        }
+
         // Position the spotlight cutout via CSS custom properties
         this.backdrop.style.setProperty('--spotlight-x', `${rect.left + rect.width / 2}px`)
         this.backdrop.style.setProperty('--spotlight-y', `${rect.top + rect.height / 2}px`)
@@ -140,34 +163,51 @@ export class TutorialOverlay {
         this.backdrop.style.setProperty('--spotlight-h', `${rect.height + 16}px`)
         this.backdrop.classList.add('ui-tutorial-backdrop--spotlight')
 
-        // Position tooltip
+        // Allow clicks to pass through the spotlight cutout
+        this.backdrop.style.pointerEvents = 'none'
+
+        // Compute tooltip dimensions
+        const tw = this.tooltip.offsetWidth || 300
+        const th = this.tooltip.offsetHeight || 150
+        const gap = 16
+        const margin = 8
+
+        let top = 0
+        let left = 0
+
         switch (step.position) {
           case 'bottom':
-            this.tooltip.style.top = `${rect.bottom + 16}px`
-            this.tooltip.style.left = `${rect.left + rect.width / 2}px`
-            this.tooltip.style.transform = 'translateX(-50%)'
+            top = rect.bottom + gap
+            left = rect.left + rect.width / 2 - tw / 2
             break
           case 'top':
-            this.tooltip.style.top = `${rect.top - 16}px`
-            this.tooltip.style.left = `${rect.left + rect.width / 2}px`
-            this.tooltip.style.transform = 'translate(-50%, -100%)'
+            top = rect.top - gap - th
+            left = rect.left + rect.width / 2 - tw / 2
             break
           case 'right':
-            this.tooltip.style.top = `${rect.top + rect.height / 2}px`
-            this.tooltip.style.left = `${rect.right + 16}px`
-            this.tooltip.style.transform = 'translateY(-50%)'
+            top = rect.top + rect.height / 2 - th / 2
+            left = rect.right + gap
             break
           case 'left':
-            this.tooltip.style.top = `${rect.top + rect.height / 2}px`
-            this.tooltip.style.left = `${rect.left - 16}px`
-            this.tooltip.style.transform = 'translate(-100%, -50%)'
+            top = rect.top + rect.height / 2 - th / 2
+            left = rect.left - gap - tw
             break
         }
+
+        // Clamp to viewport
+        top = Math.max(margin, Math.min(top, window.innerHeight - th - margin))
+        left = Math.max(margin, Math.min(left, window.innerWidth - tw - margin))
+
+        this.tooltip.style.top = `${top}px`
+        this.tooltip.style.left = `${left}px`
+        this.tooltip.style.transform = ''
       } else {
+        this.backdrop.style.pointerEvents = ''
         this.centerTooltip()
       }
     } else {
       this.backdrop.classList.remove('ui-tutorial-backdrop--spotlight')
+      this.backdrop.style.pointerEvents = ''
       this.centerTooltip()
     }
   }
@@ -179,6 +219,7 @@ export class TutorialOverlay {
   }
 
   private updateLabels = (): void => {
+    this.backBtn.textContent = i18next.t('tutorial.back')
     this.skipBtn.textContent = i18next.t('tutorial.skip')
     if (this.steps.length > 0 && this.currentIndex < this.steps.length) {
       this.showCurrentStep()

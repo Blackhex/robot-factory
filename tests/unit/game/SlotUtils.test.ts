@@ -69,6 +69,15 @@ describe('SlotUtils', () => {
         expect(getSlotPositions(type)).toEqual({ inputs: ['back'], outputs: ['front'] })
       }
     })
+
+    it('should return 4 inputs and 0 outputs for factory_output', () => {
+      // WHEN
+      const slots = getSlotPositions('factory_output')
+
+      // THEN
+      expect(slots.inputs).toEqual(['back', 'right', 'left', 'front'])
+      expect(slots.outputs).toEqual([])
+    })
   })
 
   describe('slotPositionToOffset()', () => {

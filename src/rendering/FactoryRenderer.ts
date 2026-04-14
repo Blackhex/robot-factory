@@ -300,8 +300,12 @@ export class FactoryRenderer {
   private _cornerBeltGeometryFwd: THREE.BufferGeometry | null = null
   private _cornerBeltGeometryRev: THREE.BufferGeometry | null = null
   private highlightedBeltIds: Set<string> = new Set()
-  private beltHighlightMaterial: THREE.MeshStandardMaterial
+  private beltHighlightMaterials: Map<string, THREE.MeshStandardMaterial> = new Map()
   private cornerSideMaterial: THREE.MeshStandardMaterial
+  private cornerSideHighlightMaterial: THREE.MeshStandardMaterial
+
+  private highlightedMachineId: string | null = null
+  private machineHighlightMaterials: Map<MachineType, THREE.MeshStandardMaterial> = new Map()
 
   private machineGeometry: THREE.BoxGeometry
   private beltGeometry: THREE.BoxGeometry
@@ -311,6 +315,8 @@ export class FactoryRenderer {
   private slotGeometry: THREE.BoxGeometry
   private inputSlotMaterial: THREE.MeshStandardMaterial
   private outputSlotMaterial: THREE.MeshStandardMaterial
+  private inputSlotHighlightMaterial: THREE.MeshStandardMaterial
+  private outputSlotHighlightMaterial: THREE.MeshStandardMaterial
   private iconMaterials: Map<MachineType, THREE.MeshBasicMaterial> = new Map()
   private iconGeometry: THREE.PlaneGeometry
   private arrowGeometry: THREE.PlaneGeometry
@@ -341,7 +347,17 @@ export class FactoryRenderer {
     this.beltArrowTexture = createBeltArrowTexture()
     const directions = ['east', 'west', 'north', 'south'] as const
     for (const dir of directions) {
-      this.beltDirectionMaterials.set(dir, createBeltDirectionMaterial(dir, this.beltArrowTexture))
+      const baseMat = createBeltDirectionMaterial(dir, this.beltArrowTexture)
+      this.beltDirectionMaterials.set(dir, baseMat)
+      // Highlight version: share the same texture so animation applies to both
+      const hlMat = new THREE.MeshStandardMaterial({
+        color: baseMat.color,
+        roughness: 0.3,
+        map: baseMat.map,
+        emissive: new THREE.Color(0x4fc3f7),
+        emissiveIntensity: 0.6,
+      })
+      this.beltHighlightMaterials.set(dir, hlMat)
     }
 
     // Slot indicators (rectangular pads on input/output faces)
@@ -351,6 +367,12 @@ export class FactoryRenderer {
     })
     this.outputSlotMaterial = new THREE.MeshStandardMaterial({
       color: 0xff8844, emissive: 0x663311, emissiveIntensity: 0.5,
+    })
+    this.inputSlotHighlightMaterial = new THREE.MeshStandardMaterial({
+      color: 0x66ff66, emissive: 0x4fc3f7, emissiveIntensity: 0.8, roughness: 0.3,
+    })
+    this.outputSlotHighlightMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffaa66, emissive: 0x4fc3f7, emissiveIntensity: 0.8, roughness: 0.3,
     })
 
     // Machine type icon materials (shared per type)
@@ -380,17 +402,29 @@ export class FactoryRenderer {
       depthWrite: false,
     })
 
-    this.beltHighlightMaterial = new THREE.MeshStandardMaterial({
-      color: 0x00ffff,
-      emissive: 0x00cccc,
-      emissiveIntensity: 0.8,
-      roughness: 0.5,
-    })
-
     this.cornerSideMaterial = new THREE.MeshStandardMaterial({
       color: 0x888899,
       roughness: 0.8,
     })
+    this.cornerSideHighlightMaterial = new THREE.MeshStandardMaterial({
+      color: 0x888899,
+      emissive: 0x4fc3f7,
+      emissiveIntensity: 0.6,
+      roughness: 0.3,
+    })
+
+    // Highlighted machine materials — same base color with strong emissive glow
+    for (const [type, color] of Object.entries(MACHINE_COLORS)) {
+      this.machineHighlightMaterials.set(
+        type as MachineType,
+        new THREE.MeshStandardMaterial({
+          color,
+          emissive: 0x4fc3f7,
+          emissiveIntensity: 0.6,
+          roughness: 0.3,
+        }),
+      )
+    }
 
     this.scene.add(this.gridGroup)
   }
@@ -496,7 +530,7 @@ export class FactoryRenderer {
       for (const [, mesh] of this.beltMeshes) {
         const ids = this.cellBeltIds.get(mesh)
         if (ids && ids.some(id => this.highlightedBeltIds.has(id))) {
-          mesh.material = this.beltHighlightMaterial
+          this.applyBeltHighlight(mesh)
         }
       }
     }
@@ -507,12 +541,9 @@ export class FactoryRenderer {
     for (const [, mesh] of this.beltMeshes) {
       const ids = this.cellBeltIds.get(mesh)
       if (ids && ids.some(id => this.highlightedBeltIds.has(id))) {
-        const isCorner = mesh.geometry.groups?.some(g => g.materialIndex === 1) ?? false
-        mesh.material = isCorner
-          ? [this.beltHighlightMaterial, this.beltHighlightMaterial]
-          : this.beltHighlightMaterial
+        this.applyBeltHighlight(mesh)
       } else {
-        this.restoreBeltMaterial(mesh, ids)
+        this.restoreBeltMaterial(mesh)
       }
     }
   }
@@ -520,29 +551,71 @@ export class FactoryRenderer {
   clearBeltHighlight(): void {
     this.highlightedBeltIds.clear()
     for (const [, mesh] of this.beltMeshes) {
-      const ids = this.cellBeltIds.get(mesh)
-      this.restoreBeltMaterial(mesh, ids)
+      this.restoreBeltMaterial(mesh)
     }
   }
 
-  private restoreBeltMaterial(mesh: THREE.Mesh, ids?: string[]): void {
-    // Check if this is a corner (geometry has groups with material index 1)
-    const isCorner = mesh.geometry.groups?.some(g => g.materialIndex === 1) ?? false
+  highlightMachine(machineId: string): void {
+    // Restore previous highlight
+    if (this.highlightedMachineId) this.restoreMachineMaterial(this.highlightedMachineId)
+    this.highlightedMachineId = machineId
+    const mesh = this.machineMeshes.get(machineId)
+    if (!mesh) return
+    // Find the machine type to get the matching highlight material
+    const machine = this.factory.getMachines().find(m => m.id === machineId)
+    if (!machine) return
+    const hlMat = this.machineHighlightMaterials.get(machine.type)
+    if (hlMat) mesh.material = hlMat
+    // Highlight slot indicators
+    const slots = this.slotMeshes.get(machineId)
+    if (slots) {
+      for (const m of slots.inputs) m.material = this.inputSlotHighlightMaterial
+      for (const m of slots.outputs) m.material = this.outputSlotHighlightMaterial
+    }
+  }
+
+  clearMachineHighlight(): void {
+    if (this.highlightedMachineId) this.restoreMachineMaterial(this.highlightedMachineId)
+    this.highlightedMachineId = null
+  }
+
+  private restoreMachineMaterial(machineId: string): void {
+    const mesh = this.machineMeshes.get(machineId)
+    if (!mesh) return
+    const machine = this.factory.getMachines().find(m => m.id === machineId)
+    if (!machine) return
+    const baseMat = this.machineMaterials.get(machine.type)
+    if (baseMat) mesh.material = baseMat
+    // Restore slot indicators
+    const slots = this.slotMeshes.get(machineId)
+    if (slots) {
+      for (const m of slots.inputs) m.material = this.inputSlotMaterial
+      for (const m of slots.outputs) m.material = this.outputSlotMaterial
+    }
+  }
+
+  private restoreBeltMaterial(mesh: THREE.Mesh): void {
+    // Straight belts use shared beltGeometry; corners use custom curved geometry
+    const isCorner = mesh.geometry !== this.beltGeometry
     if (isCorner) {
-      const beltId = ids?.[0]
-      const belt = beltId ? this.factory.getBelts().find(b => b.id === beltId) : undefined
-      const dir = belt ? this.getBeltDirection(belt) : 'east'
-      const dirMat = this.beltDirectionMaterials.get(dir) ?? this.beltDirectionMaterials.get('east')!
+      // Corners use custom curved geometry with baked UVs — always use 'east' (no rotation)
+      const dirMat = this.beltDirectionMaterials.get('east')!
       mesh.material = [dirMat, this.cornerSideMaterial]
     } else {
-      const beltId = ids?.[0]
-      const belt = beltId ? this.factory.getBelts().find(b => b.id === beltId) : undefined
-      if (belt) {
-        const dir = this.getBeltDirection(belt)
-        const dirMat = this.beltDirectionMaterials.get(dir) ?? this.beltDirectionMaterials.get('east')!
-        mesh.material = [dirMat, this.cornerSideMaterial]
-      }
+      // Straight/endpoint cells — use per-cell flow direction stored during rendering
+      const dir = (mesh.userData.flowDir as string) ?? 'east'
+      const dirMat = this.beltDirectionMaterials.get(dir) ?? this.beltDirectionMaterials.get('east')!
+      mesh.material = [dirMat, this.cornerSideMaterial]
     }
+  }
+
+  private applyBeltHighlight(mesh: THREE.Mesh): void {
+    // Straight belts use shared beltGeometry; corners use custom curved geometry
+    const isCorner = mesh.geometry !== this.beltGeometry
+    // Corners use baked UVs → always 'east'. Straight cells use stored per-cell flow direction.
+    const dir = isCorner ? 'east' : ((mesh.userData.flowDir as string) ?? 'east')
+    const hlMat = this.beltHighlightMaterials.get(dir) ?? this.beltHighlightMaterials.get('east')!
+    mesh.material = isCorner ? [hlMat, this.cornerSideHighlightMaterial] : hlMat
   }
 
   update(): void {
@@ -612,8 +685,15 @@ export class FactoryRenderer {
     }
     this.beltDirectionMaterials.clear()
     this.beltArrowTexture.dispose()
-    this.beltHighlightMaterial.dispose()
+    for (const mat of this.beltHighlightMaterials.values()) {
+      // Don't dispose map — shared with base beltDirectionMaterials
+      mat.dispose()
+    }
+    this.beltHighlightMaterials.clear()
     this.cornerSideMaterial.dispose()
+    this.cornerSideHighlightMaterial.dispose()
+    for (const mat of this.machineHighlightMaterials.values()) mat.dispose()
+    this.machineHighlightMaterials.clear()
     if (this._cornerBeltGeometryFwd) {
       this._cornerBeltGeometryFwd.dispose()
       this._cornerBeltGeometryFwd = null
@@ -625,6 +705,8 @@ export class FactoryRenderer {
     this.slotGeometry.dispose()
     this.inputSlotMaterial.dispose()
     this.outputSlotMaterial.dispose()
+    this.inputSlotHighlightMaterial.dispose()
+    this.outputSlotHighlightMaterial.dispose()
     for (const [, mat] of this.iconMaterials) {
       if (mat.map) mat.map.dispose()
       mat.dispose()
@@ -647,13 +729,17 @@ export class FactoryRenderer {
       existing.position.set(worldPos.x, 0.45, worldPos.z)
       existing.rotation.y = rotRad
       const material = this.machineMaterials.get(machine.type)
-      if (material && existing.material !== material) {
+      if (this.highlightedMachineId === machine.id) {
+        const hlMat = this.machineHighlightMaterials.get(machine.type)
+        if (hlMat && existing.material !== hlMat) existing.material = hlMat
+      } else if (material && existing.material !== material) {
         existing.material = material
       }
     } else {
       const material = this.machineMaterials.get(machine.type)
       if (!material) return
-      const mesh = new THREE.Mesh(this.machineGeometry, material)
+      const hlMat = this.highlightedMachineId === machine.id ? this.machineHighlightMaterials.get(machine.type) : null
+      const mesh = new THREE.Mesh(this.machineGeometry, hlMat ?? material)
       mesh.position.set(worldPos.x, 0.45, worldPos.z)
       mesh.rotation.y = rotRad
       mesh.castShadow = true
@@ -703,6 +789,12 @@ export class FactoryRenderer {
         worldPos.x + off.x * 0.55, 0.06, worldPos.z + off.z * 0.55,
       )
       slots.outputs[i].rotation.y = Math.atan2(off.x, off.z)
+    }
+
+    // Apply highlight materials if this machine is currently selected
+    if (this.highlightedMachineId === machine.id) {
+      for (const m of slots.inputs) m.material = this.inputSlotHighlightMaterial
+      for (const m of slots.outputs) m.material = this.outputSlotHighlightMaterial
     }
 
     // Machine type icon (flat plane on top face)
@@ -878,6 +970,7 @@ export class FactoryRenderer {
           const dir = this.getCellFlowDirection(x, z, info)
           const material = this.beltDirectionMaterials.get(dir) ?? this.beltDirectionMaterials.get('east')!
           const mesh = new THREE.Mesh(this.beltGeometry, [material, this.cornerSideMaterial])
+          mesh.userData.flowDir = dir
           mesh.scale.set(
             isHorizontal ? 1.0 : BELT_WIDTH,
             1,
@@ -943,6 +1036,7 @@ export class FactoryRenderer {
         const dir = this.getCellFlowDirection(x, z, info)
         const material = this.beltDirectionMaterials.get(dir) ?? this.beltDirectionMaterials.get('east')!
         const mesh = new THREE.Mesh(this.beltGeometry, [material, this.cornerSideMaterial])
+        mesh.userData.flowDir = dir
         mesh.scale.set(
           isHorizontal ? 0.5 : BELT_WIDTH,
           1,
@@ -975,13 +1069,6 @@ export class FactoryRenderer {
     }
     if (path.length >= 2) return this.getSegmentDirection(path[0], path[1])
     return 'east'
-  }
-
-  private getBeltDirection(
-    belt: BeltInfo,
-  ): 'east' | 'west' | 'north' | 'south' {
-    if (belt.path.length < 2) return 'east'
-    return this.getSegmentDirection(belt.path[0], belt.path[1])
   }
 
   private getSegmentDirection(

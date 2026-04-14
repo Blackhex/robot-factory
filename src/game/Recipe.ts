@@ -18,7 +18,7 @@ export interface Recipe {
   readonly machineType: MachineType
 }
 
-// --- Part Fabricator Recipes (raw material → part) ---
+// --- Fabricator Recipes (raw material → part) ---
 
 const wheelPress: Recipe = {
   id: 'wheel_press_small',
@@ -259,6 +259,14 @@ for (const recipe of ALL_RECIPES) {
 
 export function getRecipeById(id: string): Recipe | undefined {
   return recipeMap.get(id)
+}
+
+export function getRecipeByOutputType(itemType: string): Recipe | undefined {
+  return ALL_RECIPES.find(
+    (r) =>
+      r.machineType === 'part_fabricator' &&
+      r.outputs.some((o) => o.type === itemType),
+  )
 }
 
 export function getRecipesForMachineType(

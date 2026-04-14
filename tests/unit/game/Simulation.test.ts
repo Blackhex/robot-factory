@@ -542,6 +542,122 @@ describe('Simulation', () => {
       expect(sim.getStats().qualityPercent).toBe(0)
     })
   })
+
+  describe('factory_output delivery tracking', () => {
+    it('should start with zero outputsDelivered', () => {
+      // THEN
+      expect(sim.outputsDelivered).toBe(0)
+    })
+
+    it('should track items delivered to factory_output', () => {
+      // GIVEN
+      const output = new Machine('out1', 'factory_output')
+      sim.addMachine(output)
+      sim.setMachinePosition('out1', 1, 0)
+      const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
+      sim.addBelt(belt)
+      const item = createItem('wheel_small')
+      belt.addItem(item)
+
+      // WHEN — 11 ticks for belt to deliver
+      tickN(sim, 11)
+
+      // THEN
+      expect(sim.outputsDelivered).toBe(1)
+    })
+
+    it('should emit output_delivered event when item reaches factory_output', () => {
+      // GIVEN
+      const events: SimulationEvent[] = []
+      sim.on('output_delivered', (e) => events.push(e))
+      const output = new Machine('out1', 'factory_output')
+      sim.addMachine(output)
+      sim.setMachinePosition('out1', 1, 0)
+      const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
+      sim.addBelt(belt)
+      const item = createItem('wheel_small')
+      belt.addItem(item)
+
+      // WHEN
+      tickN(sim, 11)
+
+      // THEN
+      expect(events).toHaveLength(1)
+      expect(events[0].data['machineId']).toBe('out1')
+      expect(events[0].data['itemType']).toBe('wheel_small')
+    })
+
+    it('should count multiple deliveries to factory_output', () => {
+      // GIVEN
+      const output = new Machine('out1', 'factory_output')
+      sim.addMachine(output)
+      sim.setMachinePosition('out1', 1, 0)
+      const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
+      sim.addBelt(belt)
+
+      // WHEN — deliver first item
+      belt.addItem(createItem('wheel_small'))
+      tickN(sim, 11)
+
+      // deliver second item
+      belt.addItem(createItem('circuit_basic'))
+      tickN(sim, 11)
+
+      // THEN
+      expect(sim.outputsDelivered).toBe(2)
+    })
+
+    it('should reset outputsDelivered on reset()', () => {
+      // GIVEN
+      sim.outputsDelivered = 5
+
+      // WHEN
+      sim.reset()
+
+      // THEN
+      expect(sim.outputsDelivered).toBe(0)
+    })
+  })
+
+  describe('PRODUCE_PART command', () => {
+    it('should set recipe when PRODUCE_PART command uses a part type ID', () => {
+      // GIVEN
+      const m = new Machine('machine_1', 'part_fabricator')
+      sim.addMachine(m)
+
+      // WHEN — partType is 'wheel_small', recipe ID is 'wheel_press_small'
+      sim.enqueueCommand({
+        type: 'PRODUCE_PART',
+        machineId: 'machine_1',
+        partType: 'wheel_small',
+      })
+      sim.tick()
+
+      // THEN — the simulation should find the recipe that produces wheel_small
+      expect(m.currentRecipe).not.toBeNull()
+      expect(m.currentRecipe!.outputs[0].type).toBe('wheel_small')
+    })
+
+    it('should produce items after PRODUCE_PART command', () => {
+      // GIVEN
+      const m = new Machine('machine_1', 'part_fabricator')
+      sim.addMachine(m)
+      const belt = new ConveyorBelt('belt_1', 0, 0, 1, 0, 1.0)
+      sim.addBelt(belt)
+      sim.setMachineOutputBelt('machine_1', 'belt_1')
+
+      // WHEN — enqueue PRODUCE_PART and tick enough for production (1 start + 5 processing + transfer)
+      sim.enqueueCommand({
+        type: 'PRODUCE_PART',
+        machineId: 'machine_1',
+        partType: 'wheel_small',
+      })
+      tickN(sim, 10)
+
+      // THEN — items should appear on the output belt
+      expect(belt.isEmpty()).toBe(false)
+    })
+  })
 })
 
 // --- Integration tests ---

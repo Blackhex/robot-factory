@@ -6,12 +6,13 @@
     "export": "Export"
   },
   "machines": {
-    "part_fabricator": "Výrobce dílů",
+    "part_fabricator": "Vyráběč",
     "assembler": "Montážní stroj",
-    "quality_checker": "Kontrola kvality",
+    "quality_checker": "Kontrolér",
     "painter": "Lakovač",
     "recycler": "Recyklátor",
-    "splitter": "Rozdělovač"
+    "splitter": "Rozdělovač",
+    "factory_output": "Odesílač"
   },
   "actions": {
     "start": "Spustit",
@@ -103,12 +104,12 @@
   },
   "levels": {
     "level_1": {
-      "name": "Ahoj, továrno!",
-      "description": "Umísti stroje, propoj je pásem a postav svého prvního robota."
+      "name": "První díl",
+        "description": "Umísti Vyráběč, propoj ho s Odesílačem pásem a vyrobte svá první kola."
     },
     "level_2": {
       "name": "Montážní linka",
-      "description": "Nastav sekvenci: lisuj, montuj a odešli 3 roboty."
+      "description": "Propoj stroje pásy a sestav své první roboty."
     },
     "level_3": {
       "name": "Hromadná výroba",
@@ -154,6 +155,7 @@
   },
   "hud": {
     "items_produced": "Položky",
+    "items_delivered": "Dodané díly",
     "robots_completed": "Roboti",
     "time": "Čas",
     "quality": "Kvalita"
@@ -176,16 +178,22 @@
     "delete": "Smazat pás"
   },
   "tutorial": {
+    "back": "Zpět",
     "skip": "Přeskočit",
     "next": "Další",
     "finish": "Hotovo",
-    "step_1": "Vítej! Klikni na panel nástrojů a vyber typ stroje.",
-    "step_2": "Klikni na mřížku a umísti svůj stroj.",
-    "step_3": "Teď vyber 'Umístit pás' a propoj své stroje.",
-    "step_4": "Otevři editor klávesou E a napiš svůj program.",
-    "step_5": "Stiskni Spustit pro zahájení simulace a sleduj svou továrnu!",
-    "step_6": "Použij smyčky k efektivnímu opakování akcí.",
-    "step_7": "Kontroluj kvalitu položek podmínkami a přesměruj vadné kusy.",
-    "step_8": "Použij proměnné k sledování počtů a rozhodování."
+    "level1_step1": "Vítej! Dvojklikem na mřížku umísti svůj první stroj — Vyráběč.",
+    "level1_step2": "Dvojklikem na jiné políčko umísti Odesílač. Klikni na ni a změň její typ na Odesílač.",
+    "level1_step3": "Propoj je pásem — přetáhni z výstupního slotu Vyráběče na vstupní slot Odesílače.",
+    "level1_step4": "Otevři Editor a napiš svůj program. Klikni na ikonu kódu nebo stiskni E.",
+    "level1_step5": "Použij blok 'vyrobit' k výrobě malých kol. Přetáhni ho z kategorie Machines.",
+    "level1_step6": "Stiskni Spustit a sleduj, jak díly putují po pásu do Odesílače!",
+    "level2_step1": "Tentokrát potřebuješ více strojů. Dvojklikem umísti Vyráběč a Montážní stroj.",
+  "level2_step2": "Propoj stroje pásy a směřuj díly do Odesílače.",
+    "level2_step3": "Otevři Editor a použij bloky 'nastavit recept', aby každý stroj věděl, co má vyrábět.",
+    "level3_step1": "Otevři Editor — máš nové bloky Smyčky! Použij 'opakuj' k efektivní výrobě mnoha dílů.",
+    "level3_step2": "Smyčky opakují tvé instrukce automaticky, takže nemusíš psát stejné bloky znovu a znovu.",
+    "level4_step1": "Máš nový stroj: Kontrolér! Umísti ho mezi své stroje a kontroluj kvalitu dílů.",
+    "level4_step2": "Použij bloky 'pokud kvalita' v Editoru k přesměrování vadných dílů od dobrých."
   }
 }

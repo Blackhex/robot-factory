@@ -77,15 +77,21 @@ function computeGhostPaths(
   const rotation = newRotation ?? machine.rotation
 
   const results: Array<{ path: GridPosition[], collides: boolean, machineIsSource: boolean }> = []
+  const ghostBlockedCells = new Set<string>()
   for (const conn of connections) {
     const ghostResult = factory.computeReconnectPath(
       newX, newZ,
       machine.type, rotation,
       conn.position, conn.machineIsSource,
       connectedBeltIds,
+      ghostBlockedCells.size > 0 ? ghostBlockedCells : undefined,
     )
     if (ghostResult) {
       results.push({ ...ghostResult, machineIsSource: conn.machineIsSource })
+      // Block intermediate cells for subsequent ghost paths (prevents crossings)
+      for (let i = 1; i < ghostResult.path.length - 1; i++) {
+        ghostBlockedCells.add(`${ghostResult.path[i].x},${ghostResult.path[i].z}`)
+      }
     } else {
       // null means ghost path couldn't be computed — record as empty for comparison
       results.push({ path: [], collides: true, machineIsSource: conn.machineIsSource })
@@ -238,6 +244,18 @@ function setupS6(): Factory {
   f.placeMachine(1, 10, 'painter')
   f.placeBeltChain(f.getMachineAt(1, 1)!, f.getMachineAt(1, 5)!)
   f.placeBeltChain(f.getMachineAt(1, 5)!, f.getMachineAt(1, 10)!)
+  return f
+}
+
+/** S7: Bidirectional belts — F(9,10) ↔ F(10,10), both south */
+function setupS7(): Factory {
+  const f = new Factory(20, 20)
+  const a = f.placeMachine(9, 10, 'part_fabricator')!
+  const b = f.placeMachine(10, 10, 'part_fabricator')!
+  f.rotateMachine(a, 'south')
+  f.rotateMachine(b, 'south')
+  f.placeBeltChain(a, b, 'output', true)
+  f.placeBeltChain(b, a, 'output', true)
   return f
 }
 
@@ -571,6 +589,67 @@ describe('GhostDropParity', () => {
         assertParity(ghostPaths, droppedPaths)
       })
     })
+
+    // ── S8: Bidirectional belts (ghost crossing prevention) ─
+
+    describe('S8: Bidirectional belts F(9,10)↔F(10,10) south', () => {
+      it('A1: drag machine at same position (no move) — ghost should not cross', () => {
+        const factory = setupS7()
+        expect(factory.getBelts()).toHaveLength(2)
+        // Drag machine B at (10,10) to the same position (10,10) — no actual move
+        // Ghost paths for both bidirectional belts should NOT cross
+        const ghostPaths = computeGhostPaths(factory, 10, 10, 10, 10)
+        // Verify no intermediate cells overlap between ghost paths
+        const cellMap = new Map<string, number>()
+        for (let idx = 0; idx < ghostPaths.length; idx++) {
+          for (let i = 1; i < ghostPaths[idx].path.length - 1; i++) {
+            const key = `${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z}`
+            if (cellMap.has(key) && cellMap.get(key) !== idx) {
+              throw new Error(`Ghost paths cross at (${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z})`)
+            }
+            cellMap.set(key, idx)
+          }
+        }
+      })
+
+      it('A2: move B east +2 — ghost should not cross', () => {
+        const factory = setupS7()
+        const ghostPaths = computeGhostPaths(factory, 10, 10, 12, 10)
+        factory.moveMachine(10, 10, 12, 10)
+        const droppedPaths = getDroppedBeltPaths(factory, 12, 10)
+        assertEndpointParity(ghostPaths, droppedPaths)
+        // Verify no ghost crossing
+        const cellMap = new Map<string, number>()
+        for (let idx = 0; idx < ghostPaths.length; idx++) {
+          for (let i = 1; i < ghostPaths[idx].path.length - 1; i++) {
+            const key = `${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z}`
+            if (cellMap.has(key) && cellMap.get(key) !== idx) {
+              throw new Error(`Ghost paths cross at (${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z})`)
+            }
+            cellMap.set(key, idx)
+          }
+        }
+      })
+
+      it('A3: move B south +3 — ghost should not cross', () => {
+        const factory = setupS7()
+        const ghostPaths = computeGhostPaths(factory, 10, 10, 10, 13)
+        factory.moveMachine(10, 10, 10, 13)
+        const droppedPaths = getDroppedBeltPaths(factory, 10, 13)
+        assertEndpointParity(ghostPaths, droppedPaths)
+        // Verify no ghost crossing
+        const cellMap = new Map<string, number>()
+        for (let idx = 0; idx < ghostPaths.length; idx++) {
+          for (let i = 1; i < ghostPaths[idx].path.length - 1; i++) {
+            const key = `${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z}`
+            if (cellMap.has(key) && cellMap.get(key) !== idx) {
+              throw new Error(`Ghost paths cross at (${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z})`)
+            }
+            cellMap.set(key, idx)
+          }
+        }
+      })
+    })
   })
 
   describe('rotateMachine() parity', () => {
@@ -673,6 +752,216 @@ describe('GhostDropParity', () => {
         const droppedPaths = rotateAndGetPaths(factory, 3, 3, 'west')
         assertParity(ghostPaths, droppedPaths)
       })
+    })
+  })
+
+  describe('placeBeltChain() parity (belt drag ghost vs final)', () => {
+
+    /**
+     * Simulate the ghost preview during belt drag:
+     * tries slot-based path with all fallback strategies (mirrors computeBestBeltPath
+     * in GridInteraction).
+     */
+    function computeGhostBeltPath(
+      factory: Factory,
+      from: GridPosition, to: GridPosition,
+      slotType: 'input' | 'output',
+    ): { path: GridPosition[], collides: boolean } | null {
+      // Try original slot type (strict → relaxed)
+      let result = factory.computeBeltFromSlotPath(from, to, slotType, undefined, true)
+      if (!result || result.collides) {
+        const relaxed = factory.computeBeltFromSlotPath(from, to, slotType, undefined)
+        if (relaxed && (!result || !relaxed.collides)) {
+          result = relaxed
+        }
+      }
+      // Try reverse slot type
+      if (!result || result.collides) {
+        const reverseSlotType: 'input' | 'output' = slotType === 'input' ? 'output' : 'input'
+        const reversed = factory.computeBeltFromSlotPath(from, to, reverseSlotType, undefined)
+        if (reversed && (!result || !reversed.collides)) {
+          result = reversed
+        }
+      }
+      return result
+    }
+
+    /**
+     * Simulate final belt placement: tries all fallback strategies
+     * (mirrors tryPlaceBeltChain in GridInteraction).
+     */
+    function placeBeltAndGetPath(
+      factory: Factory,
+      from: GridPosition, to: GridPosition,
+      slotType: 'input' | 'output',
+    ): { path: GridPosition[], placed: boolean } {
+      const srcMachine = factory.getMachineAt(from.x, from.z)!
+      const dstMachine = factory.getMachineAt(to.x, to.z)!
+
+      // Mirror tryPlaceBeltChain fallback strategy
+      let placed = factory.placeBeltChain(srcMachine, dstMachine, slotType, true)
+      if (!placed) {
+        placed = factory.placeBeltChain(srcMachine, dstMachine, slotType)
+      }
+      if (!placed) {
+        const reverseSlotType: 'input' | 'output' = slotType === 'input' ? 'output' : 'input'
+        placed = factory.placeBeltChain(srcMachine, dstMachine, reverseSlotType)
+      }
+
+      if (!placed) return { path: [], placed: false }
+
+      // Find the newly placed belt
+      const belts = factory.getBelts()
+      const newBelt = belts[belts.length - 1]
+      return { path: newBelt.path.map(p => ({ x: p.x, z: p.z })), placed: true }
+    }
+
+    /**
+     * Assert that ghost preview and final placement produce the same path.
+     * If ghost says collides=true or null, placement should fail.
+     * If ghost says collides=false, placement should succeed with the same path.
+     */
+    function assertBeltDragParity(
+      ghost: { path: GridPosition[], collides: boolean } | null,
+      drop: { path: GridPosition[], placed: boolean },
+      desc: string,
+    ) {
+      if (!ghost || ghost.collides) {
+        expect(drop.placed, `${desc}: Ghost shows collision/null but placement succeeded`).toBe(false)
+      } else {
+        expect(drop.placed, `${desc}: Ghost shows clean path but placement failed`).toBe(true)
+        expect(ghost.path, `${desc}: Ghost and drop paths differ:\n  Ghost: ${fmtPath(ghost.path)}\n  Drop:  ${fmtPath(drop.path)}`).toEqual(drop.path)
+      }
+    }
+
+    // ── First belt between two machines ────────────
+
+    it('B1: first belt between adjacent machines (south-facing)', () => {
+      const factory = new Factory(15, 15)
+      factory.placeMachine(5, 5, 'part_fabricator')
+      factory.placeMachine(5, 8, 'part_fabricator')
+
+      const ghost = computeGhostBeltPath(factory, { x: 5, z: 5 }, { x: 5, z: 8 }, 'output')
+      const drop = placeBeltAndGetPath(factory, { x: 5, z: 5 }, { x: 5, z: 8 }, 'output')
+      assertBeltDragParity(ghost, drop, 'B1: first belt')
+    })
+
+    it('B2: first belt between horizontally spaced machines', () => {
+      const factory = new Factory(15, 15)
+      factory.placeMachine(3, 5, 'part_fabricator')
+      factory.placeMachine(8, 5, 'part_fabricator')
+
+      const ghost = computeGhostBeltPath(factory, { x: 3, z: 5 }, { x: 8, z: 5 }, 'output')
+      const drop = placeBeltAndGetPath(factory, { x: 3, z: 5 }, { x: 8, z: 5 }, 'output')
+      assertBeltDragParity(ghost, drop, 'B2: first belt horizontal')
+    })
+
+    it('B3: first belt between diagonally spaced machines', () => {
+      const factory = new Factory(15, 15)
+      factory.placeMachine(3, 3, 'part_fabricator')
+      factory.placeMachine(7, 7, 'part_fabricator')
+
+      const ghost = computeGhostBeltPath(factory, { x: 3, z: 3 }, { x: 7, z: 7 }, 'output')
+      const drop = placeBeltAndGetPath(factory, { x: 3, z: 3 }, { x: 7, z: 7 }, 'output')
+      assertBeltDragParity(ghost, drop, 'B3: first belt diagonal')
+    })
+
+    // ── Second belt (bidirectional) — the crossing scenario ────
+
+    it('B4: second belt (B→A) between south-facing machines that already have A→B', () => {
+      const factory = new Factory(20, 20)
+      const a = factory.placeMachine(9, 10, 'part_fabricator')!
+      const b = factory.placeMachine(10, 10, 'part_fabricator')!
+      factory.rotateMachine(a, 'south')
+      factory.rotateMachine(b, 'south')
+      factory.placeBeltChain(a, b, 'output', true)
+
+      // Now compute ghost for the reverse belt B→A
+      const ghost = computeGhostBeltPath(factory, { x: 10, z: 10 }, { x: 9, z: 10 }, 'output')
+      const drop = placeBeltAndGetPath(factory, { x: 10, z: 10 }, { x: 9, z: 10 }, 'output')
+      assertBeltDragParity(ghost, drop, 'B4: second belt B→A (same pair)')
+    })
+
+    it('B5: second belt (B→A) between adjacent south-facing fabricators', () => {
+      const factory = new Factory(12, 12)
+      const a = factory.placeMachine(3, 5, 'part_fabricator')!
+      const b = factory.placeMachine(4, 5, 'part_fabricator')!
+      factory.rotateMachine(a, 'south')
+      factory.rotateMachine(b, 'south')
+      factory.placeBeltChain(a, b, 'output', true)
+
+      const ghost = computeGhostBeltPath(factory, { x: 4, z: 5 }, { x: 3, z: 5 }, 'output')
+      const drop = placeBeltAndGetPath(factory, { x: 4, z: 5 }, { x: 3, z: 5 }, 'output')
+      assertBeltDragParity(ghost, drop, 'B5: second belt adjacent south')
+    })
+
+    it('B6: second belt between spaced south-facing machines', () => {
+      const factory = new Factory(15, 15)
+      const a = factory.placeMachine(5, 5, 'part_fabricator')!
+      const b = factory.placeMachine(8, 5, 'part_fabricator')!
+      factory.rotateMachine(a, 'south')
+      factory.rotateMachine(b, 'south')
+      factory.placeBeltChain(a, b, 'output', true)
+
+      const ghost = computeGhostBeltPath(factory, { x: 8, z: 5 }, { x: 5, z: 5 }, 'output')
+      const drop = placeBeltAndGetPath(factory, { x: 8, z: 5 }, { x: 5, z: 5 }, 'output')
+      assertBeltDragParity(ghost, drop, 'B6: second belt spaced south')
+    })
+
+    // ── Belt with existing obstacle (third machine) ────
+
+    it('B7: belt between machines with a blocking machine in between', () => {
+      const factory = new Factory(15, 15)
+      factory.placeMachine(3, 5, 'part_fabricator')
+      factory.placeMachine(7, 5, 'part_fabricator')
+      factory.placeMachine(5, 5, 'recycler') // blocker
+
+      const ghost = computeGhostBeltPath(factory, { x: 3, z: 5 }, { x: 7, z: 5 }, 'output')
+      const drop = placeBeltAndGetPath(factory, { x: 3, z: 5 }, { x: 7, z: 5 }, 'output')
+      assertBeltDragParity(ghost, drop, 'B7: belt with blocker')
+    })
+
+    // ── Belt when all slots are occupied ────
+
+    it('B8: belt should fail when source has no free output slots', () => {
+      const factory = new Factory(15, 15)
+      const a = factory.placeMachine(5, 5, 'assembler')! // 1 output slot
+      factory.placeMachine(5, 8, 'painter')
+      factory.placeMachine(8, 5, 'painter')
+      // Fill A's output slot with first belt
+      factory.placeBeltChain(a, factory.getMachineAt(5, 8)!)
+
+      // Now try to add another belt from A — should fail (no free output)
+      const ghost = computeGhostBeltPath(factory, { x: 5, z: 5 }, { x: 8, z: 5 }, 'output')
+      const drop = placeBeltAndGetPath(factory, { x: 5, z: 5 }, { x: 8, z: 5 }, 'output')
+      assertBeltDragParity(ghost, drop, 'B8: no free output slots')
+    })
+
+    // ── Input slot type belt ────
+
+    it('B9: belt using input slot type', () => {
+      const factory = new Factory(15, 15)
+      factory.placeMachine(5, 5, 'part_fabricator')
+      factory.placeMachine(5, 8, 'part_fabricator')
+
+      const ghost = computeGhostBeltPath(factory, { x: 5, z: 5 }, { x: 5, z: 8 }, 'input')
+      const drop = placeBeltAndGetPath(factory, { x: 5, z: 5 }, { x: 5, z: 8 }, 'input')
+      assertBeltDragParity(ghost, drop, 'B9: input slot type')
+    })
+
+    // ── Bidirectional with different rotations ────
+
+    it('B10: second belt between east-facing machines', () => {
+      const factory = new Factory(15, 15)
+      const a = factory.placeMachine(5, 3, 'part_fabricator')!
+      const b = factory.placeMachine(5, 7, 'part_fabricator')!
+      factory.rotateMachine(a, 'east')
+      factory.rotateMachine(b, 'east')
+      factory.placeBeltChain(a, b, 'output', true)
+
+      const ghost = computeGhostBeltPath(factory, { x: 5, z: 7 }, { x: 5, z: 3 }, 'output')
+      const drop = placeBeltAndGetPath(factory, { x: 5, z: 7 }, { x: 5, z: 3 }, 'output')
+      assertBeltDragParity(ghost, drop, 'B10: second belt east-facing')
     })
   })
 })

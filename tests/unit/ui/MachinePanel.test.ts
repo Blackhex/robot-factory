@@ -89,4 +89,69 @@ describe('MachinePanel', () => {
     const container = parent.querySelector<HTMLDivElement>('.ui-machine-panel')!
     expect(container.style.display).toBe('none')
   })
+
+  describe('setAvailableMachineTypes()', () => {
+    function getDropdownValues(): string[] {
+      const select = parent.querySelector<HTMLSelectElement>('.ui-machine-panel-select')!
+      return Array.from(select.options).map(o => o.value)
+    }
+
+    function getDropdownLabels(): string[] {
+      const select = parent.querySelector<HTMLSelectElement>('.ui-machine-panel-select')!
+      return Array.from(select.options).map(o => o.textContent ?? '')
+    }
+
+    it('should show all default machine types when setAvailableMachineTypes is not called', () => {
+      // GIVEN a panel created without calling setAvailableMachineTypes
+
+      // THEN the dropdown contains all 6 default types
+      const values = getDropdownValues()
+      expect(values).toEqual([
+        'part_fabricator',
+        'assembler',
+        'quality_checker',
+        'painter',
+        'recycler',
+        'splitter',
+      ])
+    })
+
+    it('should show only specified machine types when setAvailableMachineTypes is called', () => {
+      // WHEN setAvailableMachineTypes is called with a subset
+      panel.setAvailableMachineTypes(['part_fabricator', 'factory_output'])
+
+      // THEN only those 2 types appear in the dropdown
+      const values = getDropdownValues()
+      expect(values).toEqual(['part_fabricator', 'factory_output'])
+      expect(values).toHaveLength(2)
+    })
+
+    it('should include factory_output option when it is in available types', () => {
+      // WHEN factory_output is included in the available types
+      panel.setAvailableMachineTypes(['assembler', 'factory_output'])
+
+      // THEN the dropdown contains factory_output with its i18n label
+      const values = getDropdownValues()
+      const labels = getDropdownLabels()
+      expect(values).toContain('factory_output')
+      const idx = values.indexOf('factory_output')
+      expect(labels[idx]).toBe('Shipper')
+    })
+
+    it('should update dropdown options when setAvailableMachineTypes is called multiple times', () => {
+      // GIVEN setAvailableMachineTypes is called with one list
+      panel.setAvailableMachineTypes(['part_fabricator', 'assembler', 'painter'])
+      expect(getDropdownValues()).toEqual(['part_fabricator', 'assembler', 'painter'])
+
+      // WHEN it is called again with a different list
+      panel.setAvailableMachineTypes(['recycler', 'factory_output'])
+
+      // THEN the dropdown reflects the second list only
+      const values = getDropdownValues()
+      expect(values).toEqual(['recycler', 'factory_output'])
+      expect(values).not.toContain('part_fabricator')
+      expect(values).not.toContain('assembler')
+      expect(values).not.toContain('painter')
+    })
+  })
 })

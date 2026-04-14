@@ -141,14 +141,14 @@ test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
     await expect(canvas).toBeVisible()
 
     // ======================== STEP 2: Place machines =========================
-    // Double-click places a Part Fabricator by default.
+    // Double-click places a Fabricator by default.
     await dblClickGridCell(page, 10, 10)
 
     // Verify machine was placed by single-clicking to select it
     await clickGridCell(page, 10, 10)
     const panel = page.locator('.ui-machine-panel')
     await expect(panel).toBeVisible()
-    await expect(panel.locator('.ui-machine-panel-name-input')).toHaveAttribute('placeholder', 'Part Fabricator')
+    await expect(panel.locator('.ui-machine-panel-name-input')).toHaveAttribute('placeholder', 'Fabricator')
     await panel.locator('.ui-machine-panel-close').click()
 
     // ======================== STEP 3: Open editor & set program =============

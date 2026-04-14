@@ -250,6 +250,11 @@ canvas {
   pointer-events: auto;
 }
 
+/* Tutorial container must stay pointer-events:none so clicks pass through to the canvas */
+#ui-overlay > .ui-tutorial {
+  pointer-events: none;
+}
+
 /* ─── Machine Properties Panel ─── */
 
 .ui-machine-panel {
@@ -881,18 +886,31 @@ canvas {
 }
 
 .ui-tutorial-backdrop--spotlight {
-  mask-image: radial-gradient(
-    ellipse var(--spotlight-w, 100px) var(--spotlight-h, 100px)
-    at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
-    transparent 48%,
-    black 52%
-  );
-  -webkit-mask-image: radial-gradient(
-    ellipse var(--spotlight-w, 100px) var(--spotlight-h, 100px)
-    at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
-    transparent 48%,
-    black 52%
-  );
+  mask-image:
+    linear-gradient(#000 0 0),
+    linear-gradient(#000 0 0);
+  mask-size:
+    100% 100%,
+    var(--spotlight-w, 100px) var(--spotlight-h, 100px);
+  mask-position:
+    0 0,
+    calc(var(--spotlight-x, 50%) - var(--spotlight-w, 100px) / 2)
+    calc(var(--spotlight-y, 50%) - var(--spotlight-h, 100px) / 2);
+  mask-repeat: no-repeat;
+  mask-composite: exclude;
+
+  -webkit-mask-image:
+    linear-gradient(#000 0 0),
+    linear-gradient(#000 0 0);
+  -webkit-mask-size:
+    100% 100%,
+    var(--spotlight-w, 100px) var(--spotlight-h, 100px);
+  -webkit-mask-position:
+    0 0,
+    calc(var(--spotlight-x, 50%) - var(--spotlight-w, 100px) / 2)
+    calc(var(--spotlight-y, 50%) - var(--spotlight-h, 100px) / 2);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-composite: xor;
 }
 
 .ui-tutorial-tooltip {
@@ -998,6 +1016,11 @@ canvas {
 .ui-tutorial-btn--next:hover {
   background: var(--rf-accent-hover);
   border-color: var(--rf-accent-hover);
+}
+
+.ui-tutorial-btn--back {
+  color: var(--rf-text-muted);
+  margin-right: auto;
 }
 
 .ui-tutorial-btn--skip {

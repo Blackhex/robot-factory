@@ -12,6 +12,7 @@ export class Machine {
   readonly inputSlots: Item[] = []
   outputSlot: Item | null = null
   readonly maxInputSlots: number
+  consumedItems = 0
 
   // Multi-output support (QualityChecker, Splitter)
   secondaryOutputSlot: Item | null = null
@@ -34,6 +35,10 @@ export class Machine {
   }
 
   addInput(item: Item): boolean {
+    if (this.machineType === 'factory_output') {
+      this.consumedItems++
+      return true
+    }
     if (this.inputSlots.length >= this.maxInputSlots) return false
     this.inputSlots.push(item)
     return true
@@ -58,6 +63,7 @@ export class Machine {
   }
 
   canAcceptInput(): boolean {
+    if (this.machineType === 'factory_output') return true
     return this.inputSlots.length < this.maxInputSlots
   }
 
@@ -71,6 +77,8 @@ export class Machine {
         break
       case 'recycler':
         this.tickRecycler()
+        break
+      case 'factory_output':
         break
       default:
         this.tickDefault()
@@ -260,7 +268,7 @@ export class Machine {
     const recipe = this.currentRecipe
     if (!recipe) return false
 
-    // Part fabricators have no inputs
+    // Fabricators have no inputs
     if (recipe.inputs.length === 0) return true
 
     // Check each required input

@@ -1,0 +1,48 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Factory > placeBeltChain slot freedom validation > should auto-rotate fabricator when connecting with placeBeltChain 1`] = `
+"| | | | | | | | | |
+| | | | | | | | | |
+| | |?|─|─|─|F| | |
+| | | | | | | | | |
+| | | | | | | | | |"
+`;
+
+exports[`Factory > placeBeltChain slot freedom validation > should reject placeBeltChain when source output slot is already occupied 1`] = `
+"| | | | | | | | | |
+| | | | | | | | | |
+| | |?|─|─|─|F| | |
+| | |│| | | | | | |
+| | |│| | | | | | |
+| | |F| | | | | | |
+| | | | | | | | | |
+| | | | | | | | | |"
+`;
+
+exports[`Factory > placeBeltChain slot freedom validation > should return null or colliding when both machines have no free slots for the requested type 1`] = `
+"| | | | | | | | | |
+| | | | | | | | | |
+| | |?|─|─|─|F| | |
+| | |│| | | | | | |
+| | |│| | | | | | |
+| | |F| | | | | | |
+| | | | | | | | | |
+| | | | | | | | | |"
+`;
+
+exports[`Factory > placeBeltChain slot type validation > should fail with sourceSlotType=input when target has no outputs (Shipper) 1`] = `
+"| | | | | | |
+| |F|─|─|?| |
+| | | | | | |"
+`;
+
+exports[`Factory > placeBeltChain slot type validation > should succeed with reverse slot type when first belt exists 1`] = `
+"| | | | | | | | | |
+| | | | | | | | | |
+| | |?|─|─|─|F| | |
+| | |│| | | | | | |
+| | |│| | | | | | |
+| | |F| | | | | | |
+| | | | | | | | | |
+| | | | | | | | | |"
+`;

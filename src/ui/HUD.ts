@@ -5,6 +5,7 @@ export interface HUDStats {
   robotsCompleted: number
   timeElapsed: number
   qualityPercent: number
+  outputsDelivered: number
 }
 
 export class HUD {
@@ -28,7 +29,7 @@ export class HUD {
     const metrics = document.createElement('div')
     metrics.className = 'ui-hud-metrics'
 
-    this.itemsEl = this.createMetric(metrics, 'hud.items_produced')
+    this.itemsEl = this.createMetric(metrics, 'hud.items_delivered')
     this.robotsEl = this.createMetric(metrics, 'hud.robots_completed')
     this.timeEl = this.createMetric(metrics, 'hud.time')
     this.qualityEl = this.createMetric(metrics, 'hud.quality')
@@ -66,7 +67,7 @@ export class HUD {
   }
 
   update(stats: HUDStats): void {
-    this.itemsEl.textContent = String(stats.itemsProduced)
+    this.itemsEl.textContent = String(stats.outputsDelivered)
     this.robotsEl.textContent = String(stats.robotsCompleted)
     const minutes = Math.floor(stats.timeElapsed / 60)
     const seconds = Math.floor(stats.timeElapsed % 60)

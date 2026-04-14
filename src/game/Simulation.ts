@@ -5,7 +5,7 @@ import type {
 } from './types.ts'
 import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
-import { getRecipeById } from './Recipe.ts'
+import { getRecipeById, getRecipeByOutputType } from './Recipe.ts'
 
 type SimEventHandler = (event: SimulationEvent) => void
 
@@ -16,6 +16,7 @@ export interface SimulationStats {
   robotsCompleted: number
   timeElapsed: number
   qualityPercent: number
+  outputsDelivered: number
 }
 
 export class Simulation {
@@ -33,6 +34,7 @@ export class Simulation {
   // Scoring accumulators
   itemsProduced = 0
   itemsDelivered = 0
+  outputsDelivered = 0
   robotsProduced = 0
   defects = 0
   totalIdleTicks = 0
@@ -180,7 +182,9 @@ export class Simulation {
       }
       case 'PRODUCE_PART': {
         const machine = this.machines.get(command.machineId)
-        const recipe = getRecipeById(command.partType)
+        const recipe =
+          getRecipeById(command.partType) ??
+          getRecipeByOutputType(command.partType)
         if (machine && recipe) {
           machine.setRecipe(recipe)
         }
@@ -294,6 +298,14 @@ export class Simulation {
             beltId: belt.id,
             machineId: targetMachine.id,
           })
+          if (targetMachine.machineType === 'factory_output') {
+            this.outputsDelivered++
+            this.emit('output_delivered', {
+              itemId: item.id,
+              itemType: item.type,
+              machineId: targetMachine.id,
+            })
+          }
           continue
         }
 
@@ -383,6 +395,7 @@ export class Simulation {
       robotsCompleted: this.robotsProduced,
       timeElapsed: this.currentTick / this.tickRate,
       qualityPercent: total > 0 ? (this.robotsProduced / total) * 100 : 100,
+      outputsDelivered: this.outputsDelivered,
     }
   }
 
@@ -399,6 +412,7 @@ export class Simulation {
     this.currentTick = 0
     this.itemsProduced = 0
     this.itemsDelivered = 0
+    this.outputsDelivered = 0
     this.robotsProduced = 0
     this.defects = 0
     this.totalIdleTicks = 0

@@ -53,6 +53,7 @@ export class PlacementPlanner {
     virtualMachines?: ReadonlyMap<string, MachineInfo>,
     ignoreMachinePositions?: ReadonlySet<string>,
     forcedHasBelts?: ReadonlySet<string>,
+    extraBlockedCells?: ReadonlySet<string>,
   ): { path: GridPosition[], collides: boolean, srcRotation?: Direction, tgtRotation?: Direction } | null {
     if (!this.grid.isInBounds(from.x, from.z) || !this.grid.isInBounds(to.x, to.z)) return null
     if (from.x === to.x && from.z === to.z) return null
@@ -61,8 +62,14 @@ export class PlacementPlanner {
     const targetMachine = this.resolveMachine(to, virtualMachines)
     if (!sourceMachine || !targetMachine) return null
 
-    // Virtual machine positions should block pathfinding (treat as occupied cells)
-    const blockedPositions = virtualMachines ? new Set(virtualMachines.keys()) as ReadonlySet<string> : undefined
+    // Merge virtual machine positions and extra blocked cells
+    let blockedPositions: ReadonlySet<string> | undefined
+    if (virtualMachines || extraBlockedCells) {
+      const merged = new Set<string>()
+      if (virtualMachines) for (const key of virtualMachines.keys()) merged.add(key)
+      if (extraBlockedCells) for (const key of extraBlockedCells) merged.add(key)
+      blockedPositions = merged
+    }
 
     const sourceHasBelts = this.resolveHasBelts(from, virtualMachines, ignoreBeltIds, forcedHasBelts)
     const targetHasBelts = this.resolveHasBelts(to, virtualMachines, ignoreBeltIds, forcedHasBelts)
@@ -96,7 +103,14 @@ export class PlacementPlanner {
 
     // Compute both slot-based and direct machine-to-machine paths
     const slotResult = this.computeSlotPath(from, to, simSource, simTarget, sourceSlotType, ignoreBeltIds, fixedRotations, ignoreMachinePositions, blockedPositions)
-    const directResult = this.computeDirectPath(from, to, ignoreBeltIds, ignoreMachinePositions, blockedPositions)
+
+    // Only compute direct path when slot-based routing confirms free slots exist.
+    // When no free slots are available, directPath would bypass slot validation and
+    // produce false-positive non-colliding results (ghost preview shows green incorrectly).
+    const neededTargetSlotType: 'input' | 'output' = sourceSlotType === 'output' ? 'input' : 'output'
+    const hasFreeSlots = this.grid.getFreeSlotsOfType(simSource, sourceSlotType, ignoreBeltIds).length > 0
+      && this.grid.getFreeSlotsOfType(simTarget, neededTargetSlotType, ignoreBeltIds).length > 0
+    const directResult = hasFreeSlots ? this.computeDirectPath(from, to, ignoreBeltIds, ignoreMachinePositions, blockedPositions) : null
 
     // Pick the shortest non-colliding path (direct paths avoid U-turns
     // when slot geometry forces a long detour around adjacent machines)
@@ -311,6 +325,7 @@ export class PlacementPlanner {
     machineType: MachineType, rotation: Direction,
     otherEnd: GridPosition, machineIsSource: boolean,
     ignoreBeltIds?: ReadonlySet<string>,
+    extraBlockedCells?: ReadonlySet<string>,
   ): { path: GridPosition[], collides: boolean } | null {
     // Detect rotation (machine already at position) vs move (machine at new position)
     const existingMachine = this.grid.getMachineAt(mx, mz)
@@ -453,13 +468,13 @@ export class PlacementPlanner {
     let plan = this.computePlacementPlan(
       from, to, 'output', ignoreBeltIds,
       true, virtualMachines, ignoreMachinePositions,
-      finalForcedHasBelts,
+      finalForcedHasBelts, extraBlockedCells,
     )
     if (!plan || plan.collides) {
       const fallbackPlan = this.computePlacementPlan(
         from, to, 'output', ignoreBeltIds,
         false, virtualMachines, ignoreMachinePositions,
-        finalForcedHasBelts,
+        finalForcedHasBelts, extraBlockedCells,
       )
       if (fallbackPlan) plan = fallbackPlan
     }

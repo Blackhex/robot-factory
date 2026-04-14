@@ -72,7 +72,7 @@ async function dblClickGridCell(page: Page, gx: number, gz: number) {
 test.describe('Machine Panel — single interaction mode', () => {
   test.beforeEach(async ({ page }) => {
     await enterSandbox(page)
-    // Place a Part Fabricator via double-click on grid center (default type)
+    // Place a Fabricator via double-click on grid center (default type)
     await dblClickGridCell(page, 10, 10)
   })
 
@@ -84,7 +84,7 @@ test.describe('Machine Panel — single interaction mode', () => {
     await expect(panel).toBeVisible()
 
     // Should show the machine name as placeholder in the editable input
-    await expect(panel.locator('.ui-machine-panel-name-input')).toHaveAttribute('placeholder', 'Part Fabricator')
+    await expect(panel.locator('.ui-machine-panel-name-input')).toHaveAttribute('placeholder', 'Fabricator')
 
     // Should show a valid position and direction in the info line
     const infoText = await panel.locator('.ui-machine-panel-info').textContent()
@@ -185,8 +185,8 @@ test.describe('Machine Panel — single interaction mode', () => {
     }
 
     await expect(panel).toBeVisible()
-    // Should be a Part Fabricator (default)
-    await expect(panel.locator('.ui-machine-panel-name-input')).toHaveAttribute('placeholder', 'Part Fabricator')
+    // Should be a Fabricator (default)
+    await expect(panel.locator('.ui-machine-panel-name-input')).toHaveAttribute('placeholder', 'Fabricator')
 
     // Change type to Assembler via panel dropdown
     await panel.locator('.ui-machine-panel-select').selectOption('assembler')

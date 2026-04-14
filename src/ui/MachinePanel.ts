@@ -21,6 +21,7 @@ export class MachinePanel {
   private infoEl: HTMLSpanElement
   private typeSelect: HTMLSelectElement
   private currentMachine: MachineInfo | null = null
+  private availableTypes: MachineType[] = MACHINE_TYPES
   private handleLangChange = () => this.updateLabels()
 
   onTypeChange: (machine: MachineInfo, newType: MachineType) => void = () => {}
@@ -141,9 +142,14 @@ export class MachinePanel {
     this.container.remove()
   }
 
+  setAvailableMachineTypes(types: MachineType[]): void {
+    this.availableTypes = types
+    this.populateTypeOptions()
+  }
+
   private populateTypeOptions(): void {
     this.typeSelect.innerHTML = ''
-    for (const type of MACHINE_TYPES) {
+    for (const type of this.availableTypes) {
       const opt = document.createElement('option')
       opt.value = type
       opt.textContent = i18next.t(`machines.${type}`)

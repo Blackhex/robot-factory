@@ -13,7 +13,7 @@ import { getToolboxForLevel } from './FactoryToolbox'
  * **Fallback mode**: If the PXT editor does not respond within a
  * short timeout (i.e. the target hasn't been built yet), a simple
  * `<textarea>` is shown where the user can type TypeScript factory
- * commands directly. The BlockInterpreter parses whichever source
+ * commands directly. The BlockInterpreter executes whichever source
  * is available.
  */
 export class PxtEditor {

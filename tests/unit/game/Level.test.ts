@@ -14,6 +14,7 @@ const VALID_MACHINE_TYPES: MachineType[] = [
   'painter',
   'recycler',
   'splitter',
+  'factory_output',
 ]
 
 describe('Level', () => {
@@ -199,6 +200,80 @@ describe('Level', () => {
           `level ${i + 2} grid area should be >= level ${i + 1}`,
         ).toBeGreaterThanOrEqual(currentArea)
       }
+    })
+  })
+
+  describe('level content matches game mechanics', () => {
+    it('level 1 goal should be produce_parts for wheel_small', () => {
+      // GIVEN
+      const level = getLevelByNumber(1)!
+
+      // WHEN + THEN
+      expect(level.goals).toHaveLength(1)
+      expect(level.goals[0].type).toBe('produce_parts')
+      expect(level.goals[0].itemType).toBe('wheel_small')
+    })
+
+    it('level 1 should have part_fabricator and assembler', () => {
+      // GIVEN
+      const level = getLevelByNumber(1)!
+
+      // WHEN + THEN
+      expect(level.availableMachines).toContain('part_fabricator')
+      expect(level.availableMachines).toContain('assembler')
+    })
+
+    it('level 1 should have factory_output', () => {
+      // GIVEN
+      const level = getLevelByNumber(1)!
+
+      // WHEN + THEN
+      expect(level.availableMachines).toContain('factory_output')
+    })
+
+    it('factory_output should be available in all levels', () => {
+      // WHEN + THEN
+      for (const level of levels) {
+        expect(
+          level.availableMachines,
+          `${level.id} should include factory_output`,
+        ).toContain('factory_output')
+      }
+    })
+
+    it('level 2 should have part_fabricator and assembler', () => {
+      // GIVEN
+      const level = getLevelByNumber(2)!
+
+      // WHEN + THEN
+      expect(level.availableMachines).toContain('part_fabricator')
+      expect(level.availableMachines).toContain('assembler')
+    })
+
+    it('level 3 should unlock loops', () => {
+      // GIVEN
+      const level = getLevelByNumber(3)!
+
+      // WHEN + THEN
+      expect(level.unlockedBlocks).toBeGreaterThanOrEqual(2)
+    })
+
+    it('level 4 should have quality_checker and unlock conditionals', () => {
+      // GIVEN
+      const level = getLevelByNumber(4)!
+
+      // WHEN + THEN
+      expect(level.availableMachines).toContain('quality_checker')
+      expect(level.unlockedBlocks).toBeGreaterThanOrEqual(3)
+    })
+
+    it('level 5 should have splitter and unlock variables', () => {
+      // GIVEN
+      const level = getLevelByNumber(5)!
+
+      // WHEN + THEN
+      expect(level.availableMachines).toContain('splitter')
+      expect(level.unlockedBlocks).toBeGreaterThanOrEqual(4)
     })
   })
 })

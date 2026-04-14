@@ -4,7 +4,40 @@ import type { ItemType } from '../game/types'
 export interface BeltRenderData {
   from: { x: number; z: number }
   to: { x: number; z: number }
+  prevSegmentFrom?: { x: number; z: number }
+  nextSegmentTo?: { x: number; z: number }
   items: ReadonlyArray<{ type: ItemType; position: number }>
+}
+
+/** Minimal belt interface so we don't import ConveyorBelt directly. */
+export interface BeltLike {
+  readonly id: string
+  readonly fromX: number
+  readonly fromZ: number
+  readonly toX: number
+  readonly toZ: number
+  getItems(): ReadonlyArray<{ type: ItemType; positionOnBelt: number }>
+}
+
+interface CachedSegmentInfo {
+  beltId: string
+  prevFrom: { x: number; z: number } | undefined
+  nextTo: { x: number; z: number } | undefined
+}
+
+function catmullRom(
+  t: number,
+  p0: number,
+  p1: number,
+  p2: number,
+  p3: number,
+): number {
+  return 0.5 * (
+    2 * p1 +
+    (-p0 + p2) * t +
+    (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t +
+    (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t
+  )
 }
 
 const MAX_INSTANCES = 512
@@ -41,6 +74,7 @@ export class ItemRenderer {
   private materials: Map<ItemType, THREE.MeshStandardMaterial> = new Map()
   private tempMatrix = new THREE.Matrix4()
   private tempPosition = new THREE.Vector3()
+  private cachedSegments: CachedSegmentInfo[] = []
 
   constructor(scene: THREE.Scene) {
     this.scene = scene
@@ -58,6 +92,61 @@ export class ItemRenderer {
       this.scene.add(mesh)
       this.meshes.set(type, mesh)
     }
+  }
+
+  cacheBeltTopology(belts: ReadonlyMap<string, BeltLike>): void {
+    const chainMap = new Map<string, { belt: BeltLike; segIndex: number }[]>()
+    const standalone: string[] = []
+
+    for (const belt of belts.values()) {
+      const match = belt.id.match(/^(.+)_seg(\d+)$/)
+      if (match) {
+        const chainId = match[1]
+        const segIndex = parseInt(match[2], 10)
+        if (!chainMap.has(chainId)) chainMap.set(chainId, [])
+        chainMap.get(chainId)!.push({ belt, segIndex })
+      } else {
+        standalone.push(belt.id)
+      }
+    }
+
+    this.cachedSegments = []
+
+    for (const id of standalone) {
+      this.cachedSegments.push({ beltId: id, prevFrom: undefined, nextTo: undefined })
+    }
+
+    for (const segs of chainMap.values()) {
+      segs.sort((a, b) => a.segIndex - b.segIndex)
+      for (let i = 0; i < segs.length; i++) {
+        const prev = i > 0 ? segs[i - 1].belt : undefined
+        const next = i < segs.length - 1 ? segs[i + 1].belt : undefined
+        this.cachedSegments.push({
+          beltId: segs[i].belt.id,
+          prevFrom: prev ? { x: prev.fromX, z: prev.fromZ } : undefined,
+          nextTo: next ? { x: next.toX, z: next.toZ } : undefined,
+        })
+      }
+    }
+  }
+
+  buildRenderData(belts: ReadonlyMap<string, BeltLike>): BeltRenderData[] {
+    const result: BeltRenderData[] = []
+    for (const cached of this.cachedSegments) {
+      const belt = belts.get(cached.beltId)
+      if (!belt) continue
+      result.push({
+        from: { x: belt.fromX, z: belt.fromZ },
+        to: { x: belt.toX, z: belt.toZ },
+        prevSegmentFrom: cached.prevFrom,
+        nextSegmentTo: cached.nextTo,
+        items: belt.getItems().map((item) => ({
+          type: item.type,
+          position: item.positionOnBelt,
+        })),
+      })
+    }
+    return result
   }
 
   update(
@@ -79,6 +168,31 @@ export class ItemRenderer {
       const toWorldX = belt.to.x - halfW + 0.5
       const toWorldZ = belt.to.z - halfH + 0.5
 
+      // Build Catmull-Rom control points when prev/next context is available
+      const hasPrev = belt.prevSegmentFrom !== undefined
+      const hasNext = belt.nextSegmentTo !== undefined
+      const useCurve = hasPrev || hasNext
+
+      let p0x: number, p0z: number, p3x: number, p3z: number
+      if (useCurve) {
+        if (hasPrev) {
+          p0x = belt.prevSegmentFrom!.x - halfW + 0.5
+          p0z = belt.prevSegmentFrom!.z - halfH + 0.5
+        } else {
+          // Extrapolate backwards: from - (to - from) = 2*from - to
+          p0x = 2 * fromWorldX - toWorldX
+          p0z = 2 * fromWorldZ - toWorldZ
+        }
+        if (hasNext) {
+          p3x = belt.nextSegmentTo!.x - halfW + 0.5
+          p3z = belt.nextSegmentTo!.z - halfH + 0.5
+        } else {
+          // Extrapolate forwards: to + (to - from) = 2*to - from
+          p3x = 2 * toWorldX - fromWorldX
+          p3z = 2 * toWorldZ - fromWorldZ
+        }
+      }
+
       for (const item of belt.items) {
         const mesh = this.meshes.get(item.type)
         if (!mesh) continue
@@ -86,9 +200,17 @@ export class ItemRenderer {
         const idx = counts.get(item.type) ?? 0
         if (idx >= MAX_INSTANCES) continue
 
-        // Interpolate position along belt
-        const worldX = fromWorldX + (toWorldX - fromWorldX) * item.position
-        const worldZ = fromWorldZ + (toWorldZ - fromWorldZ) * item.position
+        let worldX: number
+        let worldZ: number
+
+        if (useCurve) {
+          worldX = catmullRom(item.position, p0x!, fromWorldX, toWorldX, p3x!)
+          worldZ = catmullRom(item.position, p0z!, fromWorldZ, toWorldZ, p3z!)
+        } else {
+          // Linear interpolation for segments without corner context
+          worldX = fromWorldX + (toWorldX - fromWorldX) * item.position
+          worldZ = fromWorldZ + (toWorldZ - fromWorldZ) * item.position
+        }
 
         this.tempPosition.set(worldX, 0.15, worldZ)
         this.tempMatrix.setPosition(this.tempPosition)
