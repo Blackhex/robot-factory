@@ -14,8 +14,8 @@ namespace pxsim {
             super();
         }
 
-        initAsync(msg: pxsim.SimulatorRunMessage): Promise<void> {
-            return Promise.resolve();
+        initAsync(msg: pxsim.SimulatorRunMessage): any {
+            return undefined as any;
         }
 
         updateView() {

@@ -10,19 +10,6 @@ const MACHINE_IDS: string[] = [
   'machine_5', 'machine_6', 'machine_7', 'machine_8',
 ]
 
-const PART_TYPE_IDS: string[] = [
-  'wheel_small', 'wheel_medium', 'wheel_large',
-  'sensor_proximity', 'sensor_camera', 'sensor_lidar',
-  'battery_standard', 'battery_high_capacity',
-  'chassis_light', 'chassis_heavy',
-  'circuit_basic', 'circuit_advanced',
-  'drivetrain_basic', 'drivetrain_advanced',
-  'sensor_array_basic', 'sensor_array_advanced',
-  'power_unit_standard', 'power_unit_high',
-  'raw_material',
-  'robot_explorer', 'robot_worker', 'robot_guardian',
-]
-
 const RECIPE_IDS: string[] = [
   'wheel_press_small', 'wheel_press_medium', 'wheel_press_large',
   'sensor_fab_proximity', 'sensor_fab_camera', 'sensor_fab_lidar',
@@ -86,20 +73,6 @@ const FactoryConditionEnum: Record<string, number> = { BeltHasItems: 0, MachineI
 
 // --- Resolvers: handle number (enum value), string enum name, or passthrough ---
 
-function resolveMachineId(raw: unknown): string {
-  if (typeof raw === 'number') return MACHINE_IDS[raw] ?? `machine_${raw + 1}`
-  const s = String(raw).replace(/^Machine\./, '')
-  if (s in MACHINE_NAME_MAP) return MACHINE_IDS[MACHINE_NAME_MAP[s]]
-  return s
-}
-
-function resolvePartTypeId(raw: unknown): string {
-  if (typeof raw === 'number') return PART_TYPE_IDS[raw] ?? String(raw)
-  const s = String(raw).replace(/^(factory\.)?PartType\./, '')
-  if (s in PART_TYPE_NAME_MAP) return PART_TYPE_IDS[PART_TYPE_NAME_MAP[s]]
-  return s
-}
-
 function resolveRecipeId(raw: unknown): string {
   if (typeof raw === 'number') return RECIPE_IDS[raw] ?? String(raw)
   const s = String(raw).replace(/^Recipe\./, '')
@@ -107,12 +80,7 @@ function resolveRecipeId(raw: unknown): string {
   return s
 }
 
-function resolveBeltId(raw: unknown): string {
-  if (typeof raw === 'number') return BELT_IDS[raw] ?? `belt_${raw + 1}`
-  const s = String(raw).replace(/^Belt\./, '')
-  if (s in BELT_NAME_MAP) return BELT_IDS[BELT_NAME_MAP[s]]
-  return s
-}
+
 
 /**
  * Executes PXT-compiled TypeScript source via `new Function()` and
@@ -133,47 +101,44 @@ export class BlockInterpreter {
   private procedures = new Map<string, () => void>()
   private eventHandlers = new Map<string, () => void>()
   private callDepth = 0
+  private dynamicMachines: Array<{slotIndex: number, id: string, name: string}> = []
+  private dynamicBelts: Array<{slotIndex: number, id: string}> = []
 
   // --- Namespace objects -------------------------------------------------
 
   private readonly machinesNs = {
     startMachine: (machine: unknown) => {
       if (this.guardOverflow()) return
-      this.commands.push({ type: 'START_MACHINE', machineId: resolveMachineId(machine) })
+      this.commands.push({ type: 'START_MACHINE', machineId: this.resolveMachineId(machine) })
     },
     stopMachine: (machine: unknown) => {
       if (this.guardOverflow()) return
-      this.commands.push({ type: 'STOP_MACHINE', machineId: resolveMachineId(machine) })
+      this.commands.push({ type: 'STOP_MACHINE', machineId: this.resolveMachineId(machine) })
     },
-    producePart: (machine: unknown, partType?: unknown) => {
+    setRecipe: (machine: unknown, recipe: unknown) => {
       if (this.guardOverflow()) return
-      if (partType === undefined) {
-        this.commands.push({ type: 'PRODUCE_PART', machineId: '', partType: resolvePartTypeId(machine) } as SimulationCommand)
-      } else {
-        this.commands.push({ type: 'PRODUCE_PART', machineId: resolveMachineId(machine), partType: resolvePartTypeId(partType) } as SimulationCommand)
-      }
+      this.commands.push({ type: 'SET_RECIPE', machineId: this.resolveMachineId(machine), recipeId: resolveRecipeId(recipe) })
     },
     setQualityThreshold: (machine: unknown, threshold: unknown) => {
       if (this.guardOverflow()) return
-      this.commands.push({ type: 'SET_QUALITY_THRESHOLD', machineId: resolveMachineId(machine), threshold: Number(threshold) || 0 })
+      this.commands.push({ type: 'SET_QUALITY_THRESHOLD', machineId: this.resolveMachineId(machine), threshold: Number(threshold) || 0 })
     },
   }
 
   private readonly recipesNs = {
     setRecipe: (machine: unknown, recipe: unknown) => {
-      if (this.guardOverflow()) return
-      this.commands.push({ type: 'SET_RECIPE', machineId: resolveMachineId(machine), recipeId: resolveRecipeId(recipe) })
+      this.machinesNs.setRecipe(machine, recipe)
     },
   }
 
   private readonly beltsNs = {
     setBeltSpeed: (belt: unknown, speed: unknown) => {
       if (this.guardOverflow()) return
-      this.commands.push({ type: 'SET_BELT_SPEED', beltId: resolveBeltId(belt), speed: Number(speed) || 1 })
+      this.commands.push({ type: 'SET_BELT_SPEED', beltId: this.resolveBeltId(belt), speed: Number(speed) || 1 })
     },
     routeTo: (target: unknown) => {
       if (this.guardOverflow()) return
-      this.commands.push({ type: 'ROUTE_TO', targetId: resolveMachineId(target) })
+      this.commands.push({ type: 'ROUTE_TO', targetId: this.resolveMachineId(target) })
     },
   }
 
@@ -249,7 +214,7 @@ export class BlockInterpreter {
     },
     onMachineIdle: (machine: unknown, body: () => void) => {
       if (typeof body === 'function') {
-        this.eventHandlers.set(`machine_idle_${resolveMachineId(machine)}`, body)
+        this.eventHandlers.set(`machine_idle_${this.resolveMachineId(machine)}`, body)
       }
     },
   }
@@ -265,11 +230,8 @@ export class BlockInterpreter {
     Recipe: RecipeEnum,
     Belt: BeltEnum,
     FactoryCondition: FactoryConditionEnum,
-    producePart: (...args: unknown[]) => {
-      this.machinesNs.producePart(...(args as [unknown, unknown?]))
-    },
     setRecipe: (machine: unknown, recipe: unknown) => {
-      this.recipesNs.setRecipe(machine, recipe)
+      this.machinesNs.setRecipe(machine, recipe)
     },
     startMachine: (machine: unknown) => {
       this.machinesNs.startMachine(machine)
@@ -390,7 +352,56 @@ export class BlockInterpreter {
     this.callDepth = 0
   }
 
+  // --- Dynamic machine/belt list management ------------------------------
+
+  setMachineList(machines: Array<{slotIndex: number, id: string, name: string}>): void {
+    this.dynamicMachines = [...machines]
+  }
+
+  setBeltList(belts: Array<{slotIndex: number, id: string}>): void {
+    this.dynamicBelts = [...belts]
+  }
+
+  getMachineList(): Array<{slotIndex: number, id: string, name: string}> {
+    return [...this.dynamicMachines]
+  }
+
   // --- Private helpers ---------------------------------------------------
+
+  private resolveMachineId(raw: unknown): string {
+    if (typeof raw === 'number') {
+      const dynamic = this.dynamicMachines.find(m => m.slotIndex === raw)
+      if (dynamic) return dynamic.id
+      return MACHINE_IDS[raw] ?? `machine_${raw + 1}`
+    }
+    const s = String(raw).replace(/^Machine\./, '')
+    if (s in MACHINE_NAME_MAP) {
+      const slot = MACHINE_NAME_MAP[s]
+      const dynamic = this.dynamicMachines.find(m => m.slotIndex === slot)
+      if (dynamic) return dynamic.id
+      return MACHINE_IDS[slot]
+    }
+    // Name-based lookup in dynamic list
+    const byName = this.dynamicMachines.find(m => m.name === s)
+    if (byName) return byName.id
+    return s
+  }
+
+  private resolveBeltId(raw: unknown): string {
+    if (typeof raw === 'number') {
+      const dynamic = this.dynamicBelts.find(b => b.slotIndex === raw)
+      if (dynamic) return dynamic.id
+      return BELT_IDS[raw] ?? `belt_${raw + 1}`
+    }
+    const s = String(raw).replace(/^Belt\./, '')
+    if (s in BELT_NAME_MAP) {
+      const slot = BELT_NAME_MAP[s]
+      const dynamic = this.dynamicBelts.find(b => b.slotIndex === slot)
+      if (dynamic) return dynamic.id
+      return BELT_IDS[slot]
+    }
+    return s
+  }
 
   private stripComments(source: string): string {
     return source

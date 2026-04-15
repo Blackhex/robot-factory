@@ -33,8 +33,6 @@
   },
   "blocks": {
     "category_actions": "Akce",
-    "produce_part": "vyrobit %1",
-    "produce_part_tooltip": "Vyrobí díl zadaného typu",
     "set_recipe": "nastavit recept %1 na %2",
     "set_recipe_tooltip": "Nastaví recept pro stroj",
     "start_machine": "spustit stroj %1",
@@ -186,7 +184,7 @@
     "level1_step2": "Dvojklikem na jiné políčko umísti Odesílač. Klikni na ni a změň její typ na Odesílač.",
     "level1_step3": "Propoj je pásem — přetáhni z výstupního slotu Vyráběče na vstupní slot Odesílače.",
     "level1_step4": "Otevři Editor a napiš svůj program. Klikni na ikonu kódu nebo stiskni E.",
-    "level1_step5": "Použij blok 'vyrobit' k výrobě malých kol. Přetáhni ho z kategorie Machines.",
+    "level1_step5": "Použij blok 'nastavit recept' k nastavení výroby stroje. Přetáhni ho z kategorie Machines.",
     "level1_step6": "Stiskni Spustit a sleduj, jak díly putují po pásu do Odesílače!",
     "level2_step1": "Tentokrát potřebuješ více strojů. Dvojklikem umísti Vyráběč a Montážní stroj.",
   "level2_step2": "Propoj stroje pásy a směřuj díly do Odesílače.",

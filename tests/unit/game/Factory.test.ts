@@ -5301,4 +5301,232 @@ describe('Factory', () => {
       expect(renderGrid(factory, 6, 3, 14, 7)).toMatchSnapshot()
     })
   })
+
+  describe('targetSlotPosition constraint', () => {
+    beforeEach(() => {
+      factory = createTestFactory(15, 15)
+    })
+
+    describe('computeBeltFromSlotPath()', () => {
+      it('should constrain path to end at back input slot of Shipper when targetSlotPosition=back', () => {
+        // GIVEN: A Fabricator south of a Shipper (factory_output).
+        // Shipper at (5,5), default rotation 'south'. 'back' input → offset {x:0, z:-1} → cell (5,4).
+        const fab = factory.placeMachine(5, 8, 'part_fabricator')!
+        const shipper = factory.placeMachine(5, 5, 'factory_output')!
+        expect(fab).not.toBeNull()
+        expect(shipper).not.toBeNull()
+
+        // ASSERT
+        expect(renderGrid(factory, 4, 4, 6, 9)).toBe([
+          '| | | |',
+          '| |?| |',
+          '| | | |',
+          '| | | |',
+          '| |F| |',
+          '| | | |',
+        ].join('\n'))
+
+        // WHEN: Compute path with targetSlotPosition='back'
+        const result = factory.computeBeltFromSlotPath(
+          { x: 5, z: 8 }, { x: 5, z: 5 }, 'output',
+          undefined, undefined, 'back',
+        )
+
+        // THEN: Path should end at shipper (5,5), and the second-to-last cell
+        // should be at (5,4) — the 'back' slot offset {x:0,z:-1} from (5,5).
+        expect(result).not.toBeNull()
+        expect(result!.collides).toBe(false)
+        expect(result!.path[result!.path.length - 1]).toEqual({ x: 5, z: 5 })
+        const penultimate = result!.path[result!.path.length - 2]
+        const targetSlotCell = { x: 5 + 0, z: 5 + (-1) } // back slot at south rotation
+        expect(penultimate).toEqual(targetSlotCell)
+      })
+
+      it('should constrain path to end at right input slot of Shipper when targetSlotPosition=right', () => {
+        // GIVEN: A Fabricator west of a Shipper (factory_output).
+        // Shipper at (8,5), default rotation 'south'. 'right' input → offset {x:1, z:0} → cell (9,5).
+        const fab = factory.placeMachine(5, 5, 'part_fabricator')!
+        const shipper = factory.placeMachine(8, 5, 'factory_output')!
+        expect(fab).not.toBeNull()
+        expect(shipper).not.toBeNull()
+
+        // ASSERT
+        expect(renderGrid(factory, 4, 4, 9, 6)).toBe([
+          '| | | | | | |',
+          '| |F| | |?| |',
+          '| | | | | | |',
+        ].join('\n'))
+
+        // WHEN: Compute path with targetSlotPosition='right'
+        const result = factory.computeBeltFromSlotPath(
+          { x: 5, z: 5 }, { x: 8, z: 5 }, 'output',
+          undefined, undefined, 'right',
+        )
+
+        // THEN: Path should end at shipper (8,5), and the second-to-last cell
+        // should be at (9,5) — the 'right' slot offset {x:1,z:0} from (8,5).
+        expect(result).not.toBeNull()
+        expect(result!.collides).toBe(false)
+        expect(result!.path[result!.path.length - 1]).toEqual({ x: 8, z: 5 })
+        const penultimate = result!.path[result!.path.length - 2]
+        const targetSlotCell = { x: 8 + 1, z: 5 + 0 } // right slot at south rotation
+        expect(penultimate).toEqual(targetSlotCell)
+      })
+
+      it('should constrain Assembler path to left input slot when targetSlotPosition=left', () => {
+        // GIVEN: A Fabricator to the east, an Assembler at (5,5), default rotation 'south'.
+        // Assembler inputs: back, right, left. 'left' → offset {x:-1, z:0} → cell (4,5).
+        const fab = factory.placeMachine(8, 5, 'part_fabricator')!
+        const assembler = factory.placeMachine(5, 5, 'assembler')!
+        expect(fab).not.toBeNull()
+        expect(assembler).not.toBeNull()
+
+        // ASSERT
+        expect(renderGrid(factory, 4, 4, 9, 6)).toBe([
+          '| | | | | | |',
+          '| |A| | |F| |',
+          '| | | | | | |',
+        ].join('\n'))
+
+        // WHEN: Compute path with targetSlotPosition='left'
+        const result = factory.computeBeltFromSlotPath(
+          { x: 8, z: 5 }, { x: 5, z: 5 }, 'output',
+          undefined, undefined, 'left',
+        )
+
+        // THEN: Path should end at assembler (5,5), second-to-last at (4,5) — the 'left' slot.
+        // Without targetSlotPosition, pathfinding might choose the 'right' slot at (6,5)
+        // since it's closer to the fabricator.
+        expect(result).not.toBeNull()
+        expect(result!.collides).toBe(false)
+        expect(result!.path[result!.path.length - 1]).toEqual({ x: 5, z: 5 })
+        const penultimate = result!.path[result!.path.length - 2]
+        const leftSlotCell = { x: 5 + (-1), z: 5 + 0 } // left slot at south rotation
+        expect(penultimate).toEqual(leftSlotCell)
+      })
+
+      it('should use slot at current rotation, not auto-rotated rotation, when targetSlotPosition is provided', () => {
+        // GIVEN: Fabricator at (5,5) and Shipper at (8,5), both facing south.
+        // Without targetSlotPosition: auto-rotation rotates shipper to face east,
+        // making 'back' at west=(7,5). Path enters through (7,5).
+        // With targetSlotPosition='front': shipper stays south, front=(8,6).
+        // Path must enter through (8,6), NOT (7,5).
+        const fab = factory.placeMachine(5, 5, 'part_fabricator')!
+        const shipper = factory.placeMachine(8, 5, 'factory_output')!
+        expect(fab).not.toBeNull()
+        expect(shipper).not.toBeNull()
+        expect(shipper.rotation).toBe('south')
+
+        // ASSERT
+        expect(renderGrid(factory, 4, 4, 9, 6)).toBe([
+          '| | | | | | |',
+          '| |F| | |?| |',
+          '| | | | | | |',
+        ].join('\n'))
+
+        // WHEN: Compute path with targetSlotPosition='front' — front at south = (8,6)
+        const result = factory.computeBeltFromSlotPath(
+          { x: 5, z: 5 }, { x: 8, z: 5 }, 'output',
+          undefined, undefined, 'front',
+        )
+
+        // THEN: Path should enter through front slot at CURRENT south rotation = (8,6),
+        // not through auto-rotated east rotation's back slot at (7,5).
+        expect(result).not.toBeNull()
+        expect(result!.collides).toBe(false)
+        expect(result!.path[result!.path.length - 1]).toEqual({ x: 8, z: 5 })
+        const penultimate = result!.path[result!.path.length - 2]
+        const frontSlotAtSouth = { x: 8, z: 6 } // front at south rotation
+        expect(penultimate).toEqual(frontSlotAtSouth)
+      })
+    })
+
+    describe('placeBeltChain()', () => {
+      it('should connect belt to specified target slot on Shipper', () => {
+        // GIVEN: Fabricator at (5,8), Shipper at (5,5), both facing south.
+        // Target 'back' slot on shipper → cell (5,4).
+        const fab = factory.placeMachine(5, 8, 'part_fabricator')!
+        const shipper = factory.placeMachine(5, 5, 'factory_output')!
+        expect(fab).not.toBeNull()
+        expect(shipper).not.toBeNull()
+
+        // ASSERT
+        expect(renderGrid(factory, 4, 4, 6, 9)).toBe([
+          '| | | |',
+          '| |?| |',
+          '| | | |',
+          '| | | |',
+          '| |F| |',
+          '| | | |',
+        ].join('\n'))
+
+        // WHEN: Place belt chain with targetSlotPosition='back'
+        const result = factory.placeBeltChain(fab, shipper, 'output', undefined, undefined, undefined, 'back')
+
+        // THEN: Belt should connect to the 'back' input slot of the shipper.
+        expect(result).toBe(true)
+        const belts = factory.getBelts()
+        expect(belts).toHaveLength(1)
+        const belt = belts[0]
+        // The second-to-last path cell should be the 'back' slot cell (5,4)
+        const penultimate = belt.path[belt.path.length - 2]
+        expect(penultimate).toEqual({ x: 5, z: 4 })
+        assertBeltSlotInvariant(factory)
+      })
+
+      it('should NOT auto-rotate target machine when targetSlotPosition is provided (even with no belts)', () => {
+        // GIVEN: Fabricator at (5,5) facing south, Shipper at (8,5) facing south.
+        // Shipper has no belts, so normally auto-rotation would kick in.
+        const fab = factory.placeMachine(5, 5, 'part_fabricator')!
+        const shipper = factory.placeMachine(8, 5, 'factory_output')!
+        expect(fab).not.toBeNull()
+        expect(shipper).not.toBeNull()
+        expect(shipper.rotation).toBe('south')
+
+        // ASSERT
+        expect(renderGrid(factory, 4, 4, 9, 6)).toBe([
+          '| | | | | | |',
+          '| |F| | |?| |',
+          '| | | | | | |',
+        ].join('\n'))
+
+        // WHEN: Place belt with targetSlotPosition='left' — user explicitly picked the left slot.
+        const result = factory.placeBeltChain(fab, shipper, 'output', undefined, undefined, undefined, 'left')
+
+        // THEN: Shipper rotation MUST remain 'south' — no auto-rotation when user picked a slot.
+        expect(result).toBe(true)
+        expect(shipper.rotation).toBe('south')
+        assertBeltSlotInvariant(factory)
+      })
+
+      it('should still auto-rotate SOURCE machine when targetSlotPosition is provided', () => {
+        // GIVEN: Fabricator at (5,5) facing south, Assembler at (8,5) facing south.
+        // Fabricator has no belts → auto-rotation should still apply to source.
+        // Fabricator's only output is 'front'. Facing south → output at (5,6), which is wrong direction.
+        // Auto-rotation should rotate fabricator to face east → output at (6,5).
+        const fab = factory.placeMachine(5, 5, 'part_fabricator')!
+        const assembler = factory.placeMachine(8, 5, 'assembler')!
+        expect(fab).not.toBeNull()
+        expect(assembler).not.toBeNull()
+        expect(fab.rotation).toBe('south')
+        expect(assembler.rotation).toBe('south')
+
+        // ASSERT
+        expect(renderGrid(factory, 4, 4, 9, 6)).toBe([
+          '| | | | | | |',
+          '| |F| | |A| |',
+          '| | | | | | |',
+        ].join('\n'))
+
+        // WHEN: Place belt with targetSlotPosition='back' on assembler — constraining target slot
+        // but source should still auto-rotate to face the target.
+        const result = factory.placeBeltChain(fab, assembler, 'output', undefined, undefined, undefined, 'back')
+
+        // THEN: Source fabricator SHOULD be auto-rotated (no longer 'south').
+        expect(result).toBe(true)
+        expect(fab.rotation).not.toBe('south')
+        assertBeltSlotInvariant(factory)
+      })
+    })
+  })
 })

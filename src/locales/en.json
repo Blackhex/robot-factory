@@ -33,8 +33,6 @@
   },
   "blocks": {
     "category_actions": "Actions",
-    "produce_part": "produce %1",
-    "produce_part_tooltip": "Produce a part of the specified type",
     "set_recipe": "set recipe of %1 to %2",
     "set_recipe_tooltip": "Set the recipe for a machine",
     "start_machine": "start machine %1",
@@ -186,7 +184,7 @@
     "level1_step2": "Double-click another cell to place a Shipper. Click it and change its type to Shipper.",
     "level1_step3": "Connect them with a belt — drag from the Fabricator's output slot to the Shipper's input slot.",
     "level1_step4": "Open the Editor to write your program. Click the code button or press E.",
-    "level1_step5": "Use the 'produce' block to make small wheels. Drag it from the Machines category.",
+    "level1_step5": "Use the 'set recipe' block to choose what your machine produces. Drag it from the Machines category.",
     "level1_step6": "Press Play and watch parts flow along the belt to the Shipper!",
     "level2_step1": "This time you need multiple machines. Double-click to place a Fabricator and an Assembler.",
     "level2_step2": "Connect machines with belts and route parts to the Shipper.",

@@ -2,8 +2,7 @@
  * Robot Factory — PXT block definitions.
  *
  * Blocks are organized into separate toolbox categories:
- *   • Machines  — start, stop, produce parts (Machine dropdown)
- *   • Recipes   — set recipe on a machine    (Recipe dropdown)
+ *   • Machines  — start, stop, set recipe    (Machine dropdown)
  *   • Belts     — belt speed, routing         (Belt dropdown)
  *   • Loops     — repeat, while
  *   • Logic     — if-quality, if-item-type
@@ -16,10 +15,10 @@
  */
 
 // ═══════════════════════════════════════════════════════════════════
-//  MACHINES  (purple — colour 260)
+//  MACHINES  (blue — colour 217)
 // ═══════════════════════════════════════════════════════════════════
 
-//% color=260 weight=100 icon="\uf0e7" block="Machines"
+//% color=217 weight=100 icon="\uf0e7" block="Machines"
 namespace machines {
     //% block="start %machine"
     //% blockId=factory_start_machine
@@ -31,10 +30,10 @@ namespace machines {
     //% weight=90
     export function stopMachine(machine: Machine): void { }
 
-    //% block="produce %partType on %machine"
-    //% blockId=factory_produce_part
+    //% block="set recipe of %machine to %recipe"
+    //% blockId=factory_set_recipe
     //% weight=80
-    export function producePart(machine: Machine, partType: PartType): void { }
+    export function setRecipe(machine: Machine, recipe: Recipe): void { }
 
     //% block="on %machine idle"
     //% blockId=factory_on_machine_idle
@@ -44,22 +43,10 @@ namespace machines {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  RECIPES  (teal — colour 180)
+//  BELTS  (orange — colour 25)
 // ═══════════════════════════════════════════════════════════════════
 
-//% color=180 weight=90 icon="\uf0eb" block="Recipes"
-namespace recipes {
-    //% block="set recipe of %machine to %recipe"
-    //% blockId=factory_set_recipe
-    //% weight=100
-    export function setRecipe(machine: Machine, recipe: Recipe): void { }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  BELTS  (orange — colour 30)
-// ═══════════════════════════════════════════════════════════════════
-
-//% color=30 weight=80 icon="\uf018" block="Belts"
+//% color=25 weight=80 icon="\uf018" block="Belts"
 namespace belts {
     //% block="set %belt speed to %speed"
     //% blockId=factory_set_belt_speed
@@ -94,10 +81,10 @@ namespace loops {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  LOGIC  (blue — colour 210)
+//  LOGIC  (yellow — colour 60)
 // ═══════════════════════════════════════════════════════════════════
 
-//% color=210 weight=60 icon="\uf074" block="Logic"
+//% color=60 weight=60 icon="\uf074" block="Logic"
 namespace logic {
     //% block="if quality < %threshold then"
     //% blockId=factory_if_quality
@@ -114,10 +101,10 @@ namespace logic {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  VARIABLES  (red — colour 330)
+//  VARIABLES  (cyan — colour 199)
 // ═══════════════════════════════════════════════════════════════════
 
-//% color=330 weight=50 icon="\uf1ec" block="Variables"
+//% color=199 weight=50 icon="\uf1ec" block="Variables"
 namespace variables_ {
     //% block="set %name to %value"
     //% blockId=factory_set_variable
@@ -138,10 +125,10 @@ namespace variables_ {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  FUNCTIONS  (magenta — colour 290)
+//  FUNCTIONS  (magenta — colour 300)
 // ═══════════════════════════════════════════════════════════════════
 
-//% color=290 weight=40 icon="\uf0c1" block="Functions"
+//% color=300 weight=40 icon="\uf0c1" block="Functions"
 namespace functions_ {
     //% block="define procedure %name"
     //% blockId=factory_define_procedure
@@ -156,10 +143,10 @@ namespace functions_ {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  EVENTS  (yellow — colour 40)
+//  EVENTS  (orange — colour 35)
 // ═══════════════════════════════════════════════════════════════════
 
-//% color=40 weight=30 icon="\uf0e7" block="Events"
+//% color=35 weight=30 icon="\uf0e7" block="Events"
 namespace events {
     //% block="on order received"
     //% blockId=factory_on_order_received

@@ -5,7 +5,7 @@ import type {
 } from './types.ts'
 import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
-import { getRecipeById, getRecipeByOutputType } from './Recipe.ts'
+import { getRecipeById } from './Recipe.ts'
 
 type SimEventHandler = (event: SimulationEvent) => void
 
@@ -177,16 +177,6 @@ export class Simulation {
         const machine = this.machines.get(command.machineId)
         if (machine) {
           machine.currentRecipe = null
-        }
-        break
-      }
-      case 'PRODUCE_PART': {
-        const machine = this.machines.get(command.machineId)
-        const recipe =
-          getRecipeById(command.partType) ??
-          getRecipeByOutputType(command.partType)
-        if (machine && recipe) {
-          machine.setRecipe(recipe)
         }
         break
       }

@@ -103,16 +103,51 @@ async function main(): Promise<void> {
     beltPanel.hide()
   }
 
+  const editorResizeHandle = document.getElementById('editor-resize-handle')!
+
   function openEditor(): void {
     editorVisible = true
     editorContainer.classList.add('open')
+    editorResizeHandle.style.display = 'block'
+    editorResizeHandle.style.right = editorContainer.style.width
+      ? `calc(${editorContainer.style.width} - 3px)`
+      : 'calc(40% - 3px)'
     pxtEditor.show()
   }
 
   function closeEditor(): void {
     editorVisible = false
     editorContainer.classList.remove('open')
+    editorResizeHandle.style.display = 'none'
     pxtEditor.hide()
+  }
+
+  // --- Editor resize drag logic ---
+  {
+    let dragging = false
+
+    editorResizeHandle.addEventListener('pointerdown', (e: PointerEvent) => {
+      e.preventDefault()
+      dragging = true
+      editorResizeHandle.classList.add('dragging')
+      editorResizeHandle.setPointerCapture(e.pointerId)
+    })
+
+    editorResizeHandle.addEventListener('pointermove', (e: PointerEvent) => {
+      if (!dragging) return
+      const viewportW = window.innerWidth
+      const pct = Math.min(100, Math.max(20, ((viewportW - e.clientX) / viewportW) * 100))
+      editorContainer.style.width = `${pct}%`
+      editorResizeHandle.style.right = `calc(${pct}% - 3px)`
+    })
+
+    const stopDrag = () => {
+      if (!dragging) return
+      dragging = false
+      editorResizeHandle.classList.remove('dragging')
+    }
+    editorResizeHandle.addEventListener('pointerup', stopDrag)
+    editorResizeHandle.addEventListener('pointercancel', stopDrag)
   }
 
   function toggleEditor(): void {
@@ -272,6 +307,17 @@ async function main(): Promise<void> {
     }
   }
 
+  function syncFactoryToEditor(): void {
+    const factory = gameManager.factory
+    if (!factory) return
+    pxtEditor.updateMachineList(
+      factory.getMachines().map(m => ({ id: m.id, name: m.name, type: m.type })),
+    )
+    pxtEditor.updateBeltList(
+      factory.getBelts().map(b => ({ id: b.id, sourceName: b.sourceMachine.name, destName: b.destinationMachine.name })),
+    )
+  }
+
   function getHUDStats() {
     return gameManager.simulation?.getStats() ??
       { itemsProduced: 0, robotsCompleted: 0, timeElapsed: 0, qualityPercent: 100, outputsDelivered: 0 }
@@ -291,6 +337,7 @@ async function main(): Promise<void> {
 
     gridInteraction = new GridInteraction(sceneManager, factory, () => {
       factoryRenderer?.update()
+      syncFactoryToEditor()
     }, factoryRenderer)
     wireGridInteractionCallbacks(gridInteraction)
     gridInteraction.enable()
@@ -303,6 +350,7 @@ async function main(): Promise<void> {
     // Auto-restore saved factory layout
     autoRestoreFactory()
     factoryRenderer.update()
+    syncFactoryToEditor()
 
     // Camera: zoom to fit grid
     cameraController.zoomToFit(level.gridSize.width, level.gridSize.height)
@@ -328,6 +376,7 @@ async function main(): Promise<void> {
 
     gridInteraction = new GridInteraction(sceneManager, factory, () => {
       factoryRenderer?.update()
+      syncFactoryToEditor()
     }, factoryRenderer)
     wireGridInteractionCallbacks(gridInteraction)
     gridInteraction.enable()
@@ -342,6 +391,7 @@ async function main(): Promise<void> {
     // Auto-restore sandbox factory layout
     autoRestoreFactory()
     factoryRenderer.update()
+    syncFactoryToEditor()
 
     cameraController.zoomToFit(20, 20)
   }
@@ -574,6 +624,7 @@ async function main(): Promise<void> {
           result.factory.getBelts().map(b => ({ sourceSlot: b.sourceSlot, destinationSlot: b.destinationSlot, path: b.path })),
         )
         factoryRenderer?.update()
+        syncFactoryToEditor()
       })
       .catch(() => {
         audio.playError()

@@ -67,12 +67,6 @@ export type ItemType =
 
 export type MachineState = 'idle' | 'processing' | 'blocked'
 
-export interface ProducePartCommand {
-  readonly type: 'PRODUCE_PART'
-  readonly machineId: string
-  readonly partType: ItemType
-}
-
 export interface SetRecipeCommand {
   readonly type: 'SET_RECIPE'
   readonly machineId: string
@@ -121,7 +115,6 @@ export interface SetSplitterConditionCommand {
 }
 
 export type SimulationCommand =
-  | ProducePartCommand
   | SetRecipeCommand
   | StartMachineCommand
   | StopMachineCommand

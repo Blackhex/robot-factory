@@ -26,12 +26,11 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
 
   // --- Actions (level 1+) ---
   const actionBlocks: BlockReference[] = [
-    block('factory_produce_part'),
+    block('factory_set_recipe'),
     block('factory_start_machine'),
   ]
   if (level >= 2) {
     actionBlocks.push(
-      block('factory_set_recipe'),
       block('factory_route_to'),
       block('factory_stop_machine'),
       block('factory_set_belt_speed'),
@@ -40,7 +39,7 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
   categories.push({
     kind: 'category',
     name: i18next.t('blocks.category_actions'),
-    colour: '260',
+    colour: '217',
     contents: actionBlocks,
   })
 
@@ -62,7 +61,7 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
     categories.push({
       kind: 'category',
       name: i18next.t('blocks.category_conditionals'),
-      colour: '210',
+      colour: '60',
       contents: [
         block('factory_if_quality'),
         block('factory_if_item_type'),
@@ -76,7 +75,7 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
     categories.push({
       kind: 'category',
       name: i18next.t('blocks.category_variables'),
-      colour: '330',
+      colour: '199',
       contents: [
         block('factory_set_variable'),
         block('factory_get_variable'),
@@ -90,7 +89,7 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
     categories.push({
       kind: 'category',
       name: i18next.t('blocks.category_functions'),
-      colour: '290',
+      colour: '300',
       contents: [
         block('factory_define_procedure'),
         block('factory_call_procedure'),
@@ -103,7 +102,7 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
     categories.push({
       kind: 'category',
       name: i18next.t('blocks.category_events'),
-      colour: '40',
+      colour: '35',
       contents: [
         block('factory_on_order_received'),
         block('factory_on_belt_jam'),

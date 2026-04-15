@@ -161,7 +161,7 @@ test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
 
     // Program that starts the fabricator producing
     const programCode =
-      'recipes.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
     if (isPxtLoaded) {

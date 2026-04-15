@@ -8,7 +8,7 @@ import { BlockInterpreter } from '../../../src/editor/BlockInterpreter'
  * containing `factory.xxx(...)` calls and produces SimulationCommand[].
  *
  * Core behaviours:
- * - Parses action calls → SimulationCommand (PRODUCE_PART, SET_RECIPE, etc.)
+ * - Parses action calls → SimulationCommand (SET_RECIPE, START_MACHINE, etc.)
  * - Expands loops (repeatTimes) into repeated command sequences
  * - Registers & calls procedures (defineProcedure / callProcedure)
  * - Registers event handlers (onOrderReceived, etc.) via triggerEvent()
@@ -29,31 +29,6 @@ describe('BlockInterpreter', () => {
   // === Single action commands ============================================
 
   describe('single action commands', () => {
-    it('should parse producePart with machineId and PartType enum', () => {
-      // WHEN
-      const commands = interpreter.interpret(
-        'factory.producePart("fab1", PartType.WheelSmall)',
-      )
-
-      // THEN
-      expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('PRODUCE_PART')
-      expect((commands[0] as any).machineId).toBe('fab1')
-      expect((commands[0] as any).partType).toBe('wheel_small')
-    })
-
-    it('should parse producePart with only PartType (no machineId)', () => {
-      // WHEN
-      const commands = interpreter.interpret(
-        'factory.producePart(PartType.SensorProximity)',
-      )
-
-      // THEN
-      expect(commands).toHaveLength(1)
-      expect((commands[0] as any).machineId).toBe('')
-      expect((commands[0] as any).partType).toBe('sensor_proximity')
-    })
-
     it('should parse setRecipe', () => {
       // WHEN
       const commands = interpreter.interpret(
@@ -119,17 +94,15 @@ describe('BlockInterpreter', () => {
       const source = `
         factory.startMachine("press_1")
         factory.setRecipe("press_1", "basic_wheel")
-        factory.producePart("press_1", PartType.WheelSmall)
       `
 
       // WHEN
       const commands = interpreter.interpret(source)
 
       // THEN
-      expect(commands).toHaveLength(3)
+      expect(commands).toHaveLength(2)
       expect(commands[0].type).toBe('START_MACHINE')
       expect(commands[1].type).toBe('SET_RECIPE')
-      expect(commands[2].type).toBe('PRODUCE_PART')
     })
   })
 
@@ -518,40 +491,6 @@ describe('BlockInterpreter', () => {
     })
   })
 
-  // === PartType resolution ===============================================
-
-  describe('PartType resolution', () => {
-    it('should resolve PartType.WheelSmall to wheel_small', () => {
-      // WHEN
-      const commands = interpreter.interpret(
-        'factory.producePart("m", PartType.WheelSmall)',
-      )
-
-      // THEN
-      expect((commands[0] as any).partType).toBe('wheel_small')
-    })
-
-    it('should resolve factory.PartType.SensorCamera', () => {
-      // WHEN
-      const commands = interpreter.interpret(
-        'factory.producePart("m", factory.PartType.SensorCamera)',
-      )
-
-      // THEN
-      expect((commands[0] as any).partType).toBe('sensor_camera')
-    })
-
-    it('should pass through already-snake_case values', () => {
-      // WHEN
-      const commands = interpreter.interpret(
-        'factory.producePart("m", "wheel_small")',
-      )
-
-      // THEN
-      expect((commands[0] as any).partType).toBe('wheel_small')
-    })
-  })
-
   // === parseTypeScript alias =============================================
 
   describe('parseTypeScript()', () => {
@@ -596,20 +535,20 @@ describe('BlockInterpreter', () => {
       expect((commands[0] as any).machineId).toBe('machine_2')
     })
 
-    it('should parse machines.producePart(Machine.A, PartType.WheelSmall)', () => {
+    it('should parse machines.setRecipe(Machine.A, Recipe.WheelPressSmall)', () => {
       // WHEN
       const commands = interpreter.interpret(
-        'machines.producePart(Machine.A, PartType.WheelSmall)',
+        'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)',
       )
 
       // THEN
       expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('PRODUCE_PART')
+      expect(commands[0].type).toBe('SET_RECIPE')
       expect((commands[0] as any).machineId).toBe('machine_1')
-      expect((commands[0] as any).partType).toBe('wheel_small')
+      expect((commands[0] as any).recipeId).toBe('wheel_press_small')
     })
 
-    it('should parse recipes.setRecipe(Machine.A, Recipe.WheelPressSmall)', () => {
+    it('should parse recipes.setRecipe(Machine.A, Recipe.WheelPressSmall) as backward compat', () => {
       // WHEN
       const commands = interpreter.interpret(
         'recipes.setRecipe(Machine.A, Recipe.WheelPressSmall)',
@@ -663,20 +602,20 @@ describe('BlockInterpreter', () => {
       expect((commands[0] as any).machineId).toBe('machine_1')
     })
 
-    it('should resolve machines.producePart(0, 0) to machine_1 + wheel_small', () => {
+    it('should resolve machines.setRecipe(1, 2) to machine_2 + wheel_press_large', () => {
       // WHEN
       const commands = interpreter.interpret(
-        'machines.producePart(0, 0)',
+        'machines.setRecipe(1, 2)',
       )
 
       // THEN
       expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('PRODUCE_PART')
-      expect((commands[0] as any).machineId).toBe('machine_1')
-      expect((commands[0] as any).partType).toBe('wheel_small')
+      expect(commands[0].type).toBe('SET_RECIPE')
+      expect((commands[0] as any).machineId).toBe('machine_2')
+      expect((commands[0] as any).recipeId).toBe('wheel_press_large')
     })
 
-    it('should resolve recipes.setRecipe(1, 2) to machine_2 + wheel_press_large', () => {
+    it('should resolve recipes.setRecipe(1, 2) as backward compat alias', () => {
       // WHEN
       const commands = interpreter.interpret(
         'recipes.setRecipe(1, 2)',

@@ -37,7 +37,7 @@
     "autoRun": false
   },
   "appTheme": {
-    "accentColor": "#6366f1",
+    "accentColor": "#4fc3f7",
     "logoUrl": "",
     "homeUrl": "",
     "embedUrl": "",
@@ -54,13 +54,25 @@
       "grid": {
         "spacing": 20,
         "length": 3,
-        "colour": "#ccc",
+        "colour": "#2e3140",
         "snap": true
       }
     },
     "coloredToolbox": true,
+    "invertedToolbox": true,
     "monacoToolbox": true,
     "invertedMenu": true,
+    "blockColors": {
+      "machines": "#4488ff",
+      "belts": "#ff8844",
+      "loops": "#66bb6a",
+      "logic": "#cccc44",
+      "variables": "#4fc3f7",
+      "variables_": "#4fc3f7",
+      "functions": "#cc44cc",
+      "functions_": "#cc44cc",
+      "events": "#ffa726"
+    },
     "simAnimationEnter": "fly right in",
     "simAnimationExit": "fly right out"
   },

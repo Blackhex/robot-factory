@@ -239,7 +239,7 @@ test.describe('Level 1 — First Part', () => {
 
     // ===================== STEP 12: Write program in fallback textarea ======
     const programCode =
-      'machines.producePart(Machine.A, PartType.WheelSmall)\n' +
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
     const pxtIframe = page.locator('.pxt-editor-iframe')
@@ -410,7 +410,7 @@ test.describe('Level 2 — Assembly Line', () => {
     await expect(page.locator('#editor-container')).toHaveClass(/open/)
 
     const programCode =
-      'machines.producePart(Machine.A, PartType.WheelSmall)\n' +
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
     const pxtIframe = page.locator('.pxt-editor-iframe')
@@ -556,9 +556,9 @@ test.describe('Level 3 — Mass Production', () => {
     // Use a loop to produce 10 wheel_small — this level teaches loops
     const programCode =
       'loops.repeatTimes(10, () => {\n' +
-      '  machines.producePart(Machine.A, PartType.WheelSmall)\n' +
-      '})\n' +
-      'machines.startMachine(Machine.A)'
+      '  machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+      '  machines.startMachine(Machine.A)\n' +
+      '})'
 
     const pxtIframe = page.locator('.pxt-editor-iframe')
     const isPxtLoaded = await pxtIframe.isVisible({ timeout: 3000 }).catch(() => false)
@@ -732,7 +732,7 @@ test.describe('Level 4 — Quality Matters', () => {
     await expect(page.locator('#editor-container')).toHaveClass(/open/)
 
     const programCode =
-      'machines.producePart(Machine.A, PartType.WheelSmall)\n' +
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
     const pxtIframe = page.locator('.pxt-editor-iframe')
@@ -902,7 +902,7 @@ test.describe('Level 5 — Smart Routing', () => {
     await expect(page.locator('#editor-container')).toHaveClass(/open/)
 
     const programCode =
-      'machines.producePart(Machine.A, PartType.WheelSmall)\n' +
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
     const pxtIframe = page.locator('.pxt-editor-iframe')
@@ -1072,7 +1072,7 @@ test.describe('Level 6 — Custom Robots', () => {
     await expect(page.locator('#editor-container')).toHaveClass(/open/)
 
     const programCode =
-      'machines.producePart(Machine.A, PartType.WheelSmall)\n' +
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
     const pxtIframe = page.locator('.pxt-editor-iframe')
@@ -1242,7 +1242,7 @@ test.describe('Level 7 — Rush Order!', () => {
     await expect(page.locator('#editor-container')).toHaveClass(/open/)
 
     const programCode =
-      'machines.producePart(Machine.A, PartType.WheelSmall)\n' +
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
     const pxtIframe = page.locator('.pxt-editor-iframe')
@@ -1412,7 +1412,7 @@ test.describe('Level 8 — Optimize Everything', () => {
     await expect(page.locator('#editor-container')).toHaveClass(/open/)
 
     const programCode =
-      'machines.producePart(Machine.A, PartType.WheelSmall)\n' +
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
     const pxtIframe = page.locator('.pxt-editor-iframe')
@@ -1574,7 +1574,7 @@ test.describe('Level 9 — Robot Expo', () => {
     await expect(page.locator('#editor-container')).toHaveClass(/open/)
 
     const programCode =
-      'machines.producePart(Machine.A, PartType.WheelSmall)\n' +
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
     const pxtIframe = page.locator('.pxt-editor-iframe')
@@ -1787,7 +1787,7 @@ test.describe('Level 10 — Factory Tycoon', () => {
     await expect(page.locator('#editor-container')).toHaveClass(/open/)
 
     const programCode =
-      'machines.producePart(Machine.A, PartType.WheelSmall)\n' +
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
     const pxtIframe = page.locator('.pxt-editor-iframe')

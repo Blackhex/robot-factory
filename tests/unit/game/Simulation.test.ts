@@ -618,46 +618,6 @@ describe('Simulation', () => {
       expect(sim.outputsDelivered).toBe(0)
     })
   })
-
-  describe('PRODUCE_PART command', () => {
-    it('should set recipe when PRODUCE_PART command uses a part type ID', () => {
-      // GIVEN
-      const m = new Machine('machine_1', 'part_fabricator')
-      sim.addMachine(m)
-
-      // WHEN — partType is 'wheel_small', recipe ID is 'wheel_press_small'
-      sim.enqueueCommand({
-        type: 'PRODUCE_PART',
-        machineId: 'machine_1',
-        partType: 'wheel_small',
-      })
-      sim.tick()
-
-      // THEN — the simulation should find the recipe that produces wheel_small
-      expect(m.currentRecipe).not.toBeNull()
-      expect(m.currentRecipe!.outputs[0].type).toBe('wheel_small')
-    })
-
-    it('should produce items after PRODUCE_PART command', () => {
-      // GIVEN
-      const m = new Machine('machine_1', 'part_fabricator')
-      sim.addMachine(m)
-      const belt = new ConveyorBelt('belt_1', 0, 0, 1, 0, 1.0)
-      sim.addBelt(belt)
-      sim.setMachineOutputBelt('machine_1', 'belt_1')
-
-      // WHEN — enqueue PRODUCE_PART and tick enough for production (1 start + 5 processing + transfer)
-      sim.enqueueCommand({
-        type: 'PRODUCE_PART',
-        machineId: 'machine_1',
-        partType: 'wheel_small',
-      })
-      tickN(sim, 10)
-
-      // THEN — items should appear on the output belt
-      expect(belt.isEmpty()).toBe(false)
-    })
-  })
 })
 
 // --- Integration tests ---

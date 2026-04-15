@@ -506,12 +506,12 @@ export class Factory implements GridReader {
 
   // ─── Belt chain facade ────────────────────────────────
 
-  placeBeltChain(from: MachineInfo, to: MachineInfo, sourceSlotType: 'input' | 'output' = 'output', fixedRotations?: boolean, lockedMachinePos?: GridPosition, ignoreBeltIds?: ReadonlySet<string>): boolean {
+  placeBeltChain(from: MachineInfo, to: MachineInfo, sourceSlotType: 'input' | 'output' = 'output', fixedRotations?: boolean, lockedMachinePos?: GridPosition, ignoreBeltIds?: ReadonlySet<string>, targetSlotPosition?: SlotPosition): boolean {
     // Try without ignoring any existing belts first (matches ghost preview behavior).
     // This avoids crossings with existing belts when a clean path exists.
     const savedFromRot = from.rotation
     const savedToRot = to.rotation
-    if (this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, fixedRotations, lockedMachinePos, ignoreBeltIds)) {
+    if (this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, fixedRotations, lockedMachinePos, ignoreBeltIds, targetSlotPosition)) {
       return true
     }
     // Restore rotations that the failed attempt may have changed
@@ -524,7 +524,7 @@ export class Factory implements GridReader {
     if (!ignoreBeltIds) {
       const merged = this.mergeIgnoreBeltIds(from.id, to.id)
       if (merged) {
-        return this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, fixedRotations, lockedMachinePos, merged)
+        return this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, fixedRotations, lockedMachinePos, merged, targetSlotPosition)
       }
     }
     return false
@@ -536,6 +536,7 @@ export class Factory implements GridReader {
     fixedRotations: boolean | undefined,
     lockedMachinePos: GridPosition | undefined,
     ignoreBeltIds: ReadonlySet<string> | undefined,
+    targetSlotPosition?: SlotPosition,
   ): boolean {
     const fromPos: GridPosition = { x: from.x, z: from.z }
     const toPos: GridPosition = { x: to.x, z: to.z }
@@ -544,7 +545,7 @@ export class Factory implements GridReader {
     const forcedHasBelts = lockedMachinePos
       ? new Set([`${lockedMachinePos.x},${lockedMachinePos.z}`]) as ReadonlySet<string>
       : undefined
-    const plan = this.planner.computePlacementPlan(fromPos, toPos, sourceSlotType, ignoreBeltIds, fixedRotations, undefined, undefined, forcedHasBelts)
+    const plan = this.planner.computePlacementPlan(fromPos, toPos, sourceSlotType, ignoreBeltIds, fixedRotations, undefined, undefined, forcedHasBelts, undefined, targetSlotPosition)
 
     if (!plan || plan.collides) return false
 
@@ -595,9 +596,10 @@ export class Factory implements GridReader {
     sourceSlotType: 'input' | 'output',
     ignoreBeltIds?: ReadonlySet<string>,
     fixedRotations?: boolean,
+    targetSlotPosition?: SlotPosition,
   ): { path: GridPosition[], collides: boolean } | null {
     // Try without ignoring existing belts between the same pair first
-    const plan = this.planner.computePlacementPlan(from, to, sourceSlotType, ignoreBeltIds, fixedRotations)
+    const plan = this.planner.computePlacementPlan(from, to, sourceSlotType, ignoreBeltIds, fixedRotations, undefined, undefined, undefined, undefined, targetSlotPosition)
     if (plan && !plan.collides && this.isValidSlotPath(plan.path, sourceSlotType)) {
       return { path: plan.path, collides: false }
     }
@@ -610,7 +612,7 @@ export class Factory implements GridReader {
       if (fromMachine && toMachine) {
         const merged = this.mergeIgnoreBeltIds(fromMachine.id, toMachine.id)
         if (merged) {
-          const mergedPlan = this.planner.computePlacementPlan(from, to, sourceSlotType, merged, fixedRotations)
+          const mergedPlan = this.planner.computePlacementPlan(from, to, sourceSlotType, merged, fixedRotations, undefined, undefined, undefined, undefined, targetSlotPosition)
           if (mergedPlan && this.isValidSlotPath(mergedPlan.path, sourceSlotType)) {
             return { path: mergedPlan.path, collides: mergedPlan.collides }
           }

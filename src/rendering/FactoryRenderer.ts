@@ -869,17 +869,17 @@ export class FactoryRenderer {
     return null
   }
 
-  raycastInteraction(raycaster: THREE.Raycaster): { type: 'input' | 'output' | 'machine'; machineId: string } | null {
+  raycastInteraction(raycaster: THREE.Raycaster): { type: 'input' | 'output' | 'machine'; machineId: string; slotIndex?: number } | null {
     const slotMeshList: THREE.Mesh[] = []
-    const slotMeshToInfo = new Map<THREE.Mesh, { machineId: string; slot: 'input' | 'output' }>()
+    const slotMeshToInfo = new Map<THREE.Mesh, { machineId: string; slot: 'input' | 'output'; index: number }>()
     for (const [id, slots] of this.slotMeshes) {
-      for (const m of slots.inputs) {
-        slotMeshList.push(m)
-        slotMeshToInfo.set(m, { machineId: id, slot: 'input' })
+      for (let i = 0; i < slots.inputs.length; i++) {
+        slotMeshList.push(slots.inputs[i])
+        slotMeshToInfo.set(slots.inputs[i], { machineId: id, slot: 'input', index: i })
       }
-      for (const m of slots.outputs) {
-        slotMeshList.push(m)
-        slotMeshToInfo.set(m, { machineId: id, slot: 'output' })
+      for (let i = 0; i < slots.outputs.length; i++) {
+        slotMeshList.push(slots.outputs[i])
+        slotMeshToInfo.set(slots.outputs[i], { machineId: id, slot: 'output', index: i })
       }
     }
 
@@ -887,7 +887,7 @@ export class FactoryRenderer {
     if (slotHits.length > 0) {
       const info = slotMeshToInfo.get(slotHits[0].object as THREE.Mesh)
       if (info) {
-        return { type: info.slot, machineId: info.machineId }
+        return { type: info.slot, machineId: info.machineId, slotIndex: info.index }
       }
     }
 

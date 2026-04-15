@@ -1,7 +1,7 @@
-import type { Direction, GridPosition, MachineInfo, MachineType } from './types'
+import type { Direction, GridPosition, MachineInfo, MachineType, SlotPosition } from './types'
 import type { GridReader } from './Factory'
 import type { BeltRouter } from './BeltRouter'
-import { rotationToFace, getSlotPositions, pickBestSlotOffset } from './SlotUtils'
+import { rotationToFace, getSlotPositions, pickBestSlotOffset, slotPositionToOffset } from './SlotUtils'
 
 export class PlacementPlanner {
   private readonly grid: GridReader
@@ -54,6 +54,7 @@ export class PlacementPlanner {
     ignoreMachinePositions?: ReadonlySet<string>,
     forcedHasBelts?: ReadonlySet<string>,
     extraBlockedCells?: ReadonlySet<string>,
+    targetSlotPosition?: SlotPosition,
   ): { path: GridPosition[], collides: boolean, srcRotation?: Direction, tgtRotation?: Direction } | null {
     if (!this.grid.isInBounds(from.x, from.z) || !this.grid.isInBounds(to.x, to.z)) return null
     if (from.x === to.x && from.z === to.z) return null
@@ -87,7 +88,7 @@ export class PlacementPlanner {
           if (reverseAutoRotation) { firstDx = -firstDx; firstDz = -firstDz }
           simSrcRotation = firstDx !== 0 ? rotationToFace(firstDx, 0) : rotationToFace(0, firstDz)
         }
-        if (!targetHasBelts) {
+        if (!targetHasBelts && !targetSlotPosition) {
           const lastIdx = trial.path.length - 1
           let lastDx = Math.sign(trial.path[lastIdx].x - trial.path[lastIdx - 1].x)
           let lastDz = Math.sign(trial.path[lastIdx].z - trial.path[lastIdx - 1].z)
@@ -102,7 +103,7 @@ export class PlacementPlanner {
     const simTarget: MachineInfo = { ...targetMachine, rotation: simTgtRotation }
 
     // Compute both slot-based and direct machine-to-machine paths
-    const slotResult = this.computeSlotPath(from, to, simSource, simTarget, sourceSlotType, ignoreBeltIds, fixedRotations, ignoreMachinePositions, blockedPositions)
+    const slotResult = this.computeSlotPath(from, to, simSource, simTarget, sourceSlotType, ignoreBeltIds, fixedRotations, ignoreMachinePositions, blockedPositions, targetSlotPosition)
 
     // Only compute direct path when slot-based routing confirms free slots exist.
     // When no free slots are available, directPath would bypass slot validation and
@@ -150,11 +151,19 @@ export class PlacementPlanner {
     fixedRotations?: boolean,
     ignoreMachinePositions?: ReadonlySet<string>,
     blockedPositions?: ReadonlySet<string>,
+    targetSlotPosition?: SlotPosition,
   ): { path: GridPosition[], collides: boolean } | null {
     const neededTargetSlotType: 'input' | 'output' = sourceSlotType === 'output' ? 'input' : 'output'
     const sourceSlots = this.grid.getFreeSlotsOfType(simSource, sourceSlotType, ignoreBeltIds)
-    const targetSlots = this.grid.getFreeSlotsOfType(simTarget, neededTargetSlotType, ignoreBeltIds)
+    let targetSlots = this.grid.getFreeSlotsOfType(simTarget, neededTargetSlotType, ignoreBeltIds)
     if (sourceSlots.length === 0 || targetSlots.length === 0) return null
+
+    if (targetSlotPosition) {
+      const desiredOffset = slotPositionToOffset(targetSlotPosition, simTarget.rotation)
+      const filtered = targetSlots.filter(s => s.x === desiredOffset.x && s.z === desiredOffset.z)
+      if (filtered.length === 0) return null
+      targetSlots = filtered
+    }
 
     let bestClear: { path: GridPosition[], collides: boolean } | null = null
     let bestColliding: { path: GridPosition[], collides: boolean } | null = null

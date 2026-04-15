@@ -36,12 +36,12 @@ describe('FactoryToolbox', () => {
       expect(toolbox.contents).toHaveLength(1)
     })
 
-    it('should include produce_part and start_machine blocks', () => {
+    it('should include set_recipe and start_machine blocks', () => {
       // WHEN
       const types = getBlockTypes(getToolboxForLevel(1))
 
       // THEN
-      expect(types).toContain('factory_produce_part')
+      expect(types).toContain('factory_set_recipe')
       expect(types).toContain('factory_start_machine')
     })
 
@@ -59,12 +59,11 @@ describe('FactoryToolbox', () => {
   })
 
   describe('level 2: extended actions', () => {
-    it('should include set_recipe, route_to, stop_machine, set_belt_speed', () => {
+    it('should include route_to, stop_machine, set_belt_speed', () => {
       // WHEN
       const types = getBlockTypes(getToolboxForLevel(2))
 
       // THEN
-      expect(types).toContain('factory_set_recipe')
       expect(types).toContain('factory_route_to')
       expect(types).toContain('factory_stop_machine')
       expect(types).toContain('factory_set_belt_speed')
@@ -183,7 +182,6 @@ describe('FactoryToolbox', () => {
       const types = getBlockTypes(getToolboxForLevel(8))
 
       // THEN
-      expect(types).toContain('factory_produce_part')
       expect(types).toContain('factory_start_machine')
       expect(types).toContain('factory_set_recipe')
       expect(types).toContain('factory_repeat_times')
@@ -208,6 +206,41 @@ describe('FactoryToolbox', () => {
 
       // THEN
       expect(types10).toEqual(types8)
+    })
+  })
+
+  describe('category colors match game UI palette', () => {
+    // Use level 7+ so all 6 categories are visible.
+    // Categories are in fixed order: Actions(0), Loops(1), Conditionals(2),
+    // Variables(3), Functions(4), Events(5).
+    const toolbox = getToolboxForLevel(7)
+
+    it('should have all 6 categories at level 7', () => {
+      expect(toolbox.contents).toHaveLength(6)
+    })
+
+    it('Actions category (index 0) should use machine blue (#4488ff → hue 217)', () => {
+      expect(toolbox.contents[0].colour).toBe('217')
+    })
+
+    it('Loops category (index 1) should use success green (hue 120)', () => {
+      expect(toolbox.contents[1].colour).toBe('120')
+    })
+
+    it('Conditionals category (index 2) should use checker yellow (#cccc44 → hue 60)', () => {
+      expect(toolbox.contents[2].colour).toBe('60')
+    })
+
+    it('Variables category (index 3) should use accent cyan (#4fc3f7 → hue 199)', () => {
+      expect(toolbox.contents[3].colour).toBe('199')
+    })
+
+    it('Functions category (index 4) should use painter magenta (#cc44cc → hue 300)', () => {
+      expect(toolbox.contents[4].colour).toBe('300')
+    })
+
+    it('Events category (index 5) should use warning orange (#ffa726 → hue 35)', () => {
+      expect(toolbox.contents[5].colour).toBe('35')
     })
   })
 })
