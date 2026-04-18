@@ -1,256 +1,295 @@
-import { test, expect, type Page, type FrameLocator } from '@playwright/test'
-
-/**
- * E2E test: Full sandbox factory simulation — pure UI interaction.
- *
- * 1. Start sandbox mode
- * 2. Place two machines 4 cells apart, connected by a chain of belts
- * 3. Open the MakeCode block editor and drag-and-drop blocks to create a program
- * 4. Start the simulation
- * 5. Validate items are produced, flow through belts, and are received
- */
+import { test, expect } from './pom'
+import type { SimulationProbe } from './pom/canvas/SimulationProbe'
+import type { FactoryGridPage } from './pom/canvas/FactoryGridPage'
+import type { ToolbarPage } from './pom/screens/ToolbarPage'
+import type { MachinePanelPage } from './pom/screens/MachinePanelPage'
+import type { EditorPanelPage } from './pom/screens/EditorPanelPage'
+import type { MainMenuPage } from './pom/screens/MainMenuPage'
 
 // Use a wide viewport so the PXT editor has enough room for the toolbox + workspace
 test.use({ viewport: { width: 1920, height: 1080 } })
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function enterSandbox(page: Page) {
-  await page.goto('/')
-  await page.waitForSelector('canvas')
-  await page.waitForFunction(() => {
-    const c = document.querySelector('canvas')
-    return c && c.width > 0 && c.height > 0
-  })
-  const sandboxBtn = page.locator('.ui-main-menu-btn').last()
-  await expect(sandboxBtn).toBeVisible()
-  await sandboxBtn.click()
-  await expect(page.locator('.ui-toolbar')).toBeVisible()
-  // HUD is not visible on sandbox entry — it appears only when simulation starts
-  // Wait for camera zoom-to-fit animation
-  await page.waitForTimeout(1200)
+async function enterSandbox(mainMenu: MainMenuPage, toolbar: ToolbarPage) {
+  await mainMenu.open()
+  await mainMenu.clickSandbox()
+  await toolbar.expectVisible()
+  // Wait for the camera zoom-to-fit animation
+  await toolbar.waitForCameraSettle()
 }
 
-/** Project a grid cell to canvas pixel coordinates. */
-async function gridCellToScreenPos(page: Page, gx: number, gz: number) {
-  return page.evaluate(
-    ({ gx, gz }) => {
-      const canvas = document.querySelector('#canvas-container canvas') as HTMLCanvasElement
-      if (!canvas) return { x: 0, y: 0 }
-      const rect = canvas.getBoundingClientRect()
-      const W = 20, H = 20
-      const worldX = gx - W / 2 + 0.5
-      const worldY = 0
-      const worldZ = gz - H / 2 + 0.5
-      const fov = 50 * Math.PI / 180
-      const d = Math.max(W, H) / (2 * Math.tan(fov / 2)) * 1.2
-      const cx = d * 0.7, cy = d * 0.7, cz = d * 0.7
-      const fl = Math.sqrt(cx * cx + cy * cy + cz * cz)
-      const fx = -cx / fl, fy = -cy / fl, fz = -cz / fl
-      let rx = fy * 0 - fz * 1, ry = fz * 0 - fx * 0, rz = fx * 1 - fy * 0
-      const rl = Math.sqrt(rx * rx + ry * ry + rz * rz)
-      rx /= rl; ry /= rl; rz /= rl
-      const ux = ry * fz - rz * fy, uy = rz * fx - rx * fz, uz = rx * fy - ry * fx
-      const dx = worldX - cx, dy = worldY - cy, dz = worldZ - cz
-      const vx = dx * rx + dy * ry + dz * rz
-      const vy = dx * ux + dy * uy + dz * uz
-      const vz = dx * fx + dy * fy + dz * fz
-      const thf = Math.tan(fov / 2), asp = rect.width / rect.height
-      const nx = vx / (-vz * thf * asp), ny = vy / (-vz * thf)
-      return { x: Math.round((nx + 1) / 2 * rect.width), y: Math.round((1 - ny) / 2 * rect.height) }
-    },
-    { gx, gz },
-  )
-}
-
-/** Click a grid cell on the Three.js canvas. */
-async function clickGridCell(page: Page, gx: number, gz: number) {
-  const pos = await gridCellToScreenPos(page, gx, gz)
-  const canvas = page.locator('#canvas-container canvas')
-  await canvas.click({ position: { x: pos.x, y: pos.y } })
-  await page.waitForTimeout(150)
-}
-
-/** Double-click a grid cell to place a machine. */
-async function dblClickGridCell(page: Page, gx: number, gz: number) {
-  const pos = await gridCellToScreenPos(page, gx, gz)
-  const canvas = page.locator('#canvas-container canvas')
-  await canvas.dblclick({ position: { x: pos.x, y: pos.y } })
-  await page.waitForTimeout(150)
-}
-
-/**
- * Drag a block from the PXT flyout onto the Blockly workspace.
- *
- * PXT renders flyout blocks as SVG elements inside an iframe. Their <g>
- * elements don't return useful boundingBox() from Playwright. Instead,
- * we locate the block's visible text label and use THAT element's
- * bounding rect to compute the drag start position.
- */
-async function dragBlockFromFlyout(
-  pxt: FrameLocator,
-  page: Page,
-  blockTextSubstring: string,
-  targetYOffset = 0,
+async function buildAndRunSandboxFactory(
+  mainMenu: MainMenuPage,
+  toolbar: ToolbarPage,
+  grid: FactoryGridPage,
+  machinePanel: MachinePanelPage,
+  editorPanel: EditorPanelPage,
+  probe: SimulationProbe,
 ) {
-  // Find the block in the flyout by its visible text content
-  const flyoutText = pxt.locator(`.blocklyFlyout text`).filter({ hasText: blockTextSubstring }).first()
-  await expect(flyoutText).toBeAttached({ timeout: 10000 })
+  await enterSandbox(mainMenu, toolbar)
+  await grid.expectCanvasVisible()
 
-  // Get the text element's screen-space position via evaluate
-  const textRect = await flyoutText.evaluate((el: SVGTextElement) => {
-    const rect = el.getBoundingClientRect()
-    return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
-  })
+  await grid.dblClickCell({ x: 10, z: 10 })
+  await grid.dblClickCell({ x: 13, z: 10 })
 
-  // Add iframe offset to get page-level coordinates
-  const iframeBox = await page.locator('.pxt-editor-iframe').boundingBox()
-  if (!iframeBox || textRect.width === 0) {
-    throw new Error(`Could not locate flyout block with text "${blockTextSubstring}"`)
-  }
+  await grid.clickCell({ x: 13, z: 10 })
+  await machinePanel.expectVisible()
+  await machinePanel.selectType('factory_output')
+  await machinePanel.expectTypeValue('factory_output')
+  await machinePanel.clickClose()
+  await machinePanel.expectHidden()
 
-  const fromX = iframeBox.x + textRect.x + textRect.width / 2
-  const fromY = iframeBox.y + textRect.y + textRect.height / 2
+  const machines = await probe.getMachines()
+  const fabricator = machines.find((m) => m.type === 'part_fabricator')
+  const output = machines.find((m) => m.type === 'factory_output')
+  expect(fabricator).toBeTruthy()
+  expect(output).toBeTruthy()
 
-  // Drop target: center-right of the workspace area
-  const wsBox = await pxt.locator('.blocklySvg').boundingBox()
-  const toX = (wsBox?.x ?? iframeBox.x) + (wsBox?.width ?? 400) * 0.6
-  const toY = (wsBox?.y ?? iframeBox.y) + 200 + targetYOffset
+  const beltPlaced = await probe.placeBeltViaTestApi(
+    fabricator!.x, fabricator!.z, output!.x, output!.z,
+  )
+  expect(beltPlaced).toBe(true)
 
-  await page.mouse.move(fromX, fromY)
-  await page.mouse.down()
-  await page.mouse.move(toX, toY, { steps: 20 })
-  await page.mouse.up()
-  await page.waitForTimeout(500)
+  await toolbar.clickEditor()
+  await editorPanel.expectOpen()
+  const programCode =
+    'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+    'machines.startMachine(Machine.A)'
+  await editorPanel.expectFallbackTextareaAttached()
+  await editorPanel.setFallbackProgramViaValueAssignment(programCode)
+  await toolbar.clickEditor()
+  await editorPanel.expectClosed()
+
+  await toolbar.clickStart()
+  await expect(async () => {
+    const snap = await probe.readSnapshot()
+    expect(snap.itemsOnBelts).toBeGreaterThan(0)
+  }).toPass({ timeout: 30000, intervals: [250] })
 }
-
-// ---------------------------------------------------------------------------
-// Test
-// ---------------------------------------------------------------------------
 
 test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
-  test('place machines, program editor, run simulation, verify item production', async ({ page }) => {
+  test('place machines, program editor, run simulation, verify item production', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, hud, pxt, probe,
+  }) => {
     test.setTimeout(90000)
 
     // ======================== STEP 1: Enter sandbox ========================
-    await enterSandbox(page)
+    await mainMenu.open()
+    await mainMenu.clickSandbox()
+    await toolbar.expectVisible()
+    await toolbar.waitForCameraSettle()
 
-    const canvas = page.locator('#canvas-container canvas')
-    await expect(canvas).toBeVisible()
+    await grid.expectCanvasVisible()
 
     // ======================== STEP 2: Place machines =========================
-    // Double-click places a Fabricator by default.
-    await dblClickGridCell(page, 10, 10)
+    await grid.dblClickCell({ x: 10, z: 10 })
 
-    // Verify machine was placed by single-clicking to select it
-    await clickGridCell(page, 10, 10)
-    const panel = page.locator('.ui-machine-panel')
-    await expect(panel).toBeVisible()
-    await expect(panel.locator('.ui-machine-panel-name-input')).toHaveAttribute('placeholder', 'Fabricator')
-    await panel.locator('.ui-machine-panel-close').click()
+    await grid.clickCell({ x: 10, z: 10 })
+    await machinePanel.expectVisible()
+    await machinePanel.expectNamePlaceholder('Fabricator')
+    await machinePanel.clickClose()
+    await machinePanel.expectHidden()
+
+    // Second machine: convert to factory_output so produced items can be delivered.
+    await grid.dblClickCell({ x: 13, z: 10 })
+    await grid.clickCell({ x: 13, z: 10 })
+    await machinePanel.expectVisible()
+    await machinePanel.selectType('factory_output')
+    await machinePanel.expectTypeValue('factory_output')
+    await machinePanel.clickClose()
+    await machinePanel.expectHidden()
+
+    // Connect the two machines with a belt so produced items can travel.
+    const placedMachines = await probe.getMachines()
+    const fabricator = placedMachines.find((m) => m.type === 'part_fabricator')
+    const output = placedMachines.find((m) => m.type === 'factory_output')
+    expect(fabricator).toBeTruthy()
+    expect(output).toBeTruthy()
+    const beltPlaced = await probe.placeBeltViaTestApi(
+      fabricator!.x, fabricator!.z, output!.x, output!.z,
+    )
+    expect(beltPlaced).toBe(true)
 
     // ======================== STEP 3: Open editor & set program =============
-    await page.locator('.ui-toolbar-btn--editor').click()
-    await expect(page.locator('#editor-container')).toHaveClass(/open/)
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
 
-    // Wait for PXT to load in the iframe
-    const pxtIframe = page.locator('.pxt-editor-iframe')
-    const isPxtLoaded = await pxtIframe.isVisible({ timeout: 8000 }).catch(() => false)
-
-    // Program that starts the fabricator producing
     const programCode =
       'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)'
 
+    const isPxtLoaded = await pxt.isPxtIframeVisible(8000)
+
     if (isPxtLoaded) {
-      // ----- PXT block editor is available — drag and drop blocks -----
-      const pxt = page.frameLocator('.pxt-editor-iframe')
+      await pxt.waitForBlocklyWorkspaceVisible()
+      await pxt.waitForToolboxInteractive()
 
-      // Wait for the Blockly workspace to fully render inside PXT.
-      // Blockly briefly sets elements to visibility:hidden during layout;
-      // poll until the workspace is fully visible and interactive.
-      const pxtFrame = page.locator('.pxt-editor-iframe').contentFrame()
-      await expect(async () => {
-        const vis = await pxtFrame.locator('.blocklySvg').evaluate(
-          (el) => getComputedStyle(el).visibility,
-        )
-        expect(vis).toBe('visible')
-      }).toPass({ timeout: 20000, intervals: [500] })
+      // Open "Actions" category (index 0 — the only category in the sandbox
+      // toolbox at level 1) and drag "set recipe" block.
+      await pxt.clickToolboxCategoryByIndex(0)
+      await pxt.dragBlockFromFlyout('set recipe', 0)
 
-      // Wait for toolbox categories to appear and become visible
-      const toolboxCategories = pxt.locator(
-        '.blocklyToolboxCategory, .blocklyTreeRow',
-      )
-      await expect(async () => {
-        const vis = await pxtFrame.locator('.blocklyToolboxCategory, .blocklyTreeRow').first().evaluate(
-          (el) => getComputedStyle(el).visibility,
-        )
-        expect(vis).toBe('visible')
-      }).toPass({ timeout: 15000, intervals: [500] })
-
-      // Wait until the toolbox is fully interactive (flyout ready)
-      await expect(async () => {
-        const count = await pxtFrame.locator('.blocklyToolboxCategory, .blocklyTreeRow').count()
-        expect(count).toBeGreaterThan(0)
-      }).toPass({ timeout: 10000, intervals: [500] })
-
-      // Open "Recipes" category and drag "set recipe" block
-      await toolboxCategories.nth(1).click()
-      await expect(pxt.locator('.blocklyFlyout text').first()).toBeAttached({ timeout: 10000 })
-      await dragBlockFromFlyout(pxt, page, 'set recipe', 0)
-
-      // Open "Machines" category and drag "start" block
-      await toolboxCategories.nth(0).click()
-      await expect(pxt.locator('.blocklyFlyout text').first()).toBeAttached({ timeout: 10000 })
-      await dragBlockFromFlyout(pxt, page, 'start', 80)
+      // Re-open the same "Actions" category and drag "start" block.
+      await pxt.clickToolboxCategoryByIndex(0)
+      await pxt.dragBlockFromFlyout('start', 80)
 
       // Also write to the fallback textarea as a reliable getProgram() source
-      const fallback = page.locator('.pxt-editor-fallback-textarea')
-      await fallback.evaluate((el: HTMLTextAreaElement, code: string) => {
-        el.value = code
-      }, programCode)
-
+      await pxt.setFallbackProgramViaValueAssignment(programCode)
     } else {
-      // ----- Fallback textarea mode -----
-      const textarea = page.locator('.pxt-editor-fallback-textarea')
-      await expect(textarea).toBeVisible()
-      await textarea.fill(programCode)
+      await editorPanel.expectFallbackTextareaVisible()
+      await editorPanel.fillFallbackProgram(programCode)
     }
 
-    // Close the editor
-    await page.locator('.ui-toolbar-btn--editor').click()
-    await expect(page.locator('#editor-container')).not.toHaveClass(/open/)
+    await toolbar.clickEditor()
+    await editorPanel.expectClosed()
 
     // ======================== STEP 4: Start simulation ======================
-    const startBtn = page.locator('.ui-toolbar-btn--start')
-    await expect(startBtn).toBeVisible()
-    await startBtn.click()
+    await toolbar.expectStartButtonVisible()
+    await toolbar.clickStart()
 
-    // HUD should now appear with metrics
-    await expect(page.locator('.ui-hud')).toBeVisible()
+    await hud.expectVisible()
 
     // ======================== STEP 5: Verify simulation runs =================
-    // Poll the HUD "Items" counter (first metric value).
-    const itemsMetric = page.locator('.ui-hud-metric-value').first()
-
-    await expect(async () => {
-      const text = await itemsMetric.textContent()
-      expect(parseInt(text ?? '0', 10)).toBeGreaterThan(0)
-    }).toPass({ timeout: 20000, intervals: [500] })
-
-    // Verify time is advancing
-    await expect(async () => {
-      const time = await page.locator('.ui-hud-metric-value').nth(2).textContent()
-      expect(time).not.toBe('0:00')
-    }).toPass({ timeout: 10000, intervals: [500] })
+    await hud.expectItemsDeliveredGreaterThan(0, 20000)
+    await hud.expectTimeAdvancing(10000)
 
     // ======================== STEP 6: Restart and verify ====================
-    await page.locator('.ui-toolbar-btn--restart').click()
-    await page.waitForTimeout(500)
+    await toolbar.clickRestart()
+    await probe.settle(500)
 
-    const finalItems = parseInt((await itemsMetric.textContent()) ?? '0', 10)
+    const finalItems = await hud.getItemsDelivered()
     expect(finalItems).toBeGreaterThan(0)
+  })
+})
+
+test.describe('Sandbox — Restart clears in-flight items and resets machines', () => {
+  test('Restart wipes belts + machine slots while preserving layout', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
+  }) => {
+    test.setTimeout(90000)
+
+    // ======================== STEP 1: Enter sandbox ========================
+    await enterSandbox(mainMenu, toolbar)
+
+    await grid.expectCanvasVisible()
+
+    // ======================== STEP 2: Place two machines ====================
+    await grid.dblClickCell({ x: 10, z: 10 })
+    await grid.dblClickCell({ x: 13, z: 10 })
+
+    await grid.clickCell({ x: 13, z: 10 })
+    await machinePanel.expectVisible()
+    await machinePanel.selectType('factory_output')
+    await machinePanel.expectTypeValue('factory_output')
+    await machinePanel.clickClose()
+    await machinePanel.expectHidden()
+
+    // ======================== STEP 3: Connect with belt =====================
+    const machines = await probe.getMachines()
+    const fabricator = machines.find((m) => m.type === 'part_fabricator')
+    const output = machines.find((m) => m.type === 'factory_output')
+    expect(fabricator).toBeTruthy()
+    expect(output).toBeTruthy()
+
+    const beltPlaced = await probe.placeBeltViaTestApi(
+      fabricator!.x, fabricator!.z, output!.x, output!.z,
+    )
+    expect(beltPlaced).toBe(true)
+
+    // ======================== STEP 4: Write program =========================
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
+
+    const programCode =
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+      'machines.startMachine(Machine.A)'
+
+    await editorPanel.expectFallbackTextareaAttached()
+    await editorPanel.setFallbackProgramViaValueAssignment(programCode)
+
+    await toolbar.clickEditor()
+    await editorPanel.expectClosed()
+
+    // ======================== STEP 5: Start simulation ======================
+    await toolbar.expectStartButtonVisible()
+    await toolbar.clickStart()
+
+    const layoutBefore = await probe.readSnapshot()
+    expect(layoutBefore.machineCount).toBe(2)
+    expect(layoutBefore.beltCount).toBeGreaterThan(0)
+
+    // ======================== STEP 6: Wait until belts have items ===========
+    await expect(async () => {
+      const snap = await probe.readSnapshot()
+      expect(snap.itemsOnBelts).toBeGreaterThan(0)
+    }).toPass({ timeout: 30000, intervals: [250] })
+
+    const beforeRestart = await probe.readSnapshot()
+    expect(beforeRestart.itemsOnBelts).toBeGreaterThan(0)
+    expect(beforeRestart.running).toBe(true)
+
+    // ======================== STEP 7: Click Restart =========================
+    await toolbar.clickRestart()
+    await probe.settle(300)
+
+    const afterRestart = await probe.readSnapshot()
+
+    expect(afterRestart.running).toBe(false)
+
+    expect(afterRestart.machineCount).toBe(beforeRestart.machineCount)
+    expect(afterRestart.beltCount).toBe(beforeRestart.beltCount)
+
+    expect(afterRestart.itemsOnBelts).toBe(0)
+    for (const count of afterRestart.beltItemCounts) {
+      expect(count).toBe(0)
+    }
+
+    for (const m of afterRestart.machineStates) {
+      expect(m.state).toBe('idle')
+      expect(m.inputSlots).toBe(0)
+      expect(m.outputSlot).toBe(false)
+      expect(m.consumedItems).toBe(0)
+    }
+
+    // ======================== STEP 8: Layout still works ====================
+    await toolbar.clickStart()
+    await expect(async () => {
+      const snap = await probe.readSnapshot()
+      expect(snap.itemsOnBelts).toBeGreaterThan(0)
+    }).toPass({ timeout: 30000, intervals: [250] })
+  })
+
+  test('Restart should clear all item meshes from the rendered scene', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
+  }) => {
+    test.setTimeout(90000)
+
+    await buildAndRunSandboxFactory(mainMenu, toolbar, grid, machinePanel, editorPanel, probe)
+
+    // Sanity: items must be rendered before Restart
+    await expect(async () => {
+      const before = await probe.readSceneItemMeshes()
+      expect(before.totalCount).toBeGreaterThan(0)
+    }).toPass({ timeout: 10000, intervals: [200] })
+
+    const before = await probe.readSceneItemMeshes()
+    expect(before.totalCount).toBeGreaterThan(0)
+
+    await toolbar.clickRestart()
+    await probe.settle(500)
+    await probe.flushAnimationFrame()
+
+    const sim = await probe.readSnapshot()
+    expect(sim.itemsOnBelts).toBe(0)
+
+    const after = await probe.readSceneItemMeshes()
+    expect(
+      after.totalCount,
+      `Expected 0 ghost item instances in the scene after Restart, got ${after.totalCount} ` +
+        `(per-mesh counts: ${JSON.stringify(after.meshes)})`,
+    ).toBe(0)
+    for (const m of after.meshes) {
+      expect(m.count).toBe(0)
+      expect(m.instancesAtItemY).toBe(0)
+    }
   })
 })

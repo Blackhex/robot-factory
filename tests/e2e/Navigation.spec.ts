@@ -1,142 +1,92 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './pom'
 
 test.describe('Navigation — Smoke Tests', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/')
-    // Wait for canvas to be rendered by Three.js
-    await page.waitForSelector('canvas')
-    await page.waitForFunction(() => {
-      const canvas = document.querySelector('canvas')
-      return canvas && canvas.width > 0 && canvas.height > 0
-    })
+  test.beforeEach(async ({ mainMenu }) => {
+    await mainMenu.open()
   })
 
-  test('app loads without console errors', async ({ page }) => {
-    const errors: string[] = []
-    page.on('pageerror', (err) => errors.push(err.message))
+  test('app loads without console errors', async ({ mainMenu }) => {
+    const errors = mainMenu.collectPageErrors()
 
     // Re-navigate to capture errors from load
-    await page.goto('/')
-    await page.waitForSelector('canvas')
+    await mainMenu.navigate()
 
     expect(errors).toEqual([])
   })
 
-  test('main menu is visible with title "Robot Factory"', async ({ page }) => {
-    const menu = page.locator('.ui-main-menu')
-    await expect(menu).toBeVisible()
-
-    const title = page.locator('.ui-main-menu-title')
-    await expect(title).toHaveText('Robot Factory')
+  test('main menu is visible with title "Robot Factory"', async ({ mainMenu }) => {
+    await mainMenu.expectVisible()
+    await mainMenu.expectTitle('Robot Factory')
   })
 
-  test('"Start Game" button is visible and clickable', async ({ page }) => {
-    const startBtn = page.locator('.ui-main-menu-btn--primary')
-    await expect(startBtn).toBeVisible()
-    await expect(startBtn).toHaveText('Start Game')
-    await expect(startBtn).toBeEnabled()
+  test('"Start Game" button is visible and clickable', async ({ mainMenu }) => {
+    await mainMenu.expectStartButtonVisible()
+    await mainMenu.expectStartButtonText('Start Game')
+    await mainMenu.expectStartButtonEnabled()
   })
 
-  test('clicking "Start Game" hides menu and shows level select', async ({ page }) => {
-    const startBtn = page.locator('.ui-main-menu-btn--primary')
-    await startBtn.click()
-
-    // Main menu should disappear
-    await expect(page.locator('.ui-main-menu')).toBeHidden()
-
-    // Level select should appear
-    await expect(page.locator('.ui-level-select')).toBeVisible()
+  test('clicking "Start Game" hides menu and shows level select', async ({ mainMenu, levelSelect }) => {
+    await mainMenu.clickStartGame()
+    await mainMenu.expectHidden()
+    await levelSelect.expectVisible()
   })
 
-  test('selecting a level shows toolbar and HUD', async ({ page }) => {
-    // MainMenu → LevelSelect
-    await page.locator('.ui-main-menu-btn--primary').click()
-    await expect(page.locator('.ui-level-select')).toBeVisible()
-
-    // Click first unlocked level
-    await page.locator('.ui-level-card:not(.ui-level-card--locked)').first().click()
-
-    // Level select should disappear
-    await expect(page.locator('.ui-level-select')).toBeHidden()
-
-    // Toolbar should appear; HUD is NOT visible in build phase (only when sim runs)
-    await expect(page.locator('.ui-toolbar')).toBeVisible()
-    await expect(page.locator('.ui-hud')).toBeHidden()
+  test('selecting a level shows toolbar and HUD', async ({ mainMenu, levelSelect, toolbar, hud }) => {
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickFirstUnlocked()
+    await levelSelect.expectHidden()
+    await toolbar.expectVisible()
+    await hud.expectHidden()
   })
 
-  test('canvas container has a canvas element', async ({ page }) => {
-    const canvas = page.locator('#canvas-container canvas')
-    await expect(canvas).toBeAttached()
-    // Canvas should have non-zero dimensions (Three.js rendered)
-    const box = await canvas.boundingBox()
+  test('canvas container has a canvas element', async ({ grid }) => {
+    await grid.expectCanvasAttached()
+    const box = await grid.getCanvasBoundingBox()
     expect(box).not.toBeNull()
     expect(box!.width).toBeGreaterThan(0)
     expect(box!.height).toBeGreaterThan(0)
   })
 
-  test('language toggle changes toolbar text to Czech', async ({ page }) => {
-    // Navigate: MainMenu → LevelSelect → Build phase
-    await page.locator('.ui-main-menu-btn--primary').click()
-    await expect(page.locator('.ui-level-select')).toBeVisible()
-    await page.locator('.ui-level-card:not(.ui-level-card--locked)').first().click()
-    await expect(page.locator('.ui-toolbar')).toBeVisible()
+  test('language toggle changes toolbar text to Czech', async ({ mainMenu, levelSelect, toolbar, tutorial }) => {
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickFirstUnlocked()
+    await toolbar.expectVisible()
 
-    // Dismiss tutorial overlay if present
-    const skipBtn = page.locator('.ui-tutorial-btn--skip')
-    if (await skipBtn.isVisible()) await skipBtn.click()
+    await tutorial.dismissIfPresent()
 
-    // Verify initial English labels — editor button
-    const editorBtn = page.locator('.ui-toolbar-btn--editor')
-    await expect(editorBtn).toHaveText('Open Editor')
+    await toolbar.expectEditorButtonText('Open Editor')
+    await toolbar.expectLanguageButtonText('CS')
+    await toolbar.clickLanguageToggle()
 
-    // Click the language toggle (shows "CS" when in English)
-    const langBtn = page.locator('.ui-lang-btn')
-    await expect(langBtn).toHaveText('CS')
-    await langBtn.click()
-
-    // After switching, labels should be in Czech
-    await expect(editorBtn).toHaveText('Otevřít editor')
-    // Language button now shows "EN"
-    await expect(langBtn).toHaveText('EN')
+    await toolbar.expectEditorButtonText('Otevřít editor')
+    await toolbar.expectLanguageButtonText('EN')
   })
 
-  test('"E" key opens and closes the editor panel', async ({ page }) => {
-    // Navigate: MainMenu → LevelSelect → Build phase
-    await page.locator('.ui-main-menu-btn--primary').click()
-    await expect(page.locator('.ui-level-select')).toBeVisible()
-    await page.locator('.ui-level-card:not(.ui-level-card--locked)').first().click()
-    await expect(page.locator('.ui-toolbar')).toBeVisible()
+  test('"E" key opens and closes the editor panel', async ({ mainMenu, levelSelect, toolbar, tutorial, editorPanel }) => {
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickFirstUnlocked()
+    await toolbar.expectVisible()
 
-    // Dismiss tutorial overlay if present
-    const skipBtn = page.locator('.ui-tutorial-btn--skip')
-    if (await skipBtn.isVisible()) await skipBtn.click()
+    await tutorial.dismissIfPresent()
 
-    const editor = page.locator('#editor-container')
-
-    // Editor should be hidden initially
-    await expect(editor).not.toHaveClass(/open/)
-
-    // Press E to open
-    await page.keyboard.press('e')
-    await expect(editor).toHaveClass(/open/)
-
-    // Press E again to close
-    await page.keyboard.press('e')
-    await expect(editor).not.toHaveClass(/open/)
+    await editorPanel.expectClosed()
+    await toolbar.pressEditorShortcut()
+    await editorPanel.expectOpen()
+    await toolbar.pressEditorShortcut()
+    await editorPanel.expectClosed()
   })
 
-  test('toolbar dropdown is removed — no .ui-toolbar-select exists', async ({ page }) => {
-    // Navigate: MainMenu → LevelSelect → Build phase
-    await page.locator('.ui-main-menu-btn--primary').click()
-    await expect(page.locator('.ui-level-select')).toBeVisible()
-    await page.locator('.ui-level-card:not(.ui-level-card--locked)').first().click()
-    await expect(page.locator('.ui-toolbar')).toBeVisible()
+  test('toolbar dropdown is removed — no .ui-toolbar-select exists', async ({ mainMenu, levelSelect, toolbar, tutorial }) => {
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickFirstUnlocked()
+    await toolbar.expectVisible()
 
-    // Dismiss tutorial overlay if present
-    const skipBtn = page.locator('.ui-tutorial-btn--skip')
-    if (await skipBtn.isVisible()) await skipBtn.click()
+    await tutorial.dismissIfPresent()
 
-    // The old machine type dropdown should NOT exist
-    await expect(page.locator('.ui-toolbar-select')).toHaveCount(0)
+    await toolbar.expectNoLegacySelect()
   })
 })
