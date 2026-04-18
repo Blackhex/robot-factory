@@ -28,10 +28,10 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
   const actionBlocks: BlockReference[] = [
     block('factory_set_recipe'),
     block('factory_start_machine'),
+    block('factory_pick_machine'),
   ]
   if (level >= 2) {
     actionBlocks.push(
-      block('factory_route_to'),
       block('factory_stop_machine'),
       block('factory_set_belt_speed'),
     )
@@ -71,38 +71,21 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
   }
 
   // --- Variables (level 5+) ---
-  if (level >= 5) {
-    categories.push({
-      kind: 'category',
-      name: i18next.t('blocks.category_variables'),
-      colour: '199',
-      contents: [
-        block('factory_set_variable'),
-        block('factory_get_variable'),
-        block('factory_change_variable'),
-      ],
-    })
-  }
+  // Variables are provided by the built-in Blockly Variables category;
+  // no custom blocks are added here. The level threshold is preserved
+  // so call-sites that gate on `level >= 5` semantics keep working.
 
   // --- Functions (level 6+) ---
-  if (level >= 6) {
-    categories.push({
-      kind: 'category',
-      name: i18next.t('blocks.category_functions'),
-      colour: '300',
-      contents: [
-        block('factory_define_procedure'),
-        block('factory_call_procedure'),
-      ],
-    })
-  }
+  // Functions are provided by the built-in Blockly Functions category;
+  // no custom blocks are added here. The level threshold is preserved
+  // so call-sites that gate on `level >= 6` semantics keep working.
 
   // --- Events (level 7+) ---
   if (level >= 7) {
     categories.push({
       kind: 'category',
       name: i18next.t('blocks.category_events'),
-      colour: '35',
+      colour: '50',
       contents: [
         block('factory_on_order_received'),
         block('factory_on_belt_jam'),

@@ -1,6 +1,8 @@
+import i18next from 'i18next'
 import type { SimulationCommand } from '../game/types'
 import { BlockInterpreter } from './BlockInterpreter'
 import { getToolboxForLevel } from './FactoryToolbox'
+import { buildDropdownOptions, resolveDropdownText, type DropdownItem } from './dropdownOptions'
 
 /**
  * Manages the PXT (MakeCode) editor, embedded as an iframe.
@@ -27,7 +29,7 @@ export class PxtEditor {
   private lastPxtSource = ''
   private messageHandler: ((ev: MessageEvent) => void) | null = null
   private pendingMachineUpdate: Array<{id: string, name: string, type: string}> | null = null
-  private pendingBeltUpdate: Array<{id: string, sourceName: string, destName: string}> | null = null
+  private pendingBeltUpdate: Array<{id: string, name: string, sourceName: string, destName: string}> | null = null
   private prototypePatched = false
   private textPatched = false
   private stylesInjected = false
@@ -118,6 +120,16 @@ export class PxtEditor {
     if (this.container) {
       this.container.style.display = ''
     }
+    // After hide/show cycles, Blockly inside the iframe can keep
+    // stale (often zero) SVG metrics, occasionally leaving the
+    // on-start block scrolled off-viewport — looking like an empty
+    // area. Force a metrics refresh and re-pin the viewport.
+    if (this.pxtReady) {
+      const ws = this.getBlocklyWorkspace()
+      const Blockly = this.getBlockly()
+      if (ws) Blockly?.svgResize?.(ws)
+      this.pinInitialViewport(30, 30)
+    }
   }
 
   hide(): void {
@@ -205,7 +217,8 @@ export class PxtEditor {
   /** Machine block types that use the Machine enum dropdown. */
   private static readonly MACHINE_BLOCK_TYPES = [
     'factory_start_machine', 'factory_stop_machine',
-    'factory_set_recipe', 'factory_on_machine_idle', 'factory_route_to',
+    'factory_set_recipe', 'factory_on_machine_idle',
+    'factory_pick_machine',
   ]
 
   /** Belt block types that use the Belt enum dropdown. */
@@ -213,13 +226,16 @@ export class PxtEditor {
     'factory_set_belt_speed',
   ]
 
+  /** Maximum number of machine/belt slots exposed in the dropdown enum. */
+  private static readonly MAX_SLOTS = 64
+
   /**
    * Update the machine list used by block dropdowns and the interpreter.
-   * Assigns each machine to a slot (0–7) in order.
+   * Assigns each machine to a slot (0..MAX_SLOTS-1) in order.
    */
   updateMachineList(machines: Array<{id: string, name: string, type: string}>): void {
     this.pendingMachineUpdate = machines
-    const slotted = machines.slice(0, 8).map((m, i) => ({
+    const slotted = machines.slice(0, PxtEditor.MAX_SLOTS).map((m, i) => ({
       slotIndex: i,
       id: m.id,
       name: m.name,
@@ -230,19 +246,21 @@ export class PxtEditor {
 
   /**
    * Update the belt list used by block dropdowns and the interpreter.
-   * Assigns each belt to a slot (0–7) in order.
+   * Assigns each belt to a slot (0..MAX_SLOTS-1) in order.
    */
-  updateBeltList(belts: Array<{id: string, sourceName: string, destName: string}>): void {
+  updateBeltList(belts: Array<{id: string, name: string, sourceName: string, destName: string}>): void {
     this.pendingBeltUpdate = belts
-    const slotted = belts.slice(0, 8).map((b, i) => ({
+    const slotted = belts.slice(0, PxtEditor.MAX_SLOTS).map((b, i) => ({
       slotIndex: i,
       id: b.id,
+      name: b.name,
     }))
     this.interpreter.setBeltList(slotted)
 
-    const labeled = belts.slice(0, 8).map((b, i) => ({
+    const labeled = belts.slice(0, PxtEditor.MAX_SLOTS).map((b, i) => ({
       slotIndex: i,
       id: b.id,
+      name: b.name,
       label: `${b.sourceName} → ${b.destName}`,
     }))
     this.patchBlocklyDropdowns('belt', labeled)
@@ -266,19 +284,31 @@ export class PxtEditor {
     if (!blockly?.mainWorkspace) return
 
     const enumName = kind === 'machine' ? 'Machine' : 'Belt'
-    const enumLetters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
-    const storageKey = `__rf_${kind}Labels`
+    // Slots 0..7 use original names (A..H, Belt1..Belt8) for save compatibility.
+    // Slots 8..63 use M9..M64 / Belt9..Belt64 (the visible label is patched
+    // dynamically to the user's machine/belt name regardless).
+    const machineMembers = [
+      'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+      ...Array.from({ length: PxtEditor.MAX_SLOTS - 8 }, (_, i) => `M${i + 9}`),
+    ]
+    const beltMembers = Array.from({ length: PxtEditor.MAX_SLOTS }, (_, i) => `Belt${i + 1}`)
+    const enumMembers = kind === 'machine' ? machineMembers : beltMembers
+    const labelStorageKey = `__rf_${kind}Labels`
+    const itemsStorageKey = `__rf_${kind}Items`
+    const membersStorageKey = `__rf_${kind}Members`
 
-    // Build and store label map on iframe window
+    // Build and store label map on iframe window (for getText lookups).
     const labelMap: Record<string, string> = {}
-    for (let i = 0; i < 8; i++) {
-      const enumValue = `${enumName}.${enumLetters[i]}`
+    for (let i = 0; i < PxtEditor.MAX_SLOTS; i++) {
+      const enumValue = `${enumName}.${enumMembers[i]}`
       const item = items.find(it => it.slotIndex === i)
       if (item) {
         labelMap[enumValue] = item.name ?? item.label ?? item.id
       }
     }
-    iframeWindow[storageKey] = labelMap
+    iframeWindow[labelStorageKey] = labelMap
+    iframeWindow[itemsStorageKey] = items
+    iframeWindow[membersStorageKey] = enumMembers
 
     // Patch FieldDropdown.prototype.getOptions ONCE
     if (!this.prototypePatched) {
@@ -292,23 +322,17 @@ export class PxtEditor {
         const fieldName = this.name
 
         if (block && fieldName === 'machine' && machineBlockTypes.includes(block.type)) {
-          const map: Record<string, string> = iframeWindow.__rf_machineLabels || {}
-          const options: [string, string][] = []
-          for (let i = 0; i < enumLetters.length; i++) {
-            const value = `Machine.${enumLetters[i]}`
-            if (map[value]) options.push([map[value], value])
-          }
-          if (options.length > 0) return options
+          const items: DropdownItem[] = iframeWindow.__rf_machineItems || []
+          const members: string[] = iframeWindow.__rf_machineMembers || []
+          const emptyLabel = i18next.t('blocks.no_machines')
+          return buildDropdownOptions('machine', items, members, emptyLabel)
         }
 
         if (block && fieldName === 'belt' && beltBlockTypes.includes(block.type)) {
-          const map: Record<string, string> = iframeWindow.__rf_beltLabels || {}
-          const options: [string, string][] = []
-          for (let i = 0; i < enumLetters.length; i++) {
-            const value = `Belt.${enumLetters[i]}`
-            if (map[value]) options.push([map[value], value])
-          }
-          if (options.length > 0) return options
+          const items: DropdownItem[] = iframeWindow.__rf_beltItems || []
+          const members: string[] = iframeWindow.__rf_beltMembers || []
+          const emptyLabel = i18next.t('blocks.no_belts')
+          return buildDropdownOptions('belt', items, members, emptyLabel)
         }
 
         return origGetOptions.call(this, opt_useCache)
@@ -325,16 +349,20 @@ export class PxtEditor {
       blockly.FieldDropdown.prototype.getText = function(this: any) {
         const block = this.sourceBlock_
         const fieldName = this.name
-        const value = this.value_
+        const value = this.value_ ?? ''
 
-        if (block && value) {
+        if (block) {
           if (fieldName === 'machine' && machineBlockTypes2.includes(block.type)) {
             const map: Record<string, string> = iframeWindow.__rf_machineLabels || {}
-            if (map[value]) return map[value]
+            const emptyLabel = i18next.t('blocks.no_machines')
+            const resolved = resolveDropdownText(value, map, emptyLabel)
+            if (resolved !== null) return resolved
           }
           if (fieldName === 'belt' && beltBlockTypes2.includes(block.type)) {
             const map: Record<string, string> = iframeWindow.__rf_beltLabels || {}
-            if (map[value]) return map[value]
+            const emptyLabel = i18next.t('blocks.no_belts')
+            const resolved = resolveDropdownText(value, map, emptyLabel)
+            if (resolved !== null) return resolved
           }
         }
 
@@ -342,24 +370,47 @@ export class PxtEditor {
       }
     }
 
-    // Force re-render of all blocks with machine/belt fields so getText() updates take effect
-    const blockTypes = kind === 'machine' ? PxtEditor.MACHINE_BLOCK_TYPES : PxtEditor.BELT_BLOCK_TYPES
+    // Force re-render of all blocks with machine/belt fields so getText() updates
+    // take effect. Blockly caches the field's rendered SVG text, so calling
+    // block.render() alone is not enough; we must invalidate the field display
+    // via forceRerender() (Blockly v9+) or setValue(getValue()) as fallback.
+    const blockTypeToFieldName: Record<string, string> = {}
+    for (const t of PxtEditor.MACHINE_BLOCK_TYPES) blockTypeToFieldName[t] = 'machine'
+    for (const t of PxtEditor.BELT_BLOCK_TYPES) blockTypeToFieldName[t] = 'belt'
+
     const workspace = blockly.mainWorkspace
-    const allBlocks: any[] = workspace.getAllBlocks?.(false) ?? []
-    for (const block of allBlocks) {
-      if (blockTypes.includes(block.type)) {
+    const refreshBlocks = (blocks: any[]): void => {
+      for (const block of blocks) {
+        const fieldName = blockTypeToFieldName[block.type]
+        if (!fieldName) continue
+        const field = block.getField?.(fieldName)
+        if (field) this.refreshFieldDisplay(field)
         block.render?.()
       }
     }
+
+    refreshBlocks(workspace.getAllBlocks?.(false) ?? [])
+
     const flyout = workspace.getFlyout?.()
-    if (flyout) {
-      const flyoutWs = flyout.getWorkspace?.()
-      const flyoutBlocks: any[] = flyoutWs?.getAllBlocks?.(false) ?? []
-      for (const block of flyoutBlocks) {
-        if (blockTypes.includes(block.type)) {
-          block.render?.()
-        }
-      }
+    const flyoutWs = flyout?.getWorkspace?.()
+    refreshBlocks(flyoutWs?.getAllBlocks?.(false) ?? [])
+
+    // Most robust fix: ask the toolbox to rebuild the open category's flyout,
+    // sidestepping any stale block caching inside PXT/Blockly.
+    workspace.getToolbox?.()?.refreshSelection?.()
+  }
+
+  /**
+   * Invalidate a Blockly field's cached SVG text. Prefers forceRerender()
+   * (Blockly v9+); falls back to setValue(getValue()) on older versions.
+   */
+  private refreshFieldDisplay(field: any): void {
+    if (typeof field.forceRerender === 'function') {
+      field.forceRerender()
+      return
+    }
+    if (typeof field.setValue === 'function' && typeof field.getValue === 'function') {
+      field.setValue(field.getValue())
     }
   }
 
@@ -374,18 +425,55 @@ export class PxtEditor {
       switch (msg.action) {
         case 'workspacesync':
           // PXT editor is requesting workspace data — respond with matching id
-          console.log('[PxtEditor] PXT workspacesync request received')
           this.pxtReady = true
           if (this.iframe) this.iframe.style.display = ''
           if (this.fallbackEl) this.fallbackEl.style.display = 'none'
           this.injectToolboxStyles()
-          // Respond with correct protocol: same type, same id, projects array
+          // Respond with a default project containing an on-start
+          // block. This is required: returning an empty
+          // `projects: []` array causes PXT to synthesize its own
+          // default project with an empty `main.blocks` string,
+          // which then fails `textToDom` parsing during the
+          // subsequent `loadWorkspaceXml` call.
+          // The x/y attrs on the block do NOT determine its final
+          // position: PXT's `initLayout()` (in webapp/src/blocks.tsx)
+          // normalizes top blocks by translating them so the one
+          // closest to origin sits at (0, 0), then sets
+          // editor.scrollX/Y = 10. We compensate for this in
+          // `pinInitialViewport()` after init completes.
+          const initialBlocks =
+            '<xml xmlns="https://developers.google.com/blockly/xml">' +
+            '<block type="pxt-on-start" x="0" y="0"></block>' +
+            '</xml>'
+          const defaultProject = {
+            header: {
+              id: 'factory-default',
+              name: 'factory',
+              meta: {},
+              editor: 'blocksprj',
+              pubId: '',
+              pubCurrent: false,
+              target: 'robot-factory',
+              recentUse: Date.now(),
+              modificationTime: Date.now(),
+              path: 'factory',
+            },
+            text: {
+              'main.ts': '',
+              'main.blocks': initialBlocks,
+              'pxt.json': JSON.stringify({
+                name: 'factory',
+                dependencies: { core: '*' },
+                files: ['main.blocks', 'main.ts'],
+              }),
+            },
+          }
           this.postToEditor({
             type: 'pxthost',
             id: msg.id,
             success: true,
             resp: undefined,
-            projects: [],
+            projects: [defaultProject],
           })
           // After a short delay to let PXT finish initializing, send toolbox + switch to blocks
           setTimeout(() => {
@@ -398,8 +486,13 @@ export class PxtEditor {
             if (this.pendingBeltUpdate) {
               this.updateBeltList(this.pendingBeltUpdate)
             }
-            // Style toolbox rows to match game toolbar buttons
+            // Style toolbox rows after PXT has rendered them.
             setTimeout(() => this.styleToolboxRows(), 300)
+            // Override PXT's hardcoded `scrollX/Y = 10` post-load
+            // viewport offset with our desired (30, 30) breathing
+            // room so the on-start block isn't pressed against the
+            // toolbox edge.
+            this.pinInitialViewport(30, 30)
           }, 500)
           break
 
@@ -531,6 +624,14 @@ export class PxtEditor {
         background: #1a1d27 !important;
         border-right: 1px solid #2e3140 !important;
         color: #e0e0e6 !important;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      .blocklyToolboxDiv::-webkit-scrollbar,
+      .monacoToolboxDiv::-webkit-scrollbar {
+        width: 0 !important;
+        height: 0 !important;
+        display: none !important;
       }
 
       /* Toolbox row styling — match game toolbar buttons.
@@ -653,9 +754,11 @@ export class PxtEditor {
         color: #2e3140 !important;
       }
 
-      /* Search input dark styling */
+      /* Search input dark styling — margin matches toolbox row margins */
       #blocklySearchArea {
         background: #1a1d27 !important;
+        margin: 8px 6px !important;
+        box-sizing: border-box !important;
       }
       #blocklySearchInput {
         background: #1a1d27 !important;
@@ -665,6 +768,8 @@ export class PxtEditor {
         color: #e0e0e6 !important;
         border: 1px solid #2e3140 !important;
         border-radius: 4px !important;
+        padding-left: 10px !important;
+        padding-right: 10px !important;
       }
       #blocklySearchInputField::placeholder {
         color: #8b8fa3 !important;
@@ -678,9 +783,16 @@ export class PxtEditor {
         border-color: #2e3140 !important;
       }
 
-      /* Ensure blocks are visible on dark background */
+      /* Ensure block labels are visible on dark background.
+         Exclude editable fields (number/text inputs), which render on a
+         white input background and need dark text. */
       .blocklyText {
         fill: #fff !important;
+      }
+      .blocklyEditableText > .blocklyText,
+      .blocklyHtmlInput {
+        fill: #1a1d27 !important;
+        color: #1a1d27 !important;
       }
 
       /* Make the main workspace div use full space */
@@ -756,4 +868,64 @@ export class PxtEditor {
       })
     }
   }
+
+  /**
+   * Pin the workspace viewport so the on-start block (which PXT's
+   * `initLayout()` normalizes to workspace coords (0, 0)) appears
+   * at viewport coords (dx, dy) — giving it visible breathing room
+   * from the toolbox edge.
+   *
+   * PXT's `webapp/src/blocks.tsx::initLayout(xml)` does:
+   *   1. translate every top block so the closest-to-origin sits
+   *      at workspace (0, 0)
+   *   2. `editor.scrollX = 10; editor.scrollY = 10;`
+   *   3. `editor.resizeContents()` to commit
+   *
+   * This bypasses `WorkspaceSvg.scroll()` (which clamps to content
+   * bounds), so we use the same direct property assignment.
+   *
+   * Strategy: poll briefly. PXT may run initLayout one or more
+   * times during init (after toolbox switch, after switchblocks),
+   * so we re-pin until the viewport stays at (dx, dy) for several
+   * consecutive ticks, then stop.
+   */
+  private pinInitialViewport(dx: number, dy: number): void {
+    const MAX_ATTEMPTS = 120 // ~3 seconds @ 25 ms
+    const STABLE_TICKS_TO_STOP = 8
+    const RETRY_MS = 25
+    let stableTicks = 0
+    const tryPin = (attempt: number): void => {
+      const ws = this.getBlocklyWorkspace()
+      const topBlocks: any[] = ws?.getTopBlocks?.(false) ?? []
+      if (ws && topBlocks.length > 0) {
+        if (ws.scrollX !== dx || ws.scrollY !== dy) {
+          ws.scrollX = dx
+          ws.scrollY = dy
+          ws.resizeContents?.()
+          // Force an SVG matrix redraw so the change is visible.
+          ws.translate?.(dx, dy)
+          stableTicks = 0
+        } else {
+          stableTicks++
+        }
+      }
+      if (stableTicks >= STABLE_TICKS_TO_STOP) return
+      if (attempt < MAX_ATTEMPTS) {
+        setTimeout(() => tryPin(attempt + 1), RETRY_MS)
+      }
+    }
+    tryPin(0)
+  }
+
+  /** Return Blockly object inside the PXT iframe, or undefined. */
+  private getBlockly(): any {
+    const win = this.iframe?.contentWindow as any
+    return win?.Blockly
+  }
+
+  /** Return the main Blockly workspace inside the PXT iframe, or undefined. */
+  private getBlocklyWorkspace(): any {
+    return this.getBlockly()?.getMainWorkspace?.()
+  }
+
 }

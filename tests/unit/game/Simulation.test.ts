@@ -618,6 +618,161 @@ describe('Simulation', () => {
       expect(sim.outputsDelivered).toBe(0)
     })
   })
+
+  describe('clearInFlight()', () => {
+    it('should remove all items from every belt', () => {
+      // GIVEN
+      const b1 = new ConveyorBelt('b1', 0, 0, 1, 0)
+      const b2 = new ConveyorBelt('b2', 2, 0, 3, 0)
+      sim.addBelt(b1)
+      sim.addBelt(b2)
+      b1.addItem(createItem('wheel_small'))
+      b2.addItem(createItem('circuit_basic'))
+      b2.addItem(createItem('chassis_light'))
+      // sanity
+      expect(b1.getItemCount()).toBe(1)
+      expect(b2.getItemCount() + b1.getItemCount()).toBeGreaterThan(0)
+
+      // WHEN
+      sim.clearInFlight()
+
+      // THEN
+      expect(b1.getItemCount()).toBe(0)
+      expect(b2.getItemCount()).toBe(0)
+      expect(b1.isEmpty()).toBe(true)
+      expect(b2.isEmpty()).toBe(true)
+    })
+
+    it('should reset machine input/output slots and state to idle', () => {
+      // GIVEN
+      const m = new Machine('m1', 'part_fabricator')
+      sim.addMachine(m)
+      m.addInput(createItem('wheel_small'))
+      m.addInput(createItem('wheel_small'))
+      m.outputSlot = createItem('chassis_light')
+      m.secondaryOutputSlot = createItem('circuit_basic')
+      m.state = 'processing'
+      m.processingTimer = 5
+      m.consumedItems = 3
+
+      // WHEN
+      sim.clearInFlight()
+
+      // THEN
+      expect(m.inputSlots.length).toBe(0)
+      expect(m.outputSlot).toBeNull()
+      expect(m.secondaryOutputSlot).toBeNull()
+      expect(m.state).toBe('idle')
+      expect(m.processingTimer).toBe(0)
+      expect(m.consumedItems).toBe(0)
+    })
+
+    it('should preserve machines, belts, and output-belt connections', () => {
+      // GIVEN
+      const m = new Machine('m1', 'part_fabricator')
+      const b = new ConveyorBelt('b1', 0, 0, 1, 0)
+      sim.addMachine(m)
+      sim.addBelt(b)
+      sim.setMachineOutputBelt('m1', 'b1', 'primary')
+      m.setRecipe(wheelPressRecipe())
+
+      // WHEN
+      sim.clearInFlight()
+
+      // THEN — entities preserved
+      expect(sim.getMachines().size).toBe(1)
+      expect(sim.getMachine('m1')).toBe(m)
+      expect(sim.getBelts().size).toBe(1)
+      expect(sim.getBelt('b1')).toBe(b)
+
+      // THEN — connection preserved (verified indirectly by running the pipeline)
+      m.addInput(createItem('wheel_small'))
+      m.addInput(createItem('wheel_small'))
+      // Tick enough times for the part_fabricator to produce + transfer
+      tickN(sim, 30)
+      // If the connection was lost, no item would land on belt b1
+      expect(b.getItemCount()).toBeGreaterThan(0)
+    })
+
+    it('should preserve machine recipe configuration', () => {
+      // GIVEN
+      const m = new Machine('m1', 'part_fabricator')
+      sim.addMachine(m)
+      const recipe = wheelPressRecipe()
+      m.setRecipe(recipe)
+      const qc = new Machine('qc1', 'quality_checker')
+      qc.qualityThreshold = 42
+      sim.addMachine(qc)
+      const sp = new Machine('sp1', 'splitter')
+      sp.splitterCondition = { conditionType: 'by_item_type', itemType: 'wheel_small' }
+      sim.addMachine(sp)
+
+      // WHEN
+      sim.clearInFlight()
+
+      // THEN
+      expect(m.currentRecipe).not.toBeNull()
+      expect(m.currentRecipe).toBe(recipe)
+      expect(qc.qualityThreshold).toBe(42)
+      expect(sp.splitterCondition).not.toBeNull()
+      expect(sp.splitterCondition!.conditionType).toBe('by_item_type')
+    })
+
+    it('should clear the command queue', () => {
+      // GIVEN
+      const m = new Machine('m1', 'part_fabricator')
+      sim.addMachine(m)
+      // currentRecipe is null; enqueue a SET_RECIPE that would set it on next tick
+      sim.enqueueCommand({
+        type: 'SET_RECIPE',
+        machineId: 'm1',
+        recipeId: 'wheel_press_small',
+      })
+
+      // WHEN
+      sim.clearInFlight()
+      sim.tick()
+
+      // THEN — queued SET_RECIPE was dropped, so recipe stays null
+      expect(m.currentRecipe).toBeNull()
+    })
+
+    it('should reset stat counters and currentTick to 0', () => {
+      // GIVEN
+      sim.itemsProduced = 7
+      sim.itemsDelivered = 3
+      sim.outputsDelivered = 2
+      sim.robotsProduced = 5
+      sim.defects = 1
+      sim.totalIdleTicks = 9
+      sim.currentTick = 42
+
+      // WHEN
+      sim.clearInFlight()
+
+      // THEN
+      expect(sim.currentTick).toBe(0)
+      expect(sim.itemsProduced).toBe(0)
+      expect(sim.itemsDelivered).toBe(0)
+      expect(sim.outputsDelivered).toBe(0)
+      expect(sim.robotsProduced).toBe(0)
+      expect(sim.defects).toBe(0)
+      expect(sim.totalIdleTicks).toBe(0)
+    })
+
+    it('should stop the simulation if it was running', () => {
+      // GIVEN
+      sim.start()
+      expect(sim.running).toBe(true)
+
+      // WHEN
+      sim.clearInFlight()
+
+      // THEN
+      expect(sim.running).toBe(false)
+      expect(sim.paused).toBe(false)
+    })
+  })
 })
 
 // --- Integration tests ---

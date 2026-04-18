@@ -17,6 +17,7 @@
   "actions": {
     "start": "Spustit",
     "pause": "Pozastavit",
+    "resume": "Pokračovat",
     "restart": "Restartovat",
     "open_editor": "Otevřít editor"
   },
@@ -41,8 +42,6 @@
     "stop_machine_tooltip": "Zastaví zadaný stroj",
     "set_belt_speed": "nastavit rychlost pásu %1 na %2",
     "set_belt_speed_tooltip": "Nastaví rychlost dopravního pásu",
-    "route_to": "směrovat do %1",
-    "route_to_tooltip": "Směruje položky k cílovému stroji",
     "category_loops": "Smyčky",
     "repeat_times": "opakuj %1 krát",
     "repeat_times_tooltip": "Opakuje vložené akce zadaný počet krát",
@@ -74,7 +73,9 @@
     "on_belt_jam": "když se pás zasekne",
     "on_belt_jam_tooltip": "Spustí se když se pás zasekne",
     "on_machine_idle": "když stroj %1 je nečinný",
-    "on_machine_idle_tooltip": "Spustí se když se stroj stane nečinným"
+    "on_machine_idle_tooltip": "Spustí se když se stroj stane nečinným",
+    "no_machines": "(žádné stroje)",
+    "no_belts": "(žádné pásy)"
   },
   "conditions": {
     "belt_has_items": "pás má položky",

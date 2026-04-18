@@ -31,7 +31,10 @@
     "variablesBlocks": true,
     "textBlocks": false,
     "listsBlocks": false,
-    "functionBlocks": true
+    "functionBlocks": true,
+    "onStartNamespace": "events",
+    "onStartColor": "#a5865b",
+    "onStartWeight": 100
   },
   "simulator": {
     "autoRun": false
@@ -68,9 +71,7 @@
       "loops": "#66bb6a",
       "logic": "#cccc44",
       "variables": "#4fc3f7",
-      "variables_": "#4fc3f7",
       "functions": "#cc44cc",
-      "functions_": "#cc44cc",
       "events": "#ffa726"
     },
     "simAnimationEnter": "fly right in",

@@ -1,7 +1,6 @@
 import type { SimulationCommand } from '../game/types'
 
 const MAX_OPERATIONS = 10_000
-const MAX_CALL_DEPTH = 100
 
 // --- Enum-to-ID lookup arrays (index = enum numeric value) ---------------
 
@@ -87,22 +86,21 @@ function resolveRecipeId(raw: unknown): string {
  * collects SimulationCommand[] produced by namespace method calls.
  *
  * Provides namespace objects (machines, recipes, belts, loops, logic,
- * variables_, functions_, events, factory) and enum objects (Machine,
+ * events, factory) and enum objects (Machine,
  * PartType, Recipe, Belt, FactoryCondition) to the executed code.
+ * User-defined procedures use the built-in PXT Functions category
+ * and compile to native JS `function` declarations, which `new Function`
+ * handles natively with no interpreter support required.
  *
  * Enforces a hard cap of 10,000 operations per interpret() call.
- * Variable store persists across calls; use reset() to clear it.
  */
 export class BlockInterpreter {
   private commands: SimulationCommand[] = []
   private opCount = 0
   private overflow = false
-  private variables = new Map<string, number>()
-  private procedures = new Map<string, () => void>()
   private eventHandlers = new Map<string, () => void>()
-  private callDepth = 0
   private dynamicMachines: Array<{slotIndex: number, id: string, name: string}> = []
-  private dynamicBelts: Array<{slotIndex: number, id: string}> = []
+  private dynamicBelts: Array<{slotIndex: number, id: string, name?: string}> = []
 
   // --- Namespace objects -------------------------------------------------
 
@@ -123,6 +121,12 @@ export class BlockInterpreter {
       if (this.guardOverflow()) return
       this.commands.push({ type: 'SET_QUALITY_THRESHOLD', machineId: this.resolveMachineId(machine), threshold: Number(threshold) || 0 })
     },
+    /**
+     * Returns the selected machine value unchanged. Used as the
+     * value-returning expression behind the `machine %machine` block,
+     * letting users assign a Machine to a built-in Blockly variable.
+     */
+    pickMachine: (machine: unknown) => machine,
   }
 
   private readonly recipesNs = {
@@ -135,10 +139,6 @@ export class BlockInterpreter {
     setBeltSpeed: (belt: unknown, speed: unknown) => {
       if (this.guardOverflow()) return
       this.commands.push({ type: 'SET_BELT_SPEED', beltId: this.resolveBeltId(belt), speed: Number(speed) || 1 })
-    },
-    routeTo: (target: unknown) => {
-      if (this.guardOverflow()) return
-      this.commands.push({ type: 'ROUTE_TO', targetId: this.resolveMachineId(target) })
     },
   }
 
@@ -167,41 +167,6 @@ export class BlockInterpreter {
     },
     ifItemType: (_itemType: unknown, body: () => void) => {
       body()
-    },
-  }
-
-  private readonly variablesNs = {
-    setVariable: (name: unknown, value: unknown) => {
-      if (this.guardOverflow()) return
-      const n = String(name)
-      if (n) this.variables.set(n, Number(value) || 0)
-    },
-    changeVariable: (name: unknown, delta: unknown) => {
-      if (this.guardOverflow()) return
-      const n = String(name)
-      if (n) {
-        const current = this.variables.get(n) ?? 0
-        this.variables.set(n, current + (Number(delta) || 0))
-      }
-    },
-  }
-
-  private readonly functionsNs = {
-    defineProcedure: (name: unknown, body: () => void) => {
-      const n = String(name)
-      if (n && typeof body === 'function') {
-        this.procedures.set(n, body)
-      }
-    },
-    callProcedure: (name: unknown) => {
-      if (this.guardOverflow()) return
-      const n = String(name)
-      const proc = this.procedures.get(n)
-      if (proc && this.callDepth < MAX_CALL_DEPTH) {
-        this.callDepth++
-        proc()
-        this.callDepth--
-      }
     },
   }
 
@@ -242,9 +207,6 @@ export class BlockInterpreter {
     setBeltSpeed: (belt: unknown, speed: unknown) => {
       this.beltsNs.setBeltSpeed(belt, speed)
     },
-    routeTo: (target: unknown) => {
-      this.beltsNs.routeTo(target)
-    },
     repeatTimes: (count: unknown, body: () => void) => {
       this.loopsNs.repeatTimes(count, body)
     },
@@ -256,18 +218,6 @@ export class BlockInterpreter {
     },
     ifItemType: (itemType: unknown, body: () => void) => {
       this.logicNs.ifItemType(itemType, body)
-    },
-    setVariable: (name: unknown, value: unknown) => {
-      this.variablesNs.setVariable(name, value)
-    },
-    changeVariable: (name: unknown, delta: unknown) => {
-      this.variablesNs.changeVariable(name, delta)
-    },
-    defineProcedure: (name: unknown, body: () => void) => {
-      this.functionsNs.defineProcedure(name, body)
-    },
-    callProcedure: (name: unknown) => {
-      this.functionsNs.callProcedure(name)
     },
     onOrderReceived: (body: () => void) => {
       this.eventsNs.onOrderReceived(body)
@@ -289,22 +239,20 @@ export class BlockInterpreter {
     this.opCount = 0
     this.overflow = false
     this.commands = []
-    this.procedures.clear()
     this.eventHandlers.clear()
-    this.callDepth = 0
 
     const clean = this.stripComments(source)
 
     try {
       const fn = new Function(
         'machines', 'recipes', 'belts', 'loops', 'logic',
-        'variables_', 'functions_', 'events', 'factory',
+        'events', 'factory',
         'Machine', 'PartType', 'Recipe', 'Belt', 'FactoryCondition',
         '"use strict";\n' + clean,
       )
       fn(
         this.machinesNs, this.recipesNs, this.beltsNs, this.loopsNs, this.logicNs,
-        this.variablesNs, this.functionsNs, this.eventsNs, this.factoryNs,
+        this.eventsNs, this.factoryNs,
         MachineEnum, PartTypeEnum, RecipeEnum, BeltEnum, FactoryConditionEnum,
       )
     } catch {
@@ -339,17 +287,10 @@ export class BlockInterpreter {
     return this.overflow
   }
 
-  getVariable(name: string): number {
-    return this.variables.get(name) ?? 0
-  }
-
   reset(): void {
     this.overflow = false
     this.opCount = 0
-    this.variables.clear()
-    this.procedures.clear()
     this.eventHandlers.clear()
-    this.callDepth = 0
   }
 
   // --- Dynamic machine/belt list management ------------------------------
@@ -358,7 +299,7 @@ export class BlockInterpreter {
     this.dynamicMachines = [...machines]
   }
 
-  setBeltList(belts: Array<{slotIndex: number, id: string}>): void {
+  setBeltList(belts: Array<{slotIndex: number, id: string, name?: string}>): void {
     this.dynamicBelts = [...belts]
   }
 
@@ -400,6 +341,9 @@ export class BlockInterpreter {
       if (dynamic) return dynamic.id
       return BELT_IDS[slot]
     }
+    // Name-based lookup in dynamic list
+    const byName = this.dynamicBelts.find(b => b.name === s)
+    if (byName) return byName.id
     return s
   }
 

@@ -201,10 +201,6 @@ export class Simulation {
         }
         break
       }
-      case 'ROUTE_TO': {
-        // Routing configuration handled externally via setMachineOutputBelt
-        break
-      }
     }
   }
 
@@ -391,13 +387,20 @@ export class Simulation {
 
   // --- Reset ---
 
-  reset(): void {
+  /**
+   * Soft reset: clear all in-flight runtime state (items on belts, machine
+   * slots/timers, queued commands, stat counters) while preserving the factory
+   * layout — machines, belts, output-belt connections, machine positions,
+   * recipes, and event handler subscriptions all stay intact.
+   */
+  clearInFlight(): void {
     this.stop()
-    this.machines.clear()
-    this.belts.clear()
-    this.machinePositions.clear()
-    this.primaryOutputBelts.clear()
-    this.secondaryOutputBelts.clear()
+    for (const belt of this.belts.values()) {
+      belt.clear()
+    }
+    for (const machine of this.machines.values()) {
+      machine.clearRuntimeState()
+    }
     this.commandQueue.length = 0
     this.currentTick = 0
     this.itemsProduced = 0
@@ -406,5 +409,14 @@ export class Simulation {
     this.robotsProduced = 0
     this.defects = 0
     this.totalIdleTicks = 0
+  }
+
+  reset(): void {
+    this.clearInFlight()
+    this.machines.clear()
+    this.belts.clear()
+    this.machinePositions.clear()
+    this.primaryOutputBelts.clear()
+    this.secondaryOutputBelts.clear()
   }
 }

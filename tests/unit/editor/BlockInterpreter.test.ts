@@ -10,9 +10,9 @@ import { BlockInterpreter } from '../../../src/editor/BlockInterpreter'
  * Core behaviours:
  * - Parses action calls → SimulationCommand (SET_RECIPE, START_MACHINE, etc.)
  * - Expands loops (repeatTimes) into repeated command sequences
- * - Registers & calls procedures (defineProcedure / callProcedure)
+ * - Supports native JS function declarations/calls (built-in PXT Functions)
  * - Registers event handlers (onOrderReceived, etc.) via triggerEvent()
- * - Tracks variables (setVariable, changeVariable, getVariable)
+ * - Tracks command queue produced by namespace calls
  * - Enforces MAX_OPERATIONS = 10,000 overflow guard
  * - Strips comments before parsing
  */
@@ -75,14 +75,13 @@ describe('BlockInterpreter', () => {
       expect((commands[0] as any).speed).toBe(5)
     })
 
-    it('should parse routeTo', () => {
-      // WHEN
+    it('should ignore removed factory.routeTo()', () => {
+      // WHEN — routeTo has been removed; the interpreter must not emit any command.
       const commands = interpreter.interpret('factory.routeTo("assembler")')
 
       // THEN
-      expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('ROUTE_TO')
-      expect((commands[0] as any).targetId).toBe('assembler')
+      expect(commands).toHaveLength(0)
+      expect(commands.find((c) => c.type === ('ROUTE_TO' as any))).toBeUndefined()
     })
   })
 
@@ -161,7 +160,7 @@ describe('BlockInterpreter', () => {
     it('should execute ifQuality body by default', () => {
       // GIVEN
       const source = `factory.ifQuality(80, function () {
-        factory.routeTo("recycler")
+        factory.startMachine("recycler")
       })`
 
       // WHEN
@@ -169,7 +168,7 @@ describe('BlockInterpreter', () => {
 
       // THEN
       expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('ROUTE_TO')
+      expect(commands[0].type).toBe('START_MACHINE')
     })
 
     it('should execute ifItemType body by default', () => {
@@ -187,56 +186,36 @@ describe('BlockInterpreter', () => {
     })
   })
 
-  // === Variables =========================================================
+  // === Variables (built-in Blockly variables compile to native JS;
+  //     custom variables_ namespace was removed) ===========================
 
-  describe('variables', () => {
-    it('should set and read variables', () => {
-      // WHEN
-      interpreter.interpret('factory.setVariable("counter", 5)')
-
-      // THEN
-      expect(interpreter.getVariable('counter')).toBe(5)
-    })
-
-    it('should change variables', () => {
-      // WHEN
-      interpreter.interpret(`
-        factory.setVariable("counter", 10)
-        factory.changeVariable("counter", 3)
-      `)
-
-      // THEN
-      expect(interpreter.getVariable('counter')).toBe(13)
-    })
-
-    it('should default unset variables to 0', () => {
-      // WHEN + THEN
-      expect(interpreter.getVariable('unknown')).toBe(0)
-    })
-
-    it('should clear variables on reset()', () => {
-      // GIVEN
-      interpreter.interpret('factory.setVariable("x", 42)')
-      expect(interpreter.getVariable('x')).toBe(42)
+  describe('built-in JS variables', () => {
+    it('should support locally-scoped JS variables that influence command emission', () => {
+      // GIVEN — built-in Blockly Variables blocks compile to plain JS
+      const source = `
+        let count = 2
+        for (let i = 0; i < count; i++) {
+          machines.startMachine(Machine.A)
+        }
+      `
 
       // WHEN
-      interpreter.reset()
+      const commands = interpreter.interpret(source)
 
       // THEN
-      expect(interpreter.getVariable('x')).toBe(0)
+      expect(commands).toHaveLength(2)
+      expect(commands.every(c => c.type === 'START_MACHINE')).toBe(true)
     })
   })
 
-  // === Procedures ========================================================
+  // === pick-machine (value-returning expression) =========================
 
-  describe('procedures', () => {
-    it('should register and call a procedure', () => {
+  describe('machines.pickMachine', () => {
+    it('should return the machine value so it can be assigned to a JS variable', () => {
       // GIVEN
       const source = `
-        factory.defineProcedure("myProc", function () {
-          factory.startMachine("press_1")
-        })
-        factory.callProcedure("myProc")
+        let m = machines.pickMachine(Machine.A)
+        machines.startMachine(m)
       `
 
       // WHEN
@@ -245,16 +224,21 @@ describe('BlockInterpreter', () => {
       // THEN
       expect(commands).toHaveLength(1)
       expect(commands[0].type).toBe('START_MACHINE')
+      expect((commands[0] as any).machineId).toBe('machine_1')
     })
+  })
 
-    it('should call a procedure multiple times', () => {
-      // GIVEN
+  // === Native JS functions (built-in PXT Functions category) ============
+
+  describe('native JS functions', () => {
+    it('should support user-defined function declarations and calls', () => {
+      // GIVEN: what PXT's built-in Functions blocks compile to
       const source = `
-        factory.defineProcedure("myProc", function () {
-          factory.startMachine("a")
-        })
-        factory.callProcedure("myProc")
-        factory.callProcedure("myProc")
+        function myProc() {
+          machines.startMachine(Machine.A)
+        }
+        myProc()
+        myProc()
       `
 
       // WHEN
@@ -262,14 +246,7 @@ describe('BlockInterpreter', () => {
 
       // THEN
       expect(commands).toHaveLength(2)
-    })
-
-    it('should ignore callProcedure for undefined procedures', () => {
-      // WHEN
-      const commands = interpreter.interpret('factory.callProcedure("nope")')
-
-      // THEN
-      expect(commands).toHaveLength(0)
+      expect(commands.every((c) => c.type === 'START_MACHINE')).toBe(true)
     })
   })
 
@@ -574,16 +551,15 @@ describe('BlockInterpreter', () => {
       expect((commands[0] as any).speed).toBe(5)
     })
 
-    it('should parse belts.routeTo(Machine.C)', () => {
-      // WHEN
+    it('should ignore removed belts.routeTo(Machine.C)', () => {
+      // WHEN — belts.routeTo has been removed from the codebase.
       const commands = interpreter.interpret(
         'belts.routeTo(Machine.C)',
       )
 
       // THEN
-      expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('ROUTE_TO')
-      expect((commands[0] as any).targetId).toBe('machine_3')
+      expect(commands).toHaveLength(0)
+      expect(commands.find((c) => c.type === ('ROUTE_TO' as any))).toBeUndefined()
     })
   })
 
@@ -671,24 +647,6 @@ describe('BlockInterpreter', () => {
       expect(commands.every((c) => c.type === 'START_MACHINE')).toBe(true)
       expect((commands[0] as any).machineId).toBe('machine_1')
     })
-
-    it('should define and call a procedure via functions_ namespace', () => {
-      // GIVEN
-      const source = `
-        functions_.defineProcedure("myProc", function () {
-          machines.startMachine(Machine.A)
-        })
-        functions_.callProcedure("myProc")
-      `
-
-      // WHEN
-      const commands = interpreter.interpret(source)
-
-      // THEN
-      expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('START_MACHINE')
-      expect((commands[0] as any).machineId).toBe('machine_1')
-    })
   })
 
   // === Namespaced events =================================================
@@ -709,18 +667,6 @@ describe('BlockInterpreter', () => {
       expect(commands).toHaveLength(1)
       expect(commands[0].type).toBe('START_MACHINE')
       expect((commands[0] as any).machineId).toBe('machine_1')
-    })
-  })
-
-  // === Namespaced variables ==============================================
-
-  describe('namespaced variables', () => {
-    it('should set variable via variables_ namespace', () => {
-      // WHEN
-      interpreter.interpret('variables_.setVariable("count", 5)')
-
-      // THEN
-      expect(interpreter.getVariable('count')).toBe(5)
     })
   })
 
@@ -809,26 +755,30 @@ describe('BlockInterpreter', () => {
     })
   })
 
-  // === Call depth protection =============================================
+  // === Recursion protection ==============================================
 
-  describe('call depth protection', () => {
-    it('should stop recursive procedure calls at MAX_CALL_DEPTH', () => {
-      // GIVEN — a procedure that calls itself recursively
+  describe('recursion protection', () => {
+    it('should terminate recursive functions without hanging the interpreter', () => {
+      // GIVEN — a native JS function that calls itself recursively.
+      // The interpreter no longer has its own call-depth guard; instead it
+      // relies on the JS engine's stack limit (which throws RangeError that
+      // `interpret()` catches) combined with the MAX_OPERATIONS cap.
       const source = `
-        factory.defineProcedure("recurse", function () {
-          factory.startMachine("m")
-          factory.callProcedure("recurse")
-        })
-        factory.callProcedure("recurse")
+        function recurse() {
+          machines.startMachine(Machine.A)
+          recurse()
+        }
+        recurse()
       `
 
       // WHEN
       const commands = interpreter.interpret(source)
 
-      // THEN — should produce commands up to MAX_CALL_DEPTH (100), not infinite
-      expect(commands.length).toBeLessThanOrEqual(100)
+      // THEN — must return a finite number of commands (not infinite loop)
+      // and the fall-through must not crash.
+      expect(Array.isArray(commands)).toBe(true)
       expect(commands.length).toBeGreaterThan(0)
-      expect(interpreter.getOverflowOccurred()).toBe(false)
+      expect(commands.length).toBeLessThanOrEqual(MAX_OPERATIONS)
     })
   })
 

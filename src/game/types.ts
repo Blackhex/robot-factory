@@ -33,6 +33,7 @@ export interface MachineInfo {
 
 export interface BeltInfo {
   id: string
+  name: string
   sourceMachine: MachineInfo
   sourceSlot: SlotPosition
   destinationMachine: MachineInfo
@@ -89,11 +90,6 @@ export interface SetBeltSpeedCommand {
   readonly speed: number
 }
 
-export interface RouteToCommand {
-  readonly type: 'ROUTE_TO'
-  readonly targetId: string
-}
-
 export interface SetQualityThresholdCommand {
   readonly type: 'SET_QUALITY_THRESHOLD'
   readonly machineId: string
@@ -119,7 +115,6 @@ export type SimulationCommand =
   | StartMachineCommand
   | StopMachineCommand
   | SetBeltSpeedCommand
-  | RouteToCommand
   | SetQualityThresholdCommand
   | SetSplitterConditionCommand
 

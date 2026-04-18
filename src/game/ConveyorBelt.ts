@@ -55,6 +55,11 @@ export class ConveyorBelt {
     return true
   }
 
+  /** Remove all items from the belt. */
+  clear(): void {
+    this.items.length = 0
+  }
+
   getItems(): ReadonlyArray<Item> {
     return this.items
   }

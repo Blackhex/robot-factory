@@ -73,7 +73,9 @@ async function main(): Promise<void> {
   const levelSelect = new LevelSelect(uiOverlay)
   const hud = new HUD(uiOverlay)
   const scoreScreen = new ScoreScreen(uiOverlay)
-  const tutorialOverlay = new TutorialOverlay(uiOverlay)
+  // Mounted on document.body (not uiOverlay) so the tooltip's z-index escapes
+  // the #ui-overlay stacking context (z-index 10) and renders above the editor.
+  const tutorialOverlay = new TutorialOverlay(document.body)
   const toolbar = new Toolbar(uiOverlay)
   const machinePanel = new MachinePanel(uiOverlay)
   const beltPanel = new BeltPanel(uiOverlay)
@@ -111,7 +113,7 @@ async function main(): Promise<void> {
     editorResizeHandle.style.display = 'block'
     editorResizeHandle.style.right = editorContainer.style.width
       ? `calc(${editorContainer.style.width} - 3px)`
-      : 'calc(40% - 3px)'
+      : 'calc(max(500px, 40%) - 3px)'
     pxtEditor.show()
   }
 
@@ -136,7 +138,8 @@ async function main(): Promise<void> {
     editorResizeHandle.addEventListener('pointermove', (e: PointerEvent) => {
       if (!dragging) return
       const viewportW = window.innerWidth
-      const pct = Math.min(100, Math.max(20, ((viewportW - e.clientX) / viewportW) * 100))
+      const minPct = (500 / viewportW) * 100
+      const pct = Math.min(100, Math.max(minPct, ((viewportW - e.clientX) / viewportW) * 100))
       editorContainer.style.width = `${pct}%`
       editorResizeHandle.style.right = `calc(${pct}% - 3px)`
     })
@@ -248,7 +251,7 @@ async function main(): Promise<void> {
       if (!factory) return false
       factory.restoreState(
         result.factory.getMachines().map(m => ({ x: m.x, z: m.z, type: m.type, rotation: m.rotation, name: m.name })),
-        result.factory.getBelts().map(b => ({ sourceSlot: b.sourceSlot, destinationSlot: b.destinationSlot, path: b.path })),
+        result.factory.getBelts().map(b => ({ sourceSlot: b.sourceSlot, destinationSlot: b.destinationSlot, path: b.path, name: b.name })),
       )
       return true
     } catch {
@@ -314,7 +317,7 @@ async function main(): Promise<void> {
       factory.getMachines().map(m => ({ id: m.id, name: m.name, type: m.type })),
     )
     pxtEditor.updateBeltList(
-      factory.getBelts().map(b => ({ id: b.id, sourceName: b.sourceMachine.name, destName: b.destinationMachine.name })),
+      factory.getBelts().map(b => ({ id: b.id, name: b.name, sourceName: b.sourceMachine.name, destName: b.destinationMachine.name })),
     )
   }
 
@@ -501,11 +504,14 @@ async function main(): Promise<void> {
         sim?.enqueueCommands(commands)
       }
       gameManager.startSimulation()
+      toolbar.setPaused(false)
     } else if (state === 'play_phase' && sim?.paused) {
       sim.resume()
+      toolbar.setPaused(false)
     } else if (state === 'sandbox' && sim) {
       if (sim.paused) {
         sim.resume()
+        toolbar.setPaused(false)
       } else if (!sim.running) {
         populateSimulation()
         const commands = pxtEditor.getProgram()
@@ -514,6 +520,7 @@ async function main(): Promise<void> {
         }
         sim.start()
         hud.show()
+        toolbar.setPaused(false)
       }
     }
   }
@@ -523,6 +530,16 @@ async function main(): Promise<void> {
     const sim = gameManager.simulation
     if (sim?.running && !sim.paused) {
       sim.pause()
+      toolbar.setPaused(true)
+    }
+  }
+
+  toolbar.onResume = () => {
+    audio.playUIClick()
+    const sim = gameManager.simulation
+    if (sim?.running && sim.paused) {
+      sim.resume()
+      toolbar.setPaused(false)
     }
   }
 
@@ -532,9 +549,11 @@ async function main(): Promise<void> {
     if (state === 'play_phase') {
       gameManager.stopSimulation()
     } else if (state === 'sandbox') {
-      gameManager.simulation?.stop()
+      gameManager.simulation?.clearInFlight()
+      itemRenderer?.clear()
       hud.hide()
     }
+    toolbar.setPaused(false)
   }
 
   // --- ScoreScreen callbacks ---
@@ -581,6 +600,14 @@ async function main(): Promise<void> {
     factoryRenderer?.clearBeltHighlight()
     factoryRenderer?.update()
     beltPanel.hide()
+  }
+
+  beltPanel.onNameChange = (belt, newName) => {
+    const factory = gameManager.factory
+    if (!factory) return
+    factory.renameBelt(belt.id, newName)
+    syncFactoryToEditor()
+    autoSaveFactory()
   }
 
   machinePanel.onTypeChange = (machine, newType) => {

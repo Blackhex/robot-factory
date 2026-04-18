@@ -3,7 +3,7 @@
  *
  * Blocks are organized into separate toolbox categories:
  *   • Machines  — start, stop, set recipe    (Machine dropdown)
- *   • Belts     — belt speed, routing         (Belt dropdown)
+ *   • Belts     — belt speed                  (Belt dropdown)
  *   • Loops     — repeat, while
  *   • Logic     — if-quality, if-item-type
  *   • Variables — set, get, change
@@ -35,11 +35,13 @@ namespace machines {
     //% weight=80
     export function setRecipe(machine: Machine, recipe: Recipe): void { }
 
-    //% block="on %machine idle"
-    //% blockId=factory_on_machine_idle
-    //% weight=70
-    //% handlerStatement=1
-    export function onMachineIdle(machine: Machine, handler: () => void): void { }
+    //% block="%machine"
+    //% blockId=factory_pick_machine
+    //% weight=60
+    //% blockGap=8
+    export function pickMachine(machine: Machine): Machine {
+        return machine
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -53,11 +55,6 @@ namespace belts {
     //% weight=100
     //% speed.defl=1 speed.min=0 speed.max=10
     export function setBeltSpeed(belt: Belt, speed: number): void { }
-
-    //% block="route to %machine"
-    //% blockId=factory_route_to
-    //% weight=90
-    export function routeTo(machine: Machine): void { }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -101,62 +98,23 @@ namespace logic {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  VARIABLES  (cyan — colour 199)
+//  EVENTS  (yellow — colour 50)
 // ═══════════════════════════════════════════════════════════════════
 
-//% color=199 weight=50 icon="\uf1ec" block="Variables"
-namespace variables_ {
-    //% block="set %name to %value"
-    //% blockId=factory_set_variable
-    //% weight=100
-    //% value.defl=0
-    export function setVariable(name: string, value: number): void { }
-
-    //% block="get %name"
-    //% blockId=factory_get_variable
-    //% weight=90
-    export function getVariable(name: string): number { return 0 }
-
-    //% block="change %name by %delta"
-    //% blockId=factory_change_variable
-    //% weight=80
-    //% delta.defl=1
-    export function changeVariable(name: string, delta: number): void { }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  FUNCTIONS  (magenta — colour 300)
-// ═══════════════════════════════════════════════════════════════════
-
-//% color=300 weight=40 icon="\uf0c1" block="Functions"
-namespace functions_ {
-    //% block="define procedure %name"
-    //% blockId=factory_define_procedure
-    //% weight=100
-    //% handlerStatement=1
-    export function defineProcedure(name: string, body: () => void): void { }
-
-    //% block="call procedure %name"
-    //% blockId=factory_call_procedure
-    //% weight=90
-    export function callProcedure(name: string): void { }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-//  EVENTS  (orange — colour 35)
-// ═══════════════════════════════════════════════════════════════════
-
-//% color=35 weight=30 icon="\uf0e7" block="Events"
+//% color=50 weight=55 icon="\uf0e7" block="Events"
 namespace events {
     //% block="on order received"
     //% blockId=factory_on_order_received
     //% weight=100
-    //% handlerStatement=1
     export function onOrderReceived(handler: () => void): void { }
 
     //% block="on belt jam"
     //% blockId=factory_on_belt_jam
     //% weight=90
-    //% handlerStatement=1
     export function onBeltJam(handler: () => void): void { }
+
+    //% block="on %machine idle"
+    //% blockId=factory_on_machine_idle
+    //% weight=80
+    export function onMachineIdle(machine: Machine, handler: () => void): void { }
 }

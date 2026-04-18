@@ -230,6 +230,13 @@ export class ItemRenderer {
     }
   }
 
+  clear(): void {
+    for (const mesh of this.meshes.values()) {
+      mesh.count = 0
+      mesh.instanceMatrix.needsUpdate = true
+    }
+  }
+
   dispose(): void {
     for (const mesh of this.meshes.values()) {
       this.scene.remove(mesh)

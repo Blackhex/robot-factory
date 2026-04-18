@@ -34,6 +34,20 @@ export class Machine {
     this.currentRecipe = recipe
   }
 
+  /**
+   * Reset all in-flight runtime state (slots, timers, counters), preserving
+   * configuration like recipe, qualityThreshold, splitterCondition, id, and type.
+   */
+  clearRuntimeState(): void {
+    this.inputSlots.length = 0
+    this.outputSlot = null
+    this.secondaryOutputSlot = null
+    this.state = 'idle'
+    this.processingTimer = 0
+    this.consumedItems = 0
+    this.splitterCounter = 0
+  }
+
   addInput(item: Item): boolean {
     if (this.machineType === 'factory_output') {
       this.consumedItems++

@@ -17,6 +17,7 @@
   "actions": {
     "start": "Start",
     "pause": "Pause",
+    "resume": "Resume",
     "restart": "Restart",
     "open_editor": "Open Editor"
   },
@@ -41,8 +42,6 @@
     "stop_machine_tooltip": "Stop the specified machine",
     "set_belt_speed": "set belt %1 speed to %2",
     "set_belt_speed_tooltip": "Set the speed of a conveyor belt",
-    "route_to": "route to %1",
-    "route_to_tooltip": "Route items to the target machine",
     "category_loops": "Loops",
     "repeat_times": "repeat %1 times",
     "repeat_times_tooltip": "Repeat the enclosed actions a number of times",
@@ -74,7 +73,9 @@
     "on_belt_jam": "when belt jams",
     "on_belt_jam_tooltip": "Run when a belt jams",
     "on_machine_idle": "when machine %1 is idle",
-    "on_machine_idle_tooltip": "Run when a machine becomes idle"
+    "on_machine_idle_tooltip": "Run when a machine becomes idle",
+    "no_machines": "(no machines)",
+    "no_belts": "(no belts)"
   },
   "conditions": {
     "belt_has_items": "belt has items",

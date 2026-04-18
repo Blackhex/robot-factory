@@ -18,7 +18,7 @@ const VALID_SLOTS: ReadonlySet<string> = new Set<SlotPosition>(['front', 'back',
 export interface FactorySave {
   version: number
   grid: { x: number; z: number; machineType: string; rotation: string; name?: string }[]
-  belts: { sourceSlot: string; destinationSlot: string; path: [number, number][] }[]
+  belts: { sourceSlot: string; destinationSlot: string; path: [number, number][]; name?: string }[]
   pxtWorkspace: string
   levelId?: string
 }
@@ -41,6 +41,7 @@ export function saveFactory(
     sourceSlot: b.sourceSlot as string,
     destinationSlot: b.destinationSlot as string,
     path: b.path.map(p => [p.x, p.z] as [number, number]),
+    ...(b.name ? { name: b.name } : {}),
   }))
 
   const save: FactorySave = {
@@ -71,6 +72,7 @@ export function loadFactory(
       sourceSlot: belt.sourceSlot as SlotPosition,
       destinationSlot: belt.destinationSlot as SlotPosition,
       path: belt.path.map(p => ({ x: p[0], z: p[1] })),
+      ...(typeof (belt as Record<string, unknown>).name === 'string' ? { name: (belt as Record<string, unknown>).name as string } : {}),
     })),
   )
 

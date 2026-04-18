@@ -151,8 +151,8 @@ describe('BlockInterpreter — dynamic machine/belt lists', () => {
       expect((commands[0] as any).machineId).toBe('machine_10')
     })
 
-    it('should affect routeTo resolution', () => {
-      // GIVEN
+    it('should ignore removed belts.routeTo() regardless of machine list', () => {
+      // GIVEN — routeTo has been removed; no command must be emitted.
       interpreter.setMachineList([
         { slotIndex: 2, id: 'machine_11', name: 'Recycler' },
       ])
@@ -161,8 +161,7 @@ describe('BlockInterpreter — dynamic machine/belt lists', () => {
       const commands = interpreter.interpret('belts.routeTo(2)')
 
       // THEN
-      expect(commands).toHaveLength(1)
-      expect((commands[0] as any).targetId).toBe('machine_11')
+      expect(commands).toHaveLength(0)
     })
 
     it('should affect onMachineIdle event registration', () => {
@@ -372,8 +371,8 @@ describe('BlockInterpreter — dynamic machine/belt lists', () => {
       expect((commands[0] as any).machineId).toBe('machine_99')
     })
 
-    it('should resolve name in routeTo command', () => {
-      // GIVEN
+    it('should ignore removed factory.routeTo() even when name resolves', () => {
+      // GIVEN — routeTo has been removed; name resolution must not produce a command.
       interpreter.setMachineList([
         { slotIndex: 0, id: 'machine_4', name: 'Recycler' },
       ])
@@ -384,8 +383,7 @@ describe('BlockInterpreter — dynamic machine/belt lists', () => {
       )
 
       // THEN
-      expect(commands).toHaveLength(1)
-      expect((commands[0] as any).targetId).toBe('machine_4')
+      expect(commands).toHaveLength(0)
     })
 
     it('should resolve name in setRecipe machineId', () => {
@@ -565,7 +563,7 @@ describe('BlockInterpreter — dynamic machine/belt lists', () => {
       expect(commands.every(c => (c as any).machineId === 'machine_42')).toBe(true)
     })
 
-    it('should resolve dynamic machines in procedures', () => {
+    it('should resolve dynamic machines in native JS functions', () => {
       // GIVEN
       interpreter.setMachineList([
         { slotIndex: 0, id: 'machine_77', name: 'ProcMachine' },
@@ -573,10 +571,10 @@ describe('BlockInterpreter — dynamic machine/belt lists', () => {
 
       // WHEN
       const commands = interpreter.interpret(`
-        functions_.defineProcedure("start", function () {
+        function start() {
           machines.startMachine(0)
-        })
-        functions_.callProcedure("start")
+        }
+        start()
       `)
 
       // THEN

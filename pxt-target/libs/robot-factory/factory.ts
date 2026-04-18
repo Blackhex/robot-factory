@@ -34,11 +34,6 @@ namespace factory {
     //% speed.defl=1 speed.min=0 speed.max=10
     export function setBeltSpeed(belt: string, speed: number): void { }
 
-    //% block="route to %target"
-    //% blockId=factory_route_to
-    //% group="Actions" weight=50
-    export function routeTo(target: string): void { }
-
     // ==================== Loops ====================
 
     //% block="repeat %count times"
@@ -105,19 +100,16 @@ namespace factory {
 
     //% block="on order received"
     //% blockId=factory_on_order_received
-    //% group="Events" color=35 weight=100
-    //% handlerStatement=1
+    //% group="Events" color=50 weight=100
     export function onOrderReceived(handler: () => void): void { }
 
     //% block="on belt jam"
     //% blockId=factory_on_belt_jam
-    //% group="Events" color=35 weight=90
-    //% handlerStatement=1
+    //% group="Events" color=50 weight=90
     export function onBeltJam(handler: () => void): void { }
 
     //% block="on machine %machine idle"
     //% blockId=factory_on_machine_idle
-    //% group="Events" color=35 weight=80
-    //% handlerStatement=1
+    //% group="Events" color=50 weight=80
     export function onMachineIdle(machine: string, handler: () => void): void { }
 }

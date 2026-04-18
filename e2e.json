@@ -1,0 +1,2819 @@
+﻿{
+  "config": {
+    "configFile": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\playwright.config.ts",
+    "rootDir": "C:/Projekty/uvod-do-programovani/robot-factory/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 4
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/Projekty/uvod-do-programovani/robot-factory/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/Projekty/uvod-do-programovani/robot-factory/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.59.1",
+    "workers": 4,
+    "webServer": {
+      "command": "npm run dev",
+      "url": "http://localhost:5173/",
+      "reuseExistingServer": true,
+      "timeout": 15000
+    }
+  },
+  "suites": [
+    {
+      "title": "BeltRendering.spec.ts",
+      "file": "BeltRendering.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Belt Corner Rendering",
+          "file": "BeltRendering.spec.ts",
+          "line": 221,
+          "column": 6,
+          "specs": [
+            {
+              "title": "corner geometry has valid vertices and UVs",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 4104,
+                      "error": {
+                        "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+                        "stack": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at createLShapedBelt (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:89:29)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:227:5",
+                        "location": {
+                          "file": "http://localhost:5173/src/game/Factory.ts",
+                          "column": 25,
+                          "line": 541
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "http://localhost:5173/src/game/Factory.ts",
+                            "column": 25,
+                            "line": 541
+                          },
+                          "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at createLShapedBelt (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:89:29)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:227:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:43.338Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\BeltRendering-Belt-Corner--a8abe--has-valid-vertices-and-UVs-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\BeltRendering-Belt-Corner--a8abe--has-valid-vertices-and-UVs-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "http://localhost:5173/src/game/Factory.ts",
+                        "column": 25,
+                        "line": 541
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d3d147b15613c1f11145-a415e2316852ff4a5db3",
+              "file": "BeltRendering.spec.ts",
+              "line": 226,
+              "column": 3
+            },
+            {
+              "title": "corner mesh positions are within grid bounds and at ground level",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "failed",
+                      "duration": 4017,
+                      "error": {
+                        "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+                        "stack": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at createLShapedBelt (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:89:29)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:270:5",
+                        "location": {
+                          "file": "http://localhost:5173/src/game/Factory.ts",
+                          "column": 25,
+                          "line": 541
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "http://localhost:5173/src/game/Factory.ts",
+                            "column": 25,
+                            "line": 541
+                          },
+                          "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at createLShapedBelt (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:89:29)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:270:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:43.337Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\BeltRendering-Belt-Corner--9307a--bounds-and-at-ground-level-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\BeltRendering-Belt-Corner--9307a--bounds-and-at-ground-level-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "http://localhost:5173/src/game/Factory.ts",
+                        "column": 25,
+                        "line": 541
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d3d147b15613c1f11145-e88aeb371582b8624add",
+              "file": "BeltRendering.spec.ts",
+              "line": 269,
+              "column": 3
+            },
+            {
+              "title": "corner and straight segments together cover all belt cells",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "failed",
+                      "duration": 4023,
+                      "error": {
+                        "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+                        "stack": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at createLShapedBelt (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:89:29)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:290:5",
+                        "location": {
+                          "file": "http://localhost:5173/src/game/Factory.ts",
+                          "column": 25,
+                          "line": 541
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "http://localhost:5173/src/game/Factory.ts",
+                            "column": 25,
+                            "line": 541
+                          },
+                          "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at createLShapedBelt (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:89:29)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:290:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:43.337Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\BeltRendering-Belt-Corner--ebec4-gether-cover-all-belt-cells-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\BeltRendering-Belt-Corner--ebec4-gether-cover-all-belt-cells-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "http://localhost:5173/src/game/Factory.ts",
+                        "column": 25,
+                        "line": 541
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d3d147b15613c1f11145-98927a09fb07e4a40b5c",
+              "file": "BeltRendering.spec.ts",
+              "line": 289,
+              "column": 3
+            },
+            {
+              "title": "corner bounding box spans approximately BELT_WIDTH",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "failed",
+                      "duration": 4038,
+                      "error": {
+                        "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+                        "stack": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at createLShapedBelt (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:89:29)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:318:5",
+                        "location": {
+                          "file": "http://localhost:5173/src/game/Factory.ts",
+                          "column": 25,
+                          "line": 541
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "http://localhost:5173/src/game/Factory.ts",
+                            "column": 25,
+                            "line": 541
+                          },
+                          "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at createLShapedBelt (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:89:29)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:318:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:43.338Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\BeltRendering-Belt-Corner--ced69-ns-approximately-BELT-WIDTH-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\BeltRendering-Belt-Corner--ced69-ns-approximately-BELT-WIDTH-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "http://localhost:5173/src/game/Factory.ts",
+                        "column": 25,
+                        "line": 541
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d3d147b15613c1f11145-93f6f2dcaad23af91145",
+              "file": "BeltRendering.spec.ts",
+              "line": 317,
+              "column": 3
+            },
+            {
+              "title": "belt highlighting applies to corner meshes",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 1,
+                      "status": "failed",
+                      "duration": 4105,
+                      "error": {
+                        "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)",
+                        "stack": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at createLShapedBelt (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:89:29)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:344:5",
+                        "location": {
+                          "file": "http://localhost:5173/src/game/Factory.ts",
+                          "column": 25,
+                          "line": 541
+                        }
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "http://localhost:5173/src/game/Factory.ts",
+                            "column": 25,
+                            "line": 541
+                          },
+                          "message": "Error: page.evaluate: TypeError: Cannot read properties of undefined (reading 'outputs')\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at Factory.tryPlaceBeltWithIgnore (http://localhost:5173/src/game/Factory.ts:541:25)\n    at Factory.placeBeltChain (http://localhost:5173/src/game/Factory.ts:484:12)\n    at eval (eval at evaluate (:302:30), <anonymous>:8:22)\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)\n    at createLShapedBelt (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:89:29)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\BeltRendering.spec.ts:344:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:48.063Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\BeltRendering-Belt-Corner--5896a-ng-applies-to-corner-meshes-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\BeltRendering-Belt-Corner--5896a-ng-applies-to-corner-meshes-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "http://localhost:5173/src/game/Factory.ts",
+                        "column": 25,
+                        "line": 541
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "d3d147b15613c1f11145-596e47835b6d079aa010",
+              "file": "BeltRendering.spec.ts",
+              "line": 343,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "BeltSelection.spec.ts",
+      "file": "BeltSelection.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Belt Selection — selection, deselection, deletion",
+          "file": "BeltSelection.spec.ts",
+          "line": 231,
+          "column": 6,
+          "specs": [
+            {
+              "title": "clicking on a belt segment selects it and shows belt panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 5298,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:48.063Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "01548357b9f5699c28bd-ac604b47d86897795dcf",
+              "file": "BeltSelection.spec.ts",
+              "line": 236,
+              "column": 3
+            },
+            {
+              "title": "clicking on empty cell deselects belt and hides belt panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 5775,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:48.063Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "01548357b9f5699c28bd-4728ca5b81293c6ca81c",
+              "file": "BeltSelection.spec.ts",
+              "line": 250,
+              "column": 3
+            },
+            {
+              "title": "selecting a machine hides the belt panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5712,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:48.094Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "01548357b9f5699c28bd-a3c3f67280bd832f8827",
+              "file": "BeltSelection.spec.ts",
+              "line": 265,
+              "column": 3
+            },
+            {
+              "title": "selecting a belt hides the machine panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 5396,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:52.936Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "01548357b9f5699c28bd-ab4d00fb757f92ab876f",
+              "file": "BeltSelection.spec.ts",
+              "line": 281,
+              "column": 3
+            },
+            {
+              "title": "double-clicking on a belt does NOT place a machine or rotate",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 5724,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:53.465Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "01548357b9f5699c28bd-8d1a6e1827f11fe4decb",
+              "file": "BeltSelection.spec.ts",
+              "line": 297,
+              "column": 3
+            },
+            {
+              "title": "DEL key when belt is selected removes the belt",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5788,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:53.896Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "01548357b9f5699c28bd-4ba73d35c086bb1598ed",
+              "file": "BeltSelection.spec.ts",
+              "line": 321,
+              "column": 3
+            },
+            {
+              "title": "belt panel delete button removes the belt",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 6029,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:53.939Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "01548357b9f5699c28bd-5c8ebbdf9a9fc3e96b2d",
+              "file": "BeltSelection.spec.ts",
+              "line": 350,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "LevelFlow.spec.ts",
+      "file": "LevelFlow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Level 1 — First Part",
+          "file": "LevelFlow.spec.ts",
+          "line": 157,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full play-through: tutorial → place machines → belt → program → simulate → score",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 16516,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:58.512Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fe516a412b9efbe81093-a0648219dbe61816228b",
+              "file": "LevelFlow.spec.ts",
+              "line": 158,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Level 2 — Assembly Line",
+          "file": "LevelFlow.spec.ts",
+          "line": 323,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full play-through: tutorial → place machines → belt → program → simulate → score",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 15009,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:59.307Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fe516a412b9efbe81093-0815bdbc2f2b851ad05a",
+              "file": "LevelFlow.spec.ts",
+              "line": 324,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Level 3 — Mass Production",
+          "file": "LevelFlow.spec.ts",
+          "line": 472,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full play-through: tutorial → place machines → belt → loop program → simulate → score",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 17415,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:55:59.768Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fe516a412b9efbe81093-95c1c997bf0417fc4595",
+              "file": "LevelFlow.spec.ts",
+              "line": 473,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Level 4 — Quality Matters",
+          "file": "LevelFlow.spec.ts",
+          "line": 627,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full play-through: tutorial → place machines → belts → program → simulate → score",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 22161,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:00.049Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fe516a412b9efbe81093-26f4725b479fb1c13e3f",
+              "file": "LevelFlow.spec.ts",
+              "line": 628,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Level 5 — Smart Routing",
+          "file": "LevelFlow.spec.ts",
+          "line": 801,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full play-through: no tutorial → place machines with splitter → belts → program → simulate → score",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 22892,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:14.337Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fe516a412b9efbe81093-4782a00850af2d27503e",
+              "file": "LevelFlow.spec.ts",
+              "line": 802,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Level 6 — Custom Robots",
+          "file": "LevelFlow.spec.ts",
+          "line": 971,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full play-through: no tutorial → place fabricator + assembler + output → belts → program → simulate → score",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 24718,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:15.048Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fe516a412b9efbe81093-6d62341a7022f3460667",
+              "file": "LevelFlow.spec.ts",
+              "line": 972,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Level 7 — Rush Order!",
+          "file": "LevelFlow.spec.ts",
+          "line": 1141,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full play-through: no tutorial → place fabricator + painter + output → belts → program → simulate → score",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 27945,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:17.199Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fe516a412b9efbe81093-e37e884fd7033041820b",
+              "file": "LevelFlow.spec.ts",
+              "line": 1142,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Level 8 — Optimize Everything",
+          "file": "LevelFlow.spec.ts",
+          "line": 1311,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full play-through: no tutorial → place fabricator + recycler + output → belts → program → simulate → score",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 28379,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:22.241Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fe516a412b9efbe81093-dd21ffd620f43acba3bb",
+              "file": "LevelFlow.spec.ts",
+              "line": 1312,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Level 9 — Robot Expo",
+          "file": "LevelFlow.spec.ts",
+          "line": 1481,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full play-through: sandbox — all machines available → place → belt → program → simulate → stop → score",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 14999,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:37.264Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fe516a412b9efbe81093-18e8b3db0485bdf06bf3",
+              "file": "LevelFlow.spec.ts",
+              "line": 1482,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Level 10 — Factory Tycoon",
+          "file": "LevelFlow.spec.ts",
+          "line": 1644,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full play-through: multi-machine factory → belts → program → simulate → score",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 31340,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:39.803Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "fe516a412b9efbe81093-61b564fa85efc5455840",
+              "file": "LevelFlow.spec.ts",
+              "line": 1645,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "MachinePanel.spec.ts",
+      "file": "MachinePanel.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Machine Panel — single interaction mode",
+          "file": "MachinePanel.spec.ts",
+          "line": 72,
+          "column": 6,
+          "specs": [
+            {
+              "title": "clicking an existing machine shows the properties panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3203,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:45.208Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-390805e29f08d889650b",
+              "file": "MachinePanel.spec.ts",
+              "line": 79,
+              "column": 3
+            },
+            {
+              "title": "clicking an empty cell with panel open deselects and hides panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3713,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:48.448Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-37a07c3f386dac1c837f",
+              "file": "MachinePanel.spec.ts",
+              "line": 94,
+              "column": 3
+            },
+            {
+              "title": "changing machine type via panel dropdown updates the machine",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 3507,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:50.682Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-89b792a1f3984c1ccb9e",
+              "file": "MachinePanel.spec.ts",
+              "line": 106,
+              "column": 3
+            },
+            {
+              "title": "drag-and-drop moves a machine to a new cell",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7590,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:52.180Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-87855300e91ff8db1ca3",
+              "file": "MachinePanel.spec.ts",
+              "line": 119,
+              "column": 3
+            },
+            {
+              "title": "close button hides the panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 3333,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:52.323Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-d34b593691f43ee8f78f",
+              "file": "MachinePanel.spec.ts",
+              "line": 161,
+              "column": 3
+            },
+            {
+              "title": "no tool mode buttons exist in toolbar",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 2739,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:54.220Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-da126fe70af1011ee685",
+              "file": "MachinePanel.spec.ts",
+              "line": 170,
+              "column": 3
+            },
+            {
+              "title": "double-click on empty cell places a part_fabricator",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 3456,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:55.678Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-5adacae6cdd707ab3e25",
+              "file": "MachinePanel.spec.ts",
+              "line": 177,
+              "column": 3
+            },
+            {
+              "title": "DEL key deletes a selected machine",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 3605,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:56.981Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-b2be67bd36e3d2c08acd",
+              "file": "MachinePanel.spec.ts",
+              "line": 197,
+              "column": 3
+            },
+            {
+              "title": "Delete button in machine panel deletes the machine",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 3863,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:59.154Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-e0896fb5209d18b7d931",
+              "file": "MachinePanel.spec.ts",
+              "line": 214,
+              "column": 3
+            },
+            {
+              "title": "machine type can be changed via panel after placement",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4831,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:56:59.803Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-43a908ce295cbcf4279e",
+              "file": "MachinePanel.spec.ts",
+              "line": 231,
+              "column": 3
+            },
+            {
+              "title": "double-click on existing machine rotates it",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 3173,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:00.610Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2486b41039e1d5d14db6-521e1b3086c65d0b9e9e",
+              "file": "MachinePanel.spec.ts",
+              "line": 265,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Navigation.spec.ts",
+      "file": "Navigation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Navigation — Smoke Tests",
+          "file": "Navigation.spec.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "app loads without console errors",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 854,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:03.067Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00839ec4c19d1d8025ff-f6921ba2866a71f70501",
+              "file": "Navigation.spec.ts",
+              "line": 14,
+              "column": 3
+            },
+            {
+              "title": "main menu is visible with title \"Robot Factory\"",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 645,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:03.851Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00839ec4c19d1d8025ff-070f7f1315e21e471b79",
+              "file": "Navigation.spec.ts",
+              "line": 25,
+              "column": 3
+            },
+            {
+              "title": "\"Start Game\" button is visible and clickable",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 588,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:03.938Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00839ec4c19d1d8025ff-bd5336ee9234a88cda31",
+              "file": "Navigation.spec.ts",
+              "line": 33,
+              "column": 3
+            },
+            {
+              "title": "clicking \"Start Game\" hides menu and shows level select",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 736,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:04.529Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00839ec4c19d1d8025ff-bfdf6ea425cef6f7e3c2",
+              "file": "Navigation.spec.ts",
+              "line": 40,
+              "column": 3
+            },
+            {
+              "title": "selecting a level shows toolbar and HUD",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 928,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:04.551Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00839ec4c19d1d8025ff-39dec4222eac8ed12824",
+              "file": "Navigation.spec.ts",
+              "line": 51,
+              "column": 3
+            },
+            {
+              "title": "canvas container has a canvas element",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 549,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:04.686Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00839ec4c19d1d8025ff-1cee5073cd87e5eeb4f2",
+              "file": "Navigation.spec.ts",
+              "line": 67,
+              "column": 3
+            },
+            {
+              "title": "language toggle changes toolbar text to Czech",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1034,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:05.252Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00839ec4c19d1d8025ff-caae7e3364f665b32295",
+              "file": "Navigation.spec.ts",
+              "line": 77,
+              "column": 3
+            },
+            {
+              "title": "\"E\" key opens and closes the editor panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 1040,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:05.292Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00839ec4c19d1d8025ff-0ce227173c2e2ddca094",
+              "file": "Navigation.spec.ts",
+              "line": 103,
+              "column": 3
+            },
+            {
+              "title": "toolbar dropdown is removed — no .ui-toolbar-select exists",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 974,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:05.495Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "00839ec4c19d1d8025ff-71534d6c12d3e591e918",
+              "file": "Navigation.spec.ts",
+              "line": 128,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "pxt-machine-dropdown-empty.spec.ts",
+      "file": "pxt-machine-dropdown-empty.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PXT machine dropdown — reflects factory state (empty / add / remove)",
+          "file": "pxt-machine-dropdown-empty.spec.ts",
+          "line": 225,
+          "column": 6,
+          "specs": [
+            {
+              "title": "full lifecycle: empty → add → name shown → remove → empty again",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5992,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:06.337Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "876a6095a20167a0b3a4-7f09beb6413fd2ea153d",
+              "file": "pxt-machine-dropdown-empty.spec.ts",
+              "line": 235,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "pxt-machine-dropdown-flyout-update.spec.ts",
+      "file": "pxt-machine-dropdown-flyout-update.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PXT machine dropdown — flyout updates when first machine is placed",
+          "file": "pxt-machine-dropdown-flyout-update.spec.ts",
+          "line": 197,
+          "column": 6,
+          "specs": [
+            {
+              "title": "open editor → open Machines flyout → place first machine → flyout blocks show new machine name",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 4178,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:06.382Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "01b58ecbd711882d38ef-1ba64bf3bc05e8f74de7",
+              "file": "pxt-machine-dropdown-flyout-update.spec.ts",
+              "line": 207,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "PxtBlockLabels.spec.ts",
+      "file": "PxtBlockLabels.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PXT Block Labels — factory_pick_machine (\"machine instance\" block)",
+          "file": "PxtBlockLabels.spec.ts",
+          "line": 155,
+          "column": 6,
+          "specs": [
+            {
+              "title": "rendered block text contains the word \"machine\" at most once",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 3851,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:06.505Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "82380c97707be1cb9717-79eb8c82fce762effe8b",
+              "file": "PxtBlockLabels.spec.ts",
+              "line": 156,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "PxtEditor.spec.ts",
+      "file": "PxtEditor.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PXT Editor — MakeCode Block Editor",
+          "file": "PxtEditor.spec.ts",
+          "line": 31,
+          "column": 6,
+          "specs": [
+            {
+              "title": "\"Open Editor\" button is visible in toolbar",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1002,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:10.403Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-a5ab17c678a2c2e3ad69",
+              "file": "PxtEditor.spec.ts",
+              "line": 38,
+              "column": 3
+            },
+            {
+              "title": "clicking \"Open Editor\" opens the editor panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 1124,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:10.607Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-f15559c4bfc7ba6331a8",
+              "file": "PxtEditor.spec.ts",
+              "line": 44,
+              "column": 3
+            },
+            {
+              "title": "clicking \"Open Editor\" again closes the editor panel",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1252,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:11.182Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-230c9fb8207f4c44d18d",
+              "file": "PxtEditor.spec.ts",
+              "line": 51,
+              "column": 3
+            },
+            {
+              "title": "\"E\" key toggles the editor",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1061,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:11.427Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-a024496d42da03e88df2",
+              "file": "PxtEditor.spec.ts",
+              "line": 60,
+              "column": 3
+            },
+            {
+              "title": "PXT MakeCode editor loads in the iframe",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 1063,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:11.755Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-52dab61f8f6b880f677b",
+              "file": "PxtEditor.spec.ts",
+              "line": 71,
+              "column": 3
+            },
+            {
+              "title": "PXT editor iframe has non-zero dimensions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1179,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:12.379Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-dffc365ce5999f85f608",
+              "file": "PxtEditor.spec.ts",
+              "line": 82,
+              "column": 3
+            },
+            {
+              "title": "editor panel is approximately 40% of viewport width",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1184,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:12.456Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-54d0e982952bc7a707b5",
+              "file": "PxtEditor.spec.ts",
+              "line": 92,
+              "column": 3
+            },
+            {
+              "title": "PXT editor contains Blockly workspace inside iframe",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 1182,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:12.507Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-5d4c55836ad144a82e88",
+              "file": "PxtEditor.spec.ts",
+              "line": 105,
+              "column": 3
+            },
+            {
+              "title": "PXT editor shows block categories in toolbox",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 1109,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:12.840Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-08effcf4d4edfd3cd029",
+              "file": "PxtEditor.spec.ts",
+              "line": 116,
+              "column": 3
+            },
+            {
+              "title": "language toggle updates editor button text to Czech",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1083,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:13.575Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-47fd9eb8af4f60b1d5a3",
+              "file": "PxtEditor.spec.ts",
+              "line": 128,
+              "column": 3
+            },
+            {
+              "title": "PXT iframe element is present in editor container",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1086,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:13.656Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "69d86ea8e212a80aa85a-97708d3170046d29a4bb",
+              "file": "PxtEditor.spec.ts",
+              "line": 136,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "PxtEventHatBlocks.spec.ts",
+      "file": "PxtEventHatBlocks.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PXT Event Registration Blocks — hat shape + Events color",
+          "file": "PxtEventHatBlocks.spec.ts",
+          "line": 233,
+          "column": 6,
+          "specs": [
+            {
+              "title": "factory_on_order_received renders as a hat block (no previous/next connections)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 2012,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:13.723Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "541c6f19434743413ffc-f7e7ad44e8d42d056863",
+              "file": "PxtEventHatBlocks.spec.ts",
+              "line": 241,
+              "column": 5
+            },
+            {
+              "title": "factory_on_order_received uses the Events category color (hue ~50)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 2013,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:13.989Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "541c6f19434743413ffc-52aec7b10622ea546e7a",
+              "file": "PxtEventHatBlocks.spec.ts",
+              "line": 261,
+              "column": 5
+            },
+            {
+              "title": "factory_on_belt_jam renders as a hat block (no previous/next connections)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2102,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:14.703Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "541c6f19434743413ffc-c65ff2eb1af98b0b12ed",
+              "file": "PxtEventHatBlocks.spec.ts",
+              "line": 241,
+              "column": 5
+            },
+            {
+              "title": "factory_on_belt_jam uses the Events category color (hue ~50)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 2165,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:14.797Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "541c6f19434743413ffc-69acfb394455add39078",
+              "file": "PxtEventHatBlocks.spec.ts",
+              "line": 261,
+              "column": 5
+            },
+            {
+              "title": "factory_on_machine_idle renders as a hat block (no previous/next connections)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 5,
+                      "parallelIndex": 2,
+                      "status": "passed",
+                      "duration": 2118,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:15.759Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "541c6f19434743413ffc-fa3b34674e2542cf3594",
+              "file": "PxtEventHatBlocks.spec.ts",
+              "line": 241,
+              "column": 5
+            },
+            {
+              "title": "factory_on_machine_idle uses the Events category color (hue ~50)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 2119,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:16.023Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "541c6f19434743413ffc-29967ddc41048e11ab6a",
+              "file": "PxtEventHatBlocks.spec.ts",
+              "line": 261,
+              "column": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "sandbox-restart.spec.ts",
+      "file": "sandbox-restart.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Sandbox — Restart clears in-flight items and resets machines",
+          "file": "sandbox-restart.spec.ts",
+          "line": 143,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Restart wipes belts + machine slots while preserving layout",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 7,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9078,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:16.846Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "41c401043a197798533a-5b1e4a36379d0acfcb64",
+              "file": "sandbox-restart.spec.ts",
+              "line": 144,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "SandboxSimulation.spec.ts",
+      "file": "SandboxSimulation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Sandbox Simulation — Full Factory Flow (UI-only)",
+          "file": "SandboxSimulation.spec.ts",
+          "line": 133,
+          "column": 6,
+          "specs": [
+            {
+              "title": "place machines, program editor, run simulation, verify item production",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 8,
+                      "parallelIndex": 1,
+                      "status": "failed",
+                      "duration": 16417,
+                      "error": {
+                        "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeAttached\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.pxt-editor-iframe').contentFrame().locator('.blocklyFlyout text').filter({ hasText: 'set recipe' }).first()\nExpected: attached\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeAttached\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('.pxt-editor-iframe').contentFrame().locator('.blocklyFlyout text').filter({ hasText: 'set recipe' }).first()\u001b[22m\n",
+                        "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeAttached\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.pxt-editor-iframe').contentFrame().locator('.blocklyFlyout text').filter({ hasText: 'set recipe' }).first()\nExpected: attached\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeAttached\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('.pxt-editor-iframe').contentFrame().locator('.blocklyFlyout text').filter({ hasText: 'set recipe' }).first()\u001b[22m\n\n    at dragBlockFromFlyout (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\SandboxSimulation.spec.ts:100:28)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\SandboxSimulation.spec.ts:202:13",
+                        "location": {
+                          "file": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\SandboxSimulation.spec.ts",
+                          "column": 28,
+                          "line": 100
+                        },
+                        "snippet": "   98 |   // Find the block in the flyout by its visible text content\n   99 |   const flyoutText = pxt.locator(`.blocklyFlyout text`).filter({ hasText: blockTextSubstring }).first()\n> 100 |   await expect(flyoutText).toBeAttached({ timeout: 10000 })\n      |                            ^\n  101 |\n  102 |   // Get the text element's screen-space position via evaluate\n  103 |   const textRect = await flyoutText.evaluate((el: SVGTextElement) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\SandboxSimulation.spec.ts",
+                            "column": 28,
+                            "line": 100
+                          },
+                          "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeAttached\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.pxt-editor-iframe').contentFrame().locator('.blocklyFlyout text').filter({ hasText: 'set recipe' }).first()\nExpected: attached\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeAttached\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('.pxt-editor-iframe').contentFrame().locator('.blocklyFlyout text').filter({ hasText: 'set recipe' }).first()\u001b[22m\n\n\n   98 |   // Find the block in the flyout by its visible text content\n   99 |   const flyoutText = pxt.locator(`.blocklyFlyout text`).filter({ hasText: blockTextSubstring }).first()\n> 100 |   await expect(flyoutText).toBeAttached({ timeout: 10000 })\n      |                            ^\n  101 |\n  102 |   // Get the text element's screen-space position via evaluate\n  103 |   const textRect = await flyoutText.evaluate((el: SVGTextElement) => {\n    at dragBlockFromFlyout (C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\SandboxSimulation.spec.ts:100:28)\n    at C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\SandboxSimulation.spec.ts:202:13"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:17.000Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\SandboxSimulation-Sandbox--760cd-tion-verify-item-production-chromium\\test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\test-results\\SandboxSimulation-Sandbox--760cd-tion-verify-item-production-chromium\\error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "C:\\Projekty\\uvod-do-programovani\\robot-factory\\tests\\e2e\\SandboxSimulation.spec.ts",
+                        "column": 28,
+                        "line": 100
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "ca65883a40dd98ba6c33-6d77bc4fe8eb1fa9f2c8",
+              "file": "SandboxSimulation.spec.ts",
+              "line": 134,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "toolbar-pause-resume.spec.ts",
+      "file": "toolbar-pause-resume.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Pause button toggles to Resume and pauses the simulation, then back",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 5,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 2885,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-04-18T20:57:17.935Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "f275daefa747c062188a-efb802bfe97615d920bf",
+          "file": "toolbar-pause-resume.spec.ts",
+          "line": 43,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "ToolboxOrder.spec.ts",
+      "file": "ToolboxOrder.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "PXT Editor — Toolbox Category Order",
+          "file": "ToolboxOrder.spec.ts",
+          "line": 27,
+          "column": 6,
+          "specs": [
+            {
+              "title": "toolbox shows expected top-level categories in order and no \"Advanced\"",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 6,
+                      "parallelIndex": 3,
+                      "status": "passed",
+                      "duration": 1438,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-04-18T20:57:18.183Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f496946b3be8b1474152-daa81964be32b826d950",
+              "file": "ToolboxOrder.spec.ts",
+              "line": 28,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-04-18T20:55:42.401Z",
+    "duration": 111109.071,
+    "expected": 60,
+    "skipped": 0,
+    "unexpected": 6,
+    "flaky": 0
+  }
+}

@@ -37,6 +37,7 @@ export class Factory implements GridReader {
   private belts: Map<string, BeltInfo> = new Map()
   private nextMachineId = 1
   private nextBeltId = 1
+  private nextBeltNameNumber = 1
   private machineNameCounters: Map<MachineType, number> = new Map()
   private readonly router: BeltRouter
   private readonly planner: PlacementPlanner
@@ -130,6 +131,13 @@ export class Factory implements GridReader {
     const machine = this.grid[x]?.[z]?.machine
     if (!machine) return false
       ; (machine as { name: string }).name = name
+    return true
+  }
+
+  renameBelt(beltId: string, name: string): boolean {
+    const belt = this.belts.get(beltId)
+    if (!belt) return false
+      ; (belt as { name: string }).name = name
     return true
   }
 
@@ -452,6 +460,7 @@ export class Factory implements GridReader {
     const id = `belt_${this.nextBeltId++}`
     const belt: BeltInfo = {
       id,
+      name: this.generateBeltName(),
       sourceMachine,
       sourceSlot: srcSlotPos,
       destinationMachine,
@@ -581,6 +590,7 @@ export class Factory implements GridReader {
     const id = `belt_${this.nextBeltId++}`
     const belt: BeltInfo = {
       id,
+      name: this.generateBeltName(),
       sourceMachine: srcMachine,
       sourceSlot: srcSlot,
       destinationMachine: dstMachine,
@@ -680,7 +690,7 @@ export class Factory implements GridReader {
 
   restoreState(
     machines: ReadonlyArray<{ x: number; z: number; type: MachineType; rotation: Direction; name?: string }>,
-    belts: ReadonlyArray<{ sourceSlot: SlotPosition; destinationSlot: SlotPosition; path: GridPosition[] }>,
+    belts: ReadonlyArray<{ sourceSlot: SlotPosition; destinationSlot: SlotPosition; path: GridPosition[]; name?: string }>,
   ): void {
     const wasEnabled = this._slotBlockingEnabled
     this._slotBlockingEnabled = false
@@ -701,6 +711,7 @@ export class Factory implements GridReader {
       const id = `belt_${this.nextBeltId++}`
       const belt: BeltInfo = {
         id,
+        name: b.name ?? this.generateBeltName(),
         sourceMachine: srcMachine,
         sourceSlot: b.sourceSlot,
         destinationMachine: dstMachine,
@@ -730,6 +741,10 @@ export class Factory implements GridReader {
     const count = (this.machineNameCounters.get(type) ?? 0) + 1
     this.machineNameCounters.set(type, count)
     return `${label} ${count}`
+  }
+
+  private generateBeltName(): string {
+    return `belt ${this.nextBeltNameNumber++}`
   }
 
   private areAdjacent(a: GridPosition, b: GridPosition): boolean {

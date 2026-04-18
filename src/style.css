@@ -252,11 +252,6 @@ canvas {
   pointer-events: auto;
 }
 
-/* Tutorial container must stay pointer-events:none so clicks pass through to the canvas */
-#ui-overlay > .ui-tutorial {
-  pointer-events: none;
-}
-
 /* ─── Machine Properties Panel ─── */
 
 .ui-machine-panel {
@@ -434,6 +429,28 @@ canvas {
   color: var(--rf-accent);
 }
 
+.ui-belt-panel-name-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--rf-accent);
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: var(--rf-font);
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.ui-belt-panel-name-input::placeholder {
+  color: var(--rf-accent);
+  opacity: 0.6;
+}
+
+.ui-belt-panel-name-input:focus {
+  border-bottom: 1px solid var(--rf-accent);
+}
+
 .ui-belt-panel-close {
   background: none;
   border: none;
@@ -503,7 +520,7 @@ canvas {
   position: fixed;
   top: var(--rf-toolbar-h);
   right: 0;
-  width: 40%;
+  width: max(500px, 40%);
   height: calc(100dvh - var(--rf-toolbar-h));
   z-index: 20;
   background: var(--rf-surface);
@@ -943,7 +960,7 @@ canvas {
 .ui-tutorial {
   position: absolute;
   inset: 0;
-  z-index: 120;
+  z-index: 200;
   pointer-events: none;
 }
 
@@ -984,7 +1001,7 @@ canvas {
 
 .ui-tutorial-tooltip {
   position: absolute;
-  z-index: 121;
+  z-index: 200;
   pointer-events: auto;
   display: flex;
   flex-direction: column;
@@ -1120,21 +1137,6 @@ canvas {
 
   .ui-lang-btn {
     margin-left: 0;
-  }
-
-  #editor-container {
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    height: 45%;
-    border-left: none;
-    border-top: 1px solid var(--rf-border);
-  }
-
-  #editor-resize-handle {
-    display: none !important;
   }
 
   .ui-hud {

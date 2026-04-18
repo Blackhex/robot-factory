@@ -173,24 +173,20 @@ export class TutorialOverlay {
         const margin = 8
 
         let top = 0
-        let left = 0
+        // Always horizontally viewport-centered to avoid being hidden behind
+        // side panels (e.g. the editor) regardless of target X or screen width.
+        let left = (window.innerWidth - tw) / 2
 
         switch (step.position) {
           case 'bottom':
             top = rect.bottom + gap
-            left = rect.left + rect.width / 2 - tw / 2
             break
           case 'top':
             top = rect.top - gap - th
-            left = rect.left + rect.width / 2 - tw / 2
             break
           case 'right':
-            top = rect.top + rect.height / 2 - th / 2
-            left = rect.right + gap
-            break
           case 'left':
             top = rect.top + rect.height / 2 - th / 2
-            left = rect.left - gap - tw
             break
         }
 

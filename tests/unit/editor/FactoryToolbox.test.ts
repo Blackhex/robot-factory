@@ -36,16 +36,17 @@ describe('FactoryToolbox', () => {
       expect(toolbox.contents).toHaveLength(1)
     })
 
-    it('should include set_recipe and start_machine blocks', () => {
+    it('should include set_recipe, start_machine, pick_machine blocks', () => {
       // WHEN
       const types = getBlockTypes(getToolboxForLevel(1))
 
       // THEN
       expect(types).toContain('factory_set_recipe')
       expect(types).toContain('factory_start_machine')
+      expect(types).toContain('factory_pick_machine')
     })
 
-    it('should NOT include loops, conditionals, variables, functions, or events', () => {
+    it('should NOT include loops, conditionals, custom variables, custom functions, or events', () => {
       // WHEN
       const types = getBlockTypes(getToolboxForLevel(1))
 
@@ -59,14 +60,15 @@ describe('FactoryToolbox', () => {
   })
 
   describe('level 2: extended actions', () => {
-    it('should include route_to, stop_machine, set_belt_speed', () => {
+    it('should include stop_machine and set_belt_speed (route_to has been removed)', () => {
       // WHEN
       const types = getBlockTypes(getToolboxForLevel(2))
 
       // THEN
-      expect(types).toContain('factory_route_to')
       expect(types).toContain('factory_stop_machine')
       expect(types).toContain('factory_set_belt_speed')
+      // The routeTo block was removed from the codebase.
+      expect(types).not.toContain('factory_route_to')
     })
   })
 
@@ -117,42 +119,42 @@ describe('FactoryToolbox', () => {
     })
   })
 
-  describe('level 5: variables unlocked', () => {
-    it('should include variable blocks', () => {
+  describe('level 5: variables provided by built-in Blockly category', () => {
+    it('should NOT add custom variable blocks (built-in Variables category is used)', () => {
       // WHEN
       const types = getBlockTypes(getToolboxForLevel(5))
 
       // THEN
-      expect(types).toContain('factory_set_variable')
-      expect(types).toContain('factory_get_variable')
-      expect(types).toContain('factory_change_variable')
+      expect(types).not.toContain('factory_set_variable')
+      expect(types).not.toContain('factory_get_variable')
+      expect(types).not.toContain('factory_change_variable')
     })
 
-    it('should have 4 categories', () => {
+    it('should still have 3 factory categories at level 5 (actions + loops + conditionals)', () => {
       // WHEN
       const toolbox = getToolboxForLevel(5)
 
       // THEN
-      expect(toolbox.contents).toHaveLength(4)
+      expect(toolbox.contents).toHaveLength(3)
     })
   })
 
-  describe('level 6: functions unlocked', () => {
-    it('should include function blocks', () => {
+  describe('level 6: functions provided by built-in Blockly category', () => {
+    it('should NOT add custom procedure blocks (built-in Functions category is used)', () => {
       // WHEN
       const types = getBlockTypes(getToolboxForLevel(6))
 
       // THEN
-      expect(types).toContain('factory_define_procedure')
-      expect(types).toContain('factory_call_procedure')
+      expect(types).not.toContain('factory_define_procedure')
+      expect(types).not.toContain('factory_call_procedure')
     })
 
-    it('should have 5 categories', () => {
+    it('should still have 3 factory categories at level 6 (actions + loops + conditionals)', () => {
       // WHEN
       const toolbox = getToolboxForLevel(6)
 
       // THEN
-      expect(toolbox.contents).toHaveLength(5)
+      expect(toolbox.contents).toHaveLength(3)
     })
   })
 
@@ -167,36 +169,37 @@ describe('FactoryToolbox', () => {
       expect(types).toContain('factory_on_machine_idle')
     })
 
-    it('should have 6 categories', () => {
+    it('should have 4 categories', () => {
       // WHEN
       const toolbox = getToolboxForLevel(7)
 
       // THEN
-      expect(toolbox.contents).toHaveLength(6)
+      expect(toolbox.contents).toHaveLength(4)
     })
   })
 
   describe('level 8+: all blocks available', () => {
-    it('should include all block types', () => {
+    it('should include all factory block types (variables and functions come from built-in categories)', () => {
       // WHEN
       const types = getBlockTypes(getToolboxForLevel(8))
 
       // THEN
       expect(types).toContain('factory_start_machine')
       expect(types).toContain('factory_set_recipe')
+      expect(types).toContain('factory_pick_machine')
       expect(types).toContain('factory_repeat_times')
       expect(types).toContain('factory_if_else')
-      expect(types).toContain('factory_set_variable')
-      expect(types).toContain('factory_define_procedure')
+      expect(types).not.toContain('factory_set_variable')
+      expect(types).not.toContain('factory_define_procedure')
       expect(types).toContain('factory_on_order_received')
     })
 
-    it('should have 6 categories at level 8', () => {
+    it('should have 4 categories at level 8', () => {
       // WHEN
       const toolbox = getToolboxForLevel(8)
 
       // THEN
-      expect(toolbox.contents).toHaveLength(6)
+      expect(toolbox.contents).toHaveLength(4)
     })
 
     it('should have same blocks at level 10 as level 8', () => {
@@ -210,13 +213,14 @@ describe('FactoryToolbox', () => {
   })
 
   describe('category colors match game UI palette', () => {
-    // Use level 7+ so all 6 categories are visible.
+    // Use level 7+ so all factory categories are visible.
     // Categories are in fixed order: Actions(0), Loops(1), Conditionals(2),
-    // Variables(3), Functions(4), Events(5).
+    // Events(3). (Variables and Functions come from the built-in Blockly
+    // categories which are added separately by PXT.)
     const toolbox = getToolboxForLevel(7)
 
-    it('should have all 6 categories at level 7', () => {
-      expect(toolbox.contents).toHaveLength(6)
+    it('should have all 4 factory categories at level 7', () => {
+      expect(toolbox.contents).toHaveLength(4)
     })
 
     it('Actions category (index 0) should use machine blue (#4488ff → hue 217)', () => {
@@ -231,16 +235,9 @@ describe('FactoryToolbox', () => {
       expect(toolbox.contents[2].colour).toBe('60')
     })
 
-    it('Variables category (index 3) should use accent cyan (#4fc3f7 → hue 199)', () => {
-      expect(toolbox.contents[3].colour).toBe('199')
-    })
-
-    it('Functions category (index 4) should use painter magenta (#cc44cc → hue 300)', () => {
-      expect(toolbox.contents[4].colour).toBe('300')
-    })
-
-    it('Events category (index 5) should use warning orange (#ffa726 → hue 35)', () => {
-      expect(toolbox.contents[5].colour).toBe('35')
+    it('Events category (index 3) should use PXT standard yellow (hue 50)', () => {
+      // Per .github/skills/pxt-blocks/SKILL.md, the Events category convention is hue 50.
+      expect(toolbox.contents[3].colour).toBe('50')
     })
   })
 })

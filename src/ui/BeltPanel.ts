@@ -7,6 +7,7 @@ import type { BeltInfo } from '../game/types'
  */
 export class BeltPanel {
   private container: HTMLDivElement
+  private nameInput: HTMLInputElement
   private segmentsEl: HTMLSpanElement
   private sourceEl: HTMLSpanElement
   private targetEl: HTMLSpanElement
@@ -14,21 +15,26 @@ export class BeltPanel {
   private handleLangChange = () => this.updateLabels()
 
   onDelete: () => void = () => {}
+  onNameChange: (belt: BeltInfo, newName: string) => void = () => {}
 
   constructor(parent: HTMLElement) {
     this.container = document.createElement('div')
     this.container.className = 'ui-belt-panel'
     this.container.style.display = 'none'
 
-    // Header
+    // Header: editable name input + close button
     const header = document.createElement('div')
     header.className = 'ui-belt-panel-header'
 
-    const title = document.createElement('span')
-    title.className = 'ui-belt-panel-title'
-    title.dataset.i18nKey = 'belt_panel.title'
-    title.textContent = i18next.t('belt_panel.title')
-    header.appendChild(title)
+    this.nameInput = document.createElement('input')
+    this.nameInput.type = 'text'
+    this.nameInput.className = 'ui-belt-panel-name-input'
+    this.nameInput.addEventListener('input', () => {
+      if (this.currentChain) {
+        this.onNameChange(this.currentChain, this.nameInput.value)
+      }
+    })
+    header.appendChild(this.nameInput)
 
     const closeBtn = document.createElement('button')
     closeBtn.className = 'ui-belt-panel-close'
@@ -71,6 +77,8 @@ export class BeltPanel {
       return
     }
 
+    this.nameInput.value = belt.name || ''
+    this.nameInput.placeholder = i18next.t('belt_panel.title')
     this.segmentsEl.textContent = String(belt.path.length > 1 ? belt.path.length - 1 : 0)
     this.sourceEl.textContent = belt.sourceMachine
       ? `(${belt.sourceMachine.x}, ${belt.sourceMachine.z})`

@@ -2,6 +2,8 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach, beforeAll, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { initI18n } from '../../../src/i18n/i18n'
 import { TutorialOverlay, type TutorialStep } from '../../../src/ui/TutorialOverlay'
 
@@ -370,5 +372,181 @@ describe('TutorialOverlay — back navigation', () => {
     // THEN Next button text should be "Next", not "Finish"
     expect(getNextBtnText()).toBe('Next')
     expect(getCounter()).toBe('2 / 3')
+  })
+})
+
+// =============================================================================
+// Horizontal viewport centering — tooltip should always be centered on the
+// visible viewport horizontally, regardless of target X or `position`. This
+// avoids the tooltip being hidden behind side panels (e.g. the editor) when
+// the target spans the full canvas width.
+// =============================================================================
+describe('TutorialOverlay — horizontal viewport centering', () => {
+  let parent: HTMLDivElement
+  let overlay: TutorialOverlay
+  const MARGIN = 8
+  // jsdom default viewport
+  const VIEWPORT_W = 1024
+  // Tooltip fallback width used by production code when offsetWidth is 0
+  const TOOLTIP_W = 300
+  const TOOLTIP_H = 150
+  const GAP = 16
+  // Expected centered X for fallback-width tooltip on default viewport
+  const EXPECTED_CENTER_LEFT = (VIEWPORT_W - TOOLTIP_W) / 2 // 362
+
+  function expectApprox(actual: number, expected: number, tolerance = 2): void {
+    expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance)
+  }
+
+  function parsePxLocal(value: string): number {
+    if (value.endsWith('px')) return parseFloat(value)
+    return NaN
+  }
+
+  function makeTarget(
+    id: string,
+    rect: { top: number; bottom: number; left: number; right: number; width: number; height: number },
+  ): HTMLDivElement {
+    const el = document.createElement('div')
+    el.id = id
+    el.getBoundingClientRect = () => ({
+      ...rect,
+      x: rect.left,
+      y: rect.top,
+      toJSON() { return this },
+    })
+    document.body.appendChild(el)
+    return el
+  }
+
+  beforeEach(() => {
+    parent = document.createElement('div')
+    document.body.appendChild(parent)
+    overlay = new TutorialOverlay(parent)
+  })
+
+  afterEach(() => {
+    overlay.dispose()
+    document.querySelectorAll('[id^="hcenter-"]').forEach(el => el.remove())
+    parent.remove()
+  })
+
+  function getTooltip(): HTMLDivElement {
+    return parent.querySelector('.ui-tutorial-tooltip') as HTMLDivElement
+  }
+
+  it('centers tooltip horizontally on viewport for position "top" regardless of target X', () => {
+    // Target sits on the right side of the viewport (center x=850)
+    makeTarget('hcenter-top', {
+      top: 200, bottom: 240, left: 700, right: 1000, width: 300, height: 40,
+    })
+    const steps: TutorialStep[] = [
+      { messageKey: 'tutorial.step1', highlightSelector: '#hcenter-top', position: 'top' },
+    ]
+    overlay.loadTutorial(steps)
+    overlay.start()
+
+    const tooltip = getTooltip()
+    const left = parsePxLocal(tooltip.style.left)
+    const top = parsePxLocal(tooltip.style.top)
+
+    // Horizontally centered on viewport, NOT on target (target-center would be 700)
+    expectApprox(left, EXPECTED_CENTER_LEFT)
+    // Vertically anchored to target: rect.top - gap - tooltipHeight = 200 - 16 - 150 = 34
+    expectApprox(top, 200 - GAP - TOOLTIP_H)
+  })
+
+  it('centers tooltip horizontally on viewport for position "bottom"', () => {
+    // Target on the far left of viewport (center x=100)
+    makeTarget('hcenter-bottom', {
+      top: 100, bottom: 140, left: 0, right: 200, width: 200, height: 40,
+    })
+    const steps: TutorialStep[] = [
+      { messageKey: 'tutorial.step1', highlightSelector: '#hcenter-bottom', position: 'bottom' },
+    ]
+    overlay.loadTutorial(steps)
+    overlay.start()
+
+    const tooltip = getTooltip()
+    const left = parsePxLocal(tooltip.style.left)
+    const top = parsePxLocal(tooltip.style.top)
+
+    expectApprox(left, EXPECTED_CENTER_LEFT)
+    // rect.bottom + gap = 140 + 16 = 156
+    expectApprox(top, 140 + GAP)
+  })
+
+  it('centers tooltip horizontally on viewport for position "left"', () => {
+    makeTarget('hcenter-left', {
+      top: 300, bottom: 400, left: 800, right: 900, width: 100, height: 100,
+    })
+    const steps: TutorialStep[] = [
+      { messageKey: 'tutorial.step1', highlightSelector: '#hcenter-left', position: 'left' },
+    ]
+    overlay.loadTutorial(steps)
+    overlay.start()
+
+    const tooltip = getTooltip()
+    const left = parsePxLocal(tooltip.style.left)
+    const top = parsePxLocal(tooltip.style.top)
+
+    // Horizontally viewport-centered, NOT placed to the left of target
+    expectApprox(left, EXPECTED_CENTER_LEFT)
+    // Vertically centered on target: 300 + 50 - 75 = 275
+    expectApprox(top, 300 + 100 / 2 - TOOLTIP_H / 2)
+  })
+
+  it('centers tooltip horizontally on viewport for position "right"', () => {
+    makeTarget('hcenter-right', {
+      top: 100, bottom: 200, left: 50, right: 150, width: 100, height: 100,
+    })
+    const steps: TutorialStep[] = [
+      { messageKey: 'tutorial.step1', highlightSelector: '#hcenter-right', position: 'right' },
+    ]
+    overlay.loadTutorial(steps)
+    overlay.start()
+
+    const tooltip = getTooltip()
+    const left = parsePxLocal(tooltip.style.left)
+    const top = parsePxLocal(tooltip.style.top)
+
+    expectApprox(left, EXPECTED_CENTER_LEFT)
+    // Vertically centered on target = 100 + 50 - 75 = 75; clamped to MARGIN if needed
+    expect(top).toBeGreaterThanOrEqual(MARGIN)
+    expect(top).toBeLessThanOrEqual(100 + 100 / 2 - TOOLTIP_H / 2 < MARGIN ? MARGIN : 100 + 100 / 2 - TOOLTIP_H / 2)
+  })
+})
+
+// =============================================================================
+// CSS contract — tooltip must stack above the editor panel.
+// jsdom does not auto-load `src/style.css`, so we read the source file and
+// assert the contract directly. This guards against regressions where the
+// tooltip's z-index drops below the editor (causing it to render hidden).
+// =============================================================================
+describe('TutorialOverlay — z-index / stacking', () => {
+  const cssPath = resolve(__dirname, '../../../src/style.css')
+  const css = readFileSync(cssPath, 'utf-8')
+
+  /** Find the z-index value declared inside a CSS rule whose selector matches `selectorRegex`. */
+  function findZIndex(selectorRegex: RegExp): number {
+    const ruleMatch = css.match(new RegExp(selectorRegex.source + '\\s*\\{([^}]*)\\}', 'm'))
+    expect(ruleMatch, `expected CSS rule matching ${selectorRegex} not found`).not.toBeNull()
+    const body = ruleMatch![1]
+    const zMatch = body.match(/z-index\s*:\s*(\d+)/)
+    expect(zMatch, `expected z-index declaration in rule ${selectorRegex}`).not.toBeNull()
+    return parseInt(zMatch![1], 10)
+  }
+
+  it('.ui-tutorial-tooltip has z-index >= 200 (above editor stacking context)', () => {
+    // Source-based contract guard: jsdom doesn't load CSS, so we assert the
+    // declared value in src/style.css directly.
+    const tooltipZ = findZIndex(/\.ui-tutorial-tooltip/)
+    expect(tooltipZ).toBeGreaterThanOrEqual(200)
+  })
+
+  it('.ui-tutorial-tooltip stacks above #editor-container', () => {
+    const tooltipZ = findZIndex(/\.ui-tutorial-tooltip/)
+    const editorZ = findZIndex(/#editor-container(?!\.)/)
+    expect(editorZ).toBeLessThan(tooltipZ)
   })
 })
