@@ -162,6 +162,7 @@ import * as THREE from 'three'
 import { FactoryRenderer } from '../../../src/rendering/FactoryRenderer'
 import { Factory } from '../../../src/game/Factory'
 import type { MachineType } from '../../../src/game/types'
+import { expectFactoryState } from '../helpers/factoryAssert'
 
 function createMockSceneManager() {
   const scene = new THREE.Scene()
@@ -194,7 +195,16 @@ describe('FactoryRenderer', () => {
 
   it('creates an icon mesh when a machine is added', () => {
     // GIVEN
-    factory.placeMachine(1, 1, 'assembler')
+    factory.placeMachine(1, 1, 'assembler', 'south')
+    expectFactoryState(factory, {
+      grid: { box: [0, 0, 2, 2], expected: [
+          '| | | |',
+          '| |A| |',
+          '| | | |',
+        ].join('\n') },
+      machines: [{ x: 1, z: 1, rotation: 'south' }],
+      belts: [],
+    })
 
     // WHEN
     renderer.updateMachines()
@@ -206,7 +216,16 @@ describe('FactoryRenderer', () => {
 
   it('creates input and output arrow meshes when a machine is added', () => {
     // GIVEN
-    factory.placeMachine(2, 2, 'part_fabricator')
+    factory.placeMachine(2, 2, 'part_fabricator', 'south')
+    expectFactoryState(factory, {
+      grid: { box: [1, 1, 3, 3], expected: [
+          '| | | |',
+          '| |F| |',
+          '| | | |',
+        ].join('\n') },
+      machines: [{ x: 2, z: 2, rotation: 'south' }],
+      belts: [],
+    })
 
     // WHEN
     renderer.updateMachines()
@@ -221,7 +240,16 @@ describe('FactoryRenderer', () => {
 
   it('adds icon mesh and arrow meshes to the scene', () => {
     // GIVEN
-    factory.placeMachine(1, 1, 'recycler')
+    factory.placeMachine(1, 1, 'recycler', 'south')
+    expectFactoryState(factory, {
+      grid: { box: [0, 0, 2, 2], expected: [
+          '| | | |',
+          '| |R| |',
+          '| | | |',
+        ].join('\n') },
+      machines: [{ x: 1, z: 1, rotation: 'south' }],
+      belts: [],
+    })
 
     // WHEN
     renderer.updateMachines()
@@ -245,7 +273,22 @@ describe('FactoryRenderer', () => {
       'painter', 'recycler', 'splitter',
     ]
     types.forEach((type, i) => {
-      wideFactory.placeMachine(i * 2, 0, type)
+      wideFactory.placeMachine(i * 2, 0, type, 'south')
+    })
+    expectFactoryState(wideFactory, {
+      grid: { box: [0, 0, 11, 1], expected: [
+          '|F| |A| |Q| |P| |R| |S| |',
+          '| | | | | | | | | | | | |',
+        ].join('\n') },
+      machines: [
+        { x: 0,  z: 0, rotation: 'south' },
+        { x: 2,  z: 0, rotation: 'south' },
+        { x: 4,  z: 0, rotation: 'south' },
+        { x: 6,  z: 0, rotation: 'south' },
+        { x: 8,  z: 0, rotation: 'south' },
+        { x: 10, z: 0, rotation: 'south' },
+      ],
+      belts: [],
     })
 
     // WHEN
@@ -265,7 +308,16 @@ describe('FactoryRenderer', () => {
 
   it('removes icon mesh when a machine is deleted', () => {
     // GIVEN
-    factory.placeMachine(1, 1, 'painter')
+    factory.placeMachine(1, 1, 'painter', 'south')
+    expectFactoryState(factory, {
+      grid: { box: [0, 0, 2, 2], expected: [
+          '| | | |',
+          '| |P| |',
+          '| | | |',
+        ].join('\n') },
+      machines: [{ x: 1, z: 1, rotation: 'south' }],
+      belts: [],
+    })
     renderer.updateMachines()
     const machine = factory.getMachineAt(1, 1)!
     const icon = icons(renderer).get(machine.id)
@@ -273,6 +325,15 @@ describe('FactoryRenderer', () => {
 
     // WHEN
     factory.removeMachine(1, 1)
+    expectFactoryState(factory, {
+      grid: { box: [0, 0, 2, 2], expected: [
+          '| | | |',
+          '| | | |',
+          '| | | |',
+        ].join('\n') },
+      machines: [],
+      belts: [],
+    })
     renderer.updateMachines()
 
     // THEN
@@ -282,7 +343,16 @@ describe('FactoryRenderer', () => {
 
   it('removes arrow meshes when a machine is deleted', () => {
     // GIVEN
-    factory.placeMachine(3, 3, 'quality_checker')
+    factory.placeMachine(3, 3, 'quality_checker', 'south')
+    expectFactoryState(factory, {
+      grid: { box: [2, 2, 4, 4], expected: [
+          '| | | |',
+          '| |Q| |',
+          '| | | |',
+        ].join('\n') },
+      machines: [{ x: 3, z: 3, rotation: 'south' }],
+      belts: [],
+    })
     renderer.updateMachines()
     const machine = factory.getMachineAt(3, 3)!
     const arrowPair = arrows(renderer).get(machine.id)!
@@ -291,6 +361,15 @@ describe('FactoryRenderer', () => {
 
     // WHEN
     factory.removeMachine(3, 3)
+    expectFactoryState(factory, {
+      grid: { box: [2, 2, 4, 4], expected: [
+          '| | | |',
+          '| | | |',
+          '| | | |',
+        ].join('\n') },
+      machines: [],
+      belts: [],
+    })
     renderer.updateMachines()
 
     // THEN
@@ -301,8 +380,21 @@ describe('FactoryRenderer', () => {
 
   it('cleans up icons and arrows for multiple machines independently', () => {
     // GIVEN
-    factory.placeMachine(0, 0, 'assembler')
-    factory.placeMachine(2, 2, 'splitter')
+    factory.placeMachine(0, 0, 'assembler', 'south')
+    factory.placeMachine(2, 2, 'splitter', 'south')
+    expectFactoryState(factory, {
+      grid: { box: [0, 0, 3, 3], expected: [
+          '|A| | | |',
+          '| | | | |',
+          '| | |S| |',
+          '| | | | |',
+        ].join('\n') },
+      machines: [
+        { x: 0, z: 0, rotation: 'south' },
+        { x: 2, z: 2, rotation: 'south' },
+      ],
+      belts: [],
+    })
     renderer.updateMachines()
     const m1 = factory.getMachineAt(0, 0)!
     const m2 = factory.getMachineAt(2, 2)!
@@ -311,6 +403,16 @@ describe('FactoryRenderer', () => {
 
     // WHEN — remove only first machine
     factory.removeMachine(0, 0)
+    expectFactoryState(factory, {
+      grid: { box: [0, 0, 3, 3], expected: [
+          '| | | | |',
+          '| | | | |',
+          '| | |S| |',
+          '| | | | |',
+        ].join('\n') },
+      machines: [{ x: 2, z: 2, rotation: 'south' }],
+      belts: [],
+    })
     renderer.updateMachines()
 
     // THEN
@@ -324,8 +426,19 @@ describe('FactoryRenderer', () => {
 
   it('creates shared icon materials per machine type (not per instance)', () => {
     // GIVEN — place two machines of the same type
-    factory.placeMachine(0, 0, 'painter')
-    factory.placeMachine(1, 0, 'painter')
+    factory.placeMachine(0, 0, 'painter', 'south')
+    factory.placeMachine(1, 0, 'painter', 'south')
+    expectFactoryState(factory, {
+      grid: { box: [0, 0, 2, 1], expected: [
+          '|P|P| |',
+          '| | | |',
+        ].join('\n') },
+      machines: [
+        { x: 0, z: 0, rotation: 'south' },
+        { x: 1, z: 0, rotation: 'south' },
+      ],
+      belts: [],
+    })
 
     // WHEN
     renderer.updateMachines()
@@ -354,8 +467,19 @@ describe('FactoryRenderer', () => {
 
   it('uses shared arrow materials for input and output across machines', () => {
     // GIVEN
-    factory.placeMachine(0, 0, 'part_fabricator')
-    factory.placeMachine(2, 0, 'assembler')
+    factory.placeMachine(0, 0, 'part_fabricator', 'south')
+    factory.placeMachine(2, 0, 'assembler', 'south')
+    expectFactoryState(factory, {
+      grid: { box: [0, 0, 3, 1], expected: [
+          '|F| |A| |',
+          '| | | | |',
+        ].join('\n') },
+      machines: [
+        { x: 0, z: 0, rotation: 'south' },
+        { x: 2, z: 0, rotation: 'south' },
+      ],
+      belts: [],
+    })
 
     // WHEN
     renderer.updateMachines()
@@ -374,8 +498,22 @@ describe('FactoryRenderer', () => {
 
   it('dispose() removes all icons and arrows from scene', () => {
     // GIVEN
-    factory.placeMachine(1, 1, 'recycler')
-    factory.placeMachine(3, 3, 'splitter')
+    factory.placeMachine(1, 1, 'recycler', 'south')
+    factory.placeMachine(3, 3, 'splitter', 'south')
+    expectFactoryState(factory, {
+      grid: { box: [0, 0, 4, 4], expected: [
+          '| | | | | |',
+          '| |R| | | |',
+          '| | | | | |',
+          '| | | |S| |',
+          '| | | | | |',
+        ].join('\n') },
+      machines: [
+        { x: 1, z: 1, rotation: 'south' },
+        { x: 3, z: 3, rotation: 'south' },
+      ],
+      belts: [],
+    })
     renderer.updateMachines()
     const allIcons = [...icons(renderer).values()]
     const allArrows = [...arrows(renderer).values()]
@@ -402,7 +540,16 @@ describe('FactoryRenderer', () => {
   describe('highlightMachine()', () => {
     it('swaps machine mesh material to highlight material', () => {
       // GIVEN a machine at (2, 2)
-      factory.placeMachine(2, 2, 'assembler')
+      factory.placeMachine(2, 2, 'assembler', 'south')
+      expectFactoryState(factory, {
+        grid: { box: [1, 1, 3, 3], expected: [
+            '| | | |',
+            '| |A| |',
+            '| | | |',
+          ].join('\n') },
+        machines: [{ x: 2, z: 2, rotation: 'south' }],
+        belts: [],
+      })
       renderer.updateMachines()
       const machine = factory.getMachineAt(2, 2)!
       const meshBefore = (renderer as any).machineMeshes.get(machine.id)
@@ -418,8 +565,22 @@ describe('FactoryRenderer', () => {
 
     it('restores previous machine material when switching highlight', () => {
       // GIVEN two machines
-      factory.placeMachine(1, 1, 'assembler')
-      factory.placeMachine(3, 3, 'painter')
+      factory.placeMachine(1, 1, 'assembler', 'south')
+      factory.placeMachine(3, 3, 'painter', 'south')
+      expectFactoryState(factory, {
+        grid: { box: [0, 0, 4, 4], expected: [
+            '| | | | | |',
+            '| |A| | | |',
+            '| | | | | |',
+            '| | | |P| |',
+            '| | | | | |',
+          ].join('\n') },
+        machines: [
+          { x: 1, z: 1, rotation: 'south' },
+          { x: 3, z: 3, rotation: 'south' },
+        ],
+        belts: [],
+      })
       renderer.updateMachines()
       const m1 = factory.getMachineAt(1, 1)!
       const m2 = factory.getMachineAt(3, 3)!
@@ -446,7 +607,16 @@ describe('FactoryRenderer', () => {
   describe('clearMachineHighlight()', () => {
     it('restores machine mesh to base material', () => {
       // GIVEN a highlighted machine
-      factory.placeMachine(2, 2, 'assembler')
+      factory.placeMachine(2, 2, 'assembler', 'south')
+      expectFactoryState(factory, {
+        grid: { box: [1, 1, 3, 3], expected: [
+            '| | | |',
+            '| |A| |',
+            '| | | |',
+          ].join('\n') },
+        machines: [{ x: 2, z: 2, rotation: 'south' }],
+        belts: [],
+      })
       renderer.updateMachines()
       const machine = factory.getMachineAt(2, 2)!
       const mesh = (renderer as any).machineMeshes.get(machine.id)
@@ -466,7 +636,16 @@ describe('FactoryRenderer', () => {
     })
 
     it('resets highlightedMachineId to null', () => {
-      factory.placeMachine(2, 2, 'assembler')
+      factory.placeMachine(2, 2, 'assembler', 'south')
+      expectFactoryState(factory, {
+        grid: { box: [1, 1, 3, 3], expected: [
+            '| | | |',
+            '| |A| |',
+            '| | | |',
+          ].join('\n') },
+        machines: [{ x: 2, z: 2, rotation: 'south' }],
+        belts: [],
+      })
       renderer.updateMachines()
       renderer.highlightMachine(factory.getMachineAt(2, 2)!.id)
       expect((renderer as any).highlightedMachineId).not.toBeNull()

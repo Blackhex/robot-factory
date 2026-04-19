@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { GameManager } from '../../../src/game/GameManager.ts'
 import type { ProgressData } from '../../../src/game/GameManager.ts'
+import { expectFactoryState } from '../helpers/factoryAssert'
 
 describe('GameManager', () => {
   let gm: GameManager
@@ -451,8 +452,26 @@ describe('GameManager', () => {
       // GIVEN
       gm.startLevel('level_1')
       const factory = gm.factory!
-      factory.placeMachine(1, 1, 'part_fabricator')
-      factory.placeMachine(3, 1, 'assembler')
+      factory.placeMachine(1, 1, 'part_fabricator', 'south')
+      factory.placeMachine(3, 1, 'assembler', 'south')
+      expectFactoryState(factory, {
+        grid: {
+          box: [0, 0, 5, 5],
+          expected: [
+            '| | | | | | |',
+            '| |F| |A| | |',
+            '| | | | | | |',
+            '| | | | | | |',
+            '| | | | | | |',
+            '| | | | | | |',
+          ].join('\n'),
+        },
+        machines: [
+          { x: 1, z: 1, rotation: 'south' },
+          { x: 3, z: 1, rotation: 'south' },
+        ],
+        belts: [],
+      })
 
       // WHEN
       gm.populateSimulation()
@@ -467,9 +486,33 @@ describe('GameManager', () => {
       // GIVEN
       gm.startLevel('level_1')
       const factory = gm.factory!
-      factory.placeMachine(1, 1, 'part_fabricator')
-      factory.placeMachine(5, 1, 'assembler')
+      factory.placeMachine(1, 1, 'part_fabricator', 'south')
+      factory.placeMachine(5, 1, 'assembler', 'south')
       factory.placeBeltChain(factory.getMachineAt(1, 1)!, factory.getMachineAt(5, 1)!)
+      expectFactoryState(factory, {
+        grid: {
+          box: [0, 0, 6, 5],
+          expected: [
+            '| | | | | | | |',
+            '| |F|─|─|─|A| |',
+            '| | | | | | | |',
+            '| | | | | | | |',
+            '| | | | | | | |',
+            '| | | | | | | |',
+          ].join('\n'),
+        },
+        machines: [
+          { x: 1, z: 1, rotation: 'east' },
+          { x: 5, z: 1, rotation: 'east' },
+        ],
+        belts: [
+          {
+            source: { x: 1, z: 1 },
+            destination: { x: 5, z: 1 },
+            path: [{ x: 1, z: 1 }, { x: 2, z: 1 }, { x: 3, z: 1 }, { x: 4, z: 1 }, { x: 5, z: 1 }],
+          },
+        ],
+      })
 
       // WHEN
       gm.populateSimulation()
@@ -484,9 +527,33 @@ describe('GameManager', () => {
       // GIVEN
       gm.startLevel('level_1')
       const factory = gm.factory!
-      factory.placeMachine(1, 1, 'part_fabricator')
-      factory.placeMachine(5, 1, 'assembler')
+      factory.placeMachine(1, 1, 'part_fabricator', 'south')
+      factory.placeMachine(5, 1, 'assembler', 'south')
       factory.placeBeltChain(factory.getMachineAt(1, 1)!, factory.getMachineAt(5, 1)!)
+      expectFactoryState(factory, {
+        grid: {
+          box: [0, 0, 6, 5],
+          expected: [
+            '| | | | | | | |',
+            '| |F|─|─|─|A| |',
+            '| | | | | | | |',
+            '| | | | | | | |',
+            '| | | | | | | |',
+            '| | | | | | | |',
+          ].join('\n'),
+        },
+        machines: [
+          { x: 1, z: 1, rotation: 'east' },
+          { x: 5, z: 1, rotation: 'east' },
+        ],
+        belts: [
+          {
+            source: { x: 1, z: 1 },
+            destination: { x: 5, z: 1 },
+            path: [{ x: 1, z: 1 }, { x: 2, z: 1 }, { x: 3, z: 1 }, { x: 4, z: 1 }, { x: 5, z: 1 }],
+          },
+        ],
+      })
 
       // WHEN
       gm.populateSimulation()

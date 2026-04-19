@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { Factory } from '../../../src/game/Factory'
 import { saveFactory, loadFactory } from '../../../src/utils/SaveLoad'
 import type { FactorySave } from '../../../src/utils/SaveLoad'
+import { expectFactoryState } from '../helpers/factoryAssert'
 
 function createValidSave(overrides: Partial<FactorySave> = {}): FactorySave {
   return {
@@ -18,7 +19,20 @@ describe('SaveLoad', () => {
     it('produces correct FactorySave structure', () => {
       // GIVEN
       const factory = new Factory(10, 10)
-      factory.placeMachine(0, 0, 'assembler')
+      factory.placeMachine(0, 0, 'assembler', 'south')
+      expectFactoryState(factory, {
+        grid: {
+          box: [0, 0, 3, 3],
+          expected: [
+            '|A| | | |',
+            '| | | | |',
+            '| | | | |',
+            '| | | | |',
+          ].join('\n'),
+        },
+        machines: [{ x: 0, z: 0, rotation: 'south' }],
+        belts: [],
+      })
 
       // WHEN
       const save = saveFactory(factory, '<xml></xml>', 'level-1')
@@ -70,8 +84,30 @@ describe('SaveLoad', () => {
     it('saves machines with correct x, z, and machineType', () => {
       // GIVEN
       const factory = new Factory(10, 10)
-      factory.placeMachine(2, 3, 'painter')
-      factory.placeMachine(5, 7, 'recycler')
+      factory.placeMachine(2, 3, 'painter', 'south')
+      factory.placeMachine(5, 7, 'recycler', 'south')
+      expectFactoryState(factory, {
+        grid: {
+          box: [0, 0, 9, 9],
+          expected: [
+            '| | | | | | | | | | |',
+            '| | | | | | | | | | |',
+            '| | | | | | | | | | |',
+            '| | |P| | | | | | | |',
+            '| | | | | | | | | | |',
+            '| | | | | | | | | | |',
+            '| | | | | | | | | | |',
+            '| | | | | |R| | | | |',
+            '| | | | | | | | | | |',
+            '| | | | | | | | | | |',
+          ].join('\n'),
+        },
+        machines: [
+          { x: 2, z: 3, rotation: 'south' },
+          { x: 5, z: 7, rotation: 'south' },
+        ],
+        belts: [],
+      })
 
       // WHEN
       const save = saveFactory(factory, '')
@@ -96,6 +132,29 @@ describe('SaveLoad', () => {
         ],
         [{ sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 1, z: 1 }, { x: 1, z: 2 }] }],
       )
+      expectFactoryState(factory, {
+        grid: {
+          box: [0, 0, 4, 4],
+          expected: [
+            '| | | | | |',
+            '| |A| | | |',
+            '| |A| | | |',
+            '| | | | | |',
+            '| | | | | |',
+          ].join('\n'),
+        },
+        machines: [
+          { x: 1, z: 1, rotation: 'south' },
+          { x: 1, z: 2, rotation: 'south' },
+        ],
+        belts: [
+          {
+            source: { x: 1, z: 1 },
+            destination: { x: 1, z: 2 },
+            path: [{ x: 1, z: 1 }, { x: 1, z: 2 }],
+          },
+        ],
+      })
 
       // WHEN
       const save = saveFactory(factory, '')
@@ -110,13 +169,40 @@ describe('SaveLoad', () => {
     it('saves multiple machines and belts', () => {
       // GIVEN
       const factory = new Factory(10, 10)
-      factory.placeMachine(0, 0, 'part_fabricator')
-      factory.placeMachine(1, 0, 'painter')
-      factory.placeMachine(2, 0, 'quality_checker')
+      factory.placeMachine(0, 0, 'part_fabricator', 'south')
+      factory.placeMachine(1, 0, 'painter', 'south')
+      factory.placeMachine(2, 0, 'quality_checker', 'south')
       factory.restoreState([], [
         { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] },
         { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 1, z: 0 }, { x: 2, z: 0 }] },
       ])
+      expectFactoryState(factory, {
+        grid: {
+          box: [0, 0, 4, 2],
+          expected: [
+            '|F|P|Q| | |',
+            '| | | | | |',
+            '| | | | | |',
+          ].join('\n'),
+        },
+        machines: [
+          { x: 0, z: 0, rotation: 'south' },
+          { x: 1, z: 0, rotation: 'south' },
+          { x: 2, z: 0, rotation: 'south' },
+        ],
+        belts: [
+          {
+            source: { x: 0, z: 0 },
+            destination: { x: 1, z: 0 },
+            path: [{ x: 0, z: 0 }, { x: 1, z: 0 }],
+          },
+          {
+            source: { x: 1, z: 0 },
+            destination: { x: 2, z: 0 },
+            path: [{ x: 1, z: 0 }, { x: 2, z: 0 }],
+          },
+        ],
+      })
 
       // WHEN
       const save = saveFactory(factory, '')
@@ -139,6 +225,23 @@ describe('SaveLoad', () => {
 
       // WHEN
       const { factory } = loadFactory(save)
+      expectFactoryState(factory, {
+        grid: {
+          box: [0, 0, 4, 4],
+          expected: [
+            '| | | | | |',
+            '| | | | | |',
+            '| |A| | | |',
+            '| | | | | |',
+            '| | | |P| |',
+          ].join('\n'),
+        },
+        machines: [
+          { x: 1, z: 2, rotation: 'south' },
+          { x: 3, z: 4, rotation: 'south' },
+        ],
+        belts: [],
+      })
 
       // THEN
       const machines = factory.getMachines()
@@ -161,6 +264,28 @@ describe('SaveLoad', () => {
 
       // WHEN
       const { factory } = loadFactory(save)
+      expectFactoryState(factory, {
+        grid: {
+          box: [0, 0, 3, 3],
+          expected: [
+            '|A| | | |',
+            '|A| | | |',
+            '| | | | |',
+            '| | | | |',
+          ].join('\n'),
+        },
+        machines: [
+          { x: 0, z: 0, rotation: 'south' },
+          { x: 0, z: 1, rotation: 'south' },
+        ],
+        belts: [
+          {
+            source: { x: 0, z: 0 },
+            destination: { x: 0, z: 1 },
+            path: [{ x: 0, z: 0 }, { x: 0, z: 1 }],
+          },
+        ],
+      })
 
       // THEN
       const belts = factory.getBelts()
@@ -222,13 +347,31 @@ describe('SaveLoad', () => {
     it('save then load produces identical factory state', () => {
       // GIVEN
       const original = new Factory(10, 10)
-      original.placeMachine(0, 0, 'part_fabricator')
-      original.placeMachine(1, 0, 'assembler')
+      original.placeMachine(0, 0, 'part_fabricator', 'south')
+      original.placeMachine(1, 0, 'assembler', 'south')
       original.restoreState([], [{ sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] }])
+      // NOTE: restoreState's empty machine array drops both placeMachine'd entries,
+      // and the belt referencing (1,0) cannot find its destination machine — so the
+      // resulting state has only the (0,0) part_fabricator and zero belts.
+      // (Production-code anomaly: belt with missing destination machine is silently dropped.)
+      const ROUNDTRIP_INITIAL = {
+        grid: {
+          box: [0, 0, 4, 2] as [number, number, number, number],
+          expected: [
+            '|F| | | | |',
+            '| | | | | |',
+            '| | | | | |',
+          ].join('\n'),
+        },
+        machines: [{ x: 0, z: 0, rotation: 'south' as const }],
+        belts: [],
+      }
+      expectFactoryState(original, ROUNDTRIP_INITIAL)
 
       // WHEN
       const save = saveFactory(original, '<xml>prog</xml>', 'lvl-1')
       const { factory: restored, workspace, levelId } = loadFactory(save)
+      expectFactoryState(restored, ROUNDTRIP_INITIAL)
 
       // THEN — machines match
       const origMachines = original.getMachines()
@@ -286,19 +429,42 @@ describe('SaveLoad', () => {
     it('multiple machines and belts round-trip correctly', () => {
       // GIVEN
       const factory = new Factory(10, 10)
-      factory.placeMachine(0, 0, 'part_fabricator')
-      factory.placeMachine(1, 0, 'painter')
-      factory.placeMachine(2, 0, 'quality_checker')
-      factory.placeMachine(3, 0, 'recycler')
+      factory.placeMachine(0, 0, 'part_fabricator', 'south')
+      factory.placeMachine(1, 0, 'painter', 'south')
+      factory.placeMachine(2, 0, 'quality_checker', 'south')
+      factory.placeMachine(3, 0, 'recycler', 'south')
       factory.restoreState([], [
         { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] },
         { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 1, z: 0 }, { x: 2, z: 0 }] },
         { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 2, z: 0 }, { x: 3, z: 0 }] },
       ])
+      const MULTI_INITIAL = {
+        grid: {
+          box: [0, 0, 5, 2] as [number, number, number, number],
+          expected: [
+            '|F|P|Q|R| | |',
+            '| | | | | | |',
+            '| | | | | | |',
+          ].join('\n'),
+        },
+        machines: [
+          { x: 0, z: 0, rotation: 'south' as const },
+          { x: 1, z: 0, rotation: 'south' as const },
+          { x: 2, z: 0, rotation: 'south' as const },
+          { x: 3, z: 0, rotation: 'south' as const },
+        ],
+        belts: [
+          { source: { x: 0, z: 0 }, destination: { x: 1, z: 0 }, path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] },
+          { source: { x: 1, z: 0 }, destination: { x: 2, z: 0 }, path: [{ x: 1, z: 0 }, { x: 2, z: 0 }] },
+          { source: { x: 2, z: 0 }, destination: { x: 3, z: 0 }, path: [{ x: 2, z: 0 }, { x: 3, z: 0 }] },
+        ],
+      }
+      expectFactoryState(factory, MULTI_INITIAL)
 
       // WHEN
       const save = saveFactory(factory, 'ws')
       const { factory: restored } = loadFactory(save)
+      expectFactoryState(restored, MULTI_INITIAL)
 
       // THEN
       expect(restored.getMachines()).toHaveLength(4)
