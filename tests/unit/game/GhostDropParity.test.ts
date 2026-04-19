@@ -27,19 +27,19 @@ const INITIAL_S1 = {
 }
 const INITIAL_S2 = {
   grid: { box: [2, 2, 10, 6] as [number, number, number, number], expected: [
-      '| | | | | | | | | |',
-      '| |A|─|─|─|─|P| | |',
+      '| | |┌|─|─|─|┐| | |',
+      '| |A|┘| | | |P| | |',
       '| | | | | | | | | |',
       '| | | | | | | | | |',
       '| | | | | | | | | |',
     ].join('\n') },
   machines: [
     { x: 3, z: 3, rotation: 'east' as const },
-    { x: 8, z: 3, rotation: 'east' as const },
+    { x: 8, z: 3, rotation: 'south' as const },
   ],
   belts: [
     { source: { x: 3, z: 3 }, destination: { x: 8, z: 3 },
-      path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 5, z: 3 }, { x: 6, z: 3 }, { x: 7, z: 3 }, { x: 8, z: 3 }] },
+      path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 8, z: 3 }] },
   ],
 }
 const INITIAL_S3 = {
@@ -63,8 +63,8 @@ const INITIAL_S3 = {
 }
 const INITIAL_S4 = {
   grid: { box: [4, 4, 11, 11] as [number, number, number, number], expected: [
-      '| | | | | | | | |',
-      '| |S|─|─|─|Q| | |',
+      '| | |┌|─|─|┐| | |',
+      '| |S|┘| | |Q| | |',
       '| |│| | | | | | |',
       '| |│| | | | | | |',
       '| |│| | | | | | |',
@@ -75,30 +75,30 @@ const INITIAL_S4 = {
   machines: [
     { x: 5, z: 5, rotation: 'south' as const },
     { x: 5, z: 9, rotation: 'south' as const },
-    { x: 9, z: 5, rotation: 'east' as const },
+    { x: 9, z: 5, rotation: 'south' as const },
   ],
   belts: [
     { source: { x: 5, z: 5 }, destination: { x: 5, z: 9 },
       path: [{ x: 5, z: 5 }, { x: 5, z: 6 }, { x: 5, z: 7 }, { x: 5, z: 8 }, { x: 5, z: 9 }] },
     { source: { x: 5, z: 5 }, destination: { x: 9, z: 5 },
-      path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 7, z: 5 }, { x: 8, z: 5 }, { x: 9, z: 5 }] },
+      path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 6, z: 4 }, { x: 7, z: 4 }, { x: 8, z: 4 }, { x: 9, z: 4 }, { x: 9, z: 5 }] },
   ],
 }
 const INITIAL_S5 = {
   grid: { box: [2, 2, 8, 5] as [number, number, number, number], expected: [
+      '| | |┌|─|┐| | |',
+      '| |A|┘|R|P| | |',
       '| | | | | | | |',
-      '| |A|┐|R|P| | |',
-      '| | |└|─|┘| | |',
       '| | | | | | | |',
     ].join('\n') },
   machines: [
     { x: 3, z: 3, rotation: 'east' as const },
-    { x: 6, z: 3, rotation: 'north' as const },
+    { x: 6, z: 3, rotation: 'south' as const },
     { x: 5, z: 3, rotation: 'south' as const },
   ],
   belts: [
     { source: { x: 3, z: 3 }, destination: { x: 6, z: 3 },
-      path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 4 }, { x: 5, z: 4 }, { x: 6, z: 4 }, { x: 6, z: 3 }] },
+      path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 6, z: 3 }] },
   ],
 }
 const INITIAL_S6 = {
@@ -643,63 +643,24 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 3, 8, 3, 6)
         factory.moveMachine(3, 8, 3, 6)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | |A| | | | | | | | | | | |',
-
-              '| | | |│| | | | | | | | | | | |',
-
-              '| | | |│| | | | | | | | | | | |',
-
-              '| | | |P| | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 10, 6], expected: [
+              '| | | | | | | | | |',
+              '| |A| | | | | | | |',
+              '| |│| | | | | | | |',
+              '| |│| | | | | | | |',
+              '| |P| | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 3, rotation: 'south' },
-
             { x: 3, z: 6, rotation: 'south' },
-
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 3 },
-
               destination: { x: 3, z: 6 },
-
               path: [{ x: 3, z: 3 }, { x: 3, z: 4 }, { x: 3, z: 5 }, { x: 3, z: 6 }],
-
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 3, 6)
         assertParity(ghostPaths, droppedPaths)
@@ -715,63 +676,24 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 3, 3, 5, 3)
         factory.moveMachine(3, 3, 5, 3)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | |A|─|─|P| | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 10, 6], expected: [
+              '| | | | |┌|─|┐| | |',
+              '| | | |A|┘| |P| | |',
+              '| | | | | | | | | |',
+              '| | | | | | | | | |',
+              '| | | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 5, z: 3, rotation: 'east' },
-
-            { x: 8, z: 3, rotation: 'east' },
-
+            { x: 8, z: 3, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 5, z: 3 },
-
               destination: { x: 8, z: 3 },
-
-              path: [{ x: 5, z: 3 }, { x: 6, z: 3 }, { x: 7, z: 3 }, { x: 8, z: 3 }],
-
+              path: [{ x: 5, z: 3 }, { x: 6, z: 3 }, { x: 6, z: 2 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 8, z: 3 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 5, 3)
         assertParity(ghostPaths, droppedPaths)
@@ -783,63 +705,24 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 3, 3, 3, 5)
         factory.moveMachine(3, 3, 3, 5)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | |┌|─|─|─|P| | | | | | |',
-
-              '| | | | |│| | | | | | | | | | |',
-
-              '| | | |A|┘| | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 10, 6], expected: [
+              '| | |┌|─|─|─|┐| | |',
+              '| | |│| | | |P| | |',
+              '| | |│| | | | | | |',
+              '| |A|┘| | | | | | |',
+              '| | | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 5, rotation: 'east' },
-
-            { x: 8, z: 3, rotation: 'east' },
-
+            { x: 8, z: 3, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 5 },
-
               destination: { x: 8, z: 3 },
-
-              path: [{ x: 3, z: 5 }, { x: 4, z: 5 }, { x: 4, z: 4 }, { x: 4, z: 3 }, { x: 5, z: 3 }, { x: 6, z: 3 }, { x: 7, z: 3 }, { x: 8, z: 3 }],
-
+              path: [{ x: 3, z: 5 }, { x: 4, z: 5 }, { x: 4, z: 4 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 8, z: 3 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 3, 5)
         assertParity(ghostPaths, droppedPaths)
@@ -851,63 +734,24 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 3, 3, 5, 5)
         factory.moveMachine(3, 3, 5, 5)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | |┌|─|P| | | | | | |',
-
-              '| | | | | | |│| | | | | | | | |',
-
-              '| | | | | |A|┘| | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 10, 6], expected: [
+              '| | | | |┌|─|┐| | |',
+              '| | | | |│| |P| | |',
+              '| | | | |│| | | | |',
+              '| | | |A|┘| | | | |',
+              '| | | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 5, z: 5, rotation: 'east' },
-
-            { x: 8, z: 3, rotation: 'east' },
-
+            { x: 8, z: 3, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 5, z: 5 },
-
               destination: { x: 8, z: 3 },
-
-              path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 6, z: 4 }, { x: 6, z: 3 }, { x: 7, z: 3 }, { x: 8, z: 3 }],
-
+              path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 6, z: 4 }, { x: 6, z: 3 }, { x: 6, z: 2 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 8, z: 3 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 5, 5)
         assertParity(ghostPaths, droppedPaths)
@@ -919,63 +763,24 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 8, 3, 10, 3)
         factory.moveMachine(8, 3, 10, 3)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | |A|─|─|─|─|─|─|P| | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 10, 6], expected: [
+              '| | |┌|─|─|─|─|─|┐|',
+              '| |A|┘| | | | | |P|',
+              '| | | | | | | | | |',
+              '| | | | | | | | | |',
+              '| | | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 3, rotation: 'east' },
-
-            { x: 10, z: 3, rotation: 'east' },
-
+            { x: 10, z: 3, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 3 },
-
               destination: { x: 10, z: 3 },
-
-              path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 5, z: 3 }, { x: 6, z: 3 }, { x: 7, z: 3 }, { x: 8, z: 3 }, { x: 9, z: 3 }, { x: 10, z: 3 }],
-
+              path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 9, z: 2 }, { x: 10, z: 2 }, { x: 10, z: 3 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 10, 3)
         assertParity(ghostPaths, droppedPaths)
@@ -987,63 +792,34 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 8, 3, 8, 1)
         factory.moveMachine(8, 3, 8, 1)
         expectFactoryState(factory, {
-
           grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | |┌|─|─|─|P| | | | | | |',
-
+              '| | | | |┌|─|─|─|┐| | | | | | |',
+              '| | | | |│| | | |P| | | | | | |',
               '| | | | |│| | | | | | | | | | |',
-
               '| | | |A|┘| | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 3, rotation: 'east' },
-
-            { x: 8, z: 1, rotation: 'east' },
-
+            { x: 8, z: 1, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 3 },
-
               destination: { x: 8, z: 1 },
-
-              path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 4, z: 1 }, { x: 5, z: 1 }, { x: 6, z: 1 }, { x: 7, z: 1 }, { x: 8, z: 1 }],
-
+              path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 4, z: 1 }, { x: 4, z: 0 }, { x: 5, z: 0 }, { x: 6, z: 0 }, { x: 7, z: 0 }, { x: 8, z: 0 }, { x: 8, z: 1 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 8, 1)
         assertParity(ghostPaths, droppedPaths)
@@ -1331,63 +1107,27 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 6, 6, 6, 4)
         factory.moveMachine(6, 6, 6, 4)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | |A|─|─|┐| | | | | | | | |',
-
-              '| | | | | | |P| | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [4, 4, 11, 11], expected: [
+              '| | |P| | | | | |',
+              '| | | | | | | | |',
+              '| | | | | | | | |',
+              '| | | | | | | | |',
+              '| | | | | | | | |',
+              '| | | | | | | | |',
+              '| | | | | | | | |',
+              '| | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 3, rotation: 'east' },
-
             { x: 6, z: 4, rotation: 'south' },
-
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 3 },
-
               destination: { x: 6, z: 4 },
-
               path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 5, z: 3 }, { x: 6, z: 3 }, { x: 6, z: 4 }],
-
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 6, 4)
         assertParity(ghostPaths, droppedPaths)
@@ -1403,75 +1143,33 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 5, 5, 7, 5)
         factory.moveMachine(5, 5, 7, 5)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | |S|─|Q| | | | | |',
-
-              '| | | | | |┌|─|┘| | | | | | | |',
-
-              '| | | | | |│| | | | | | | | | |',
-
-              '| | | | | |│| | | | | | | | | |',
-
-              '| | | | | |P| | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [4, 4, 11, 11], expected: [
+              '| | | | |┌|┐| | |',
+              '| | | |S|┘|Q| | |',
+              '| |┌|─|┘| | | | |',
+              '| |│| | | | | | |',
+              '| |│| | | | | | |',
+              '| |P| | | | | | |',
+              '| | | | | | | | |',
+              '| | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 7, z: 5, rotation: 'south' },
-
             { x: 5, z: 9, rotation: 'south' },
-
-            { x: 9, z: 5, rotation: 'east' },
-
+            { x: 9, z: 5, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 7, z: 5 },
-
               destination: { x: 5, z: 9 },
-
               path: [{ x: 7, z: 5 }, { x: 7, z: 6 }, { x: 6, z: 6 }, { x: 5, z: 6 }, { x: 5, z: 7 }, { x: 5, z: 8 }, { x: 5, z: 9 }],
-
             },
-
             {
-
               source: { x: 7, z: 5 },
-
               destination: { x: 9, z: 5 },
-
-              path: [{ x: 7, z: 5 }, { x: 8, z: 5 }, { x: 9, z: 5 }],
-
+              path: [{ x: 7, z: 5 }, { x: 8, z: 5 }, { x: 8, z: 4 }, { x: 9, z: 4 }, { x: 9, z: 5 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 7, 5)
         assertParity(ghostPaths, droppedPaths)
@@ -1483,75 +1181,33 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 5, 5, 5, 7)
         factory.moveMachine(5, 5, 5, 7)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | |┌|─|─|Q| | | | | |',
-
-              '| | | | | | |│| | | | | | | | |',
-
-              '| | | | | |S|┘| | | | | | | | |',
-
-              '| | | | | |│| | | | | | | | | |',
-
-              '| | | | | |P| | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [4, 4, 11, 11], expected: [
+              '| | |┌|─|─|┐| | |',
+              '| | |│| | |Q| | |',
+              '| | |│| | | | | |',
+              '| |S|┘| | | | | |',
+              '| |│| | | | | | |',
+              '| |P| | | | | | |',
+              '| | | | | | | | |',
+              '| | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 5, z: 7, rotation: 'south' },
-
             { x: 5, z: 9, rotation: 'south' },
-
-            { x: 9, z: 5, rotation: 'east' },
-
+            { x: 9, z: 5, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 5, z: 7 },
-
               destination: { x: 5, z: 9 },
-
               path: [{ x: 5, z: 7 }, { x: 5, z: 8 }, { x: 5, z: 9 }],
-
             },
-
             {
-
               source: { x: 5, z: 7 },
-
               destination: { x: 9, z: 5 },
-
-              path: [{ x: 5, z: 7 }, { x: 6, z: 7 }, { x: 6, z: 6 }, { x: 6, z: 5 }, { x: 7, z: 5 }, { x: 8, z: 5 }, { x: 9, z: 5 }],
-
+              path: [{ x: 5, z: 7 }, { x: 6, z: 7 }, { x: 6, z: 6 }, { x: 6, z: 5 }, { x: 6, z: 4 }, { x: 7, z: 4 }, { x: 8, z: 4 }, { x: 9, z: 4 }, { x: 9, z: 5 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 5, 7)
         assertParity(ghostPaths, droppedPaths)
@@ -1566,75 +1222,33 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 5, 5, 7, 7)
         factory.moveMachine(5, 5, 7, 7)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | |┌|Q| | | | | |',
-
-              '| | | | | | | | |│| | | | | | |',
-
-              '| | | | | | | |S|┘| | | | | | |',
-
-              '| | | | | |┌|─|┘| | | | | | | |',
-
-              '| | | | | |P| | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [4, 4, 11, 11], expected: [
+              '| | | | |┌|┐| | |',
+              '| | | | |│|Q| | |',
+              '| | | | |│| | | |',
+              '| | | |S|┘| | | |',
+              '| |┌|─|┘| | | | |',
+              '| |P| | | | | | |',
+              '| | | | | | | | |',
+              '| | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 7, z: 7, rotation: 'south' },
-
             { x: 5, z: 9, rotation: 'south' },
-
-            { x: 9, z: 5, rotation: 'east' },
-
+            { x: 9, z: 5, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 7, z: 7 },
-
               destination: { x: 5, z: 9 },
-
               path: [{ x: 7, z: 7 }, { x: 7, z: 8 }, { x: 6, z: 8 }, { x: 5, z: 8 }, { x: 5, z: 9 }],
-
             },
-
             {
-
               source: { x: 7, z: 7 },
-
               destination: { x: 9, z: 5 },
-
-              path: [{ x: 7, z: 7 }, { x: 8, z: 7 }, { x: 8, z: 6 }, { x: 8, z: 5 }, { x: 9, z: 5 }],
-
+              path: [{ x: 7, z: 7 }, { x: 8, z: 7 }, { x: 8, z: 6 }, { x: 8, z: 5 }, { x: 8, z: 4 }, { x: 9, z: 4 }, { x: 9, z: 5 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 7, 7)
         // Ghost and drop may produce different-length routes due to U-turn retry
@@ -1648,75 +1262,33 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 5, 9, 7, 9)
         factory.moveMachine(5, 9, 7, 9)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | |S|─|─|─|Q| | | | | |',
-
-              '| | | | | |└|─|┐| | | | | | | |',
-
-              '| | | | | | | |│| | | | | | | |',
-
-              '| | | | | | | |│| | | | | | | |',
-
-              '| | | | | | | |P| | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [4, 4, 11, 11], expected: [
+              '| | |┌|─|─|┐| | |',
+              '| |S|┘| | |Q| | |',
+              '| |└|─|┐| | | | |',
+              '| | | |│| | | | |',
+              '| | | |│| | | | |',
+              '| | | |P| | | | |',
+              '| | | | | | | | |',
+              '| | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 5, z: 5, rotation: 'south' },
-
             { x: 7, z: 9, rotation: 'south' },
-
-            { x: 9, z: 5, rotation: 'east' },
-
+            { x: 9, z: 5, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 5, z: 5 },
-
               destination: { x: 9, z: 5 },
-
-              path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 7, z: 5 }, { x: 8, z: 5 }, { x: 9, z: 5 }],
-
+              path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 6, z: 4 }, { x: 7, z: 4 }, { x: 8, z: 4 }, { x: 9, z: 4 }, { x: 9, z: 5 }],
             },
-
             {
-
               source: { x: 5, z: 5 },
-
               destination: { x: 7, z: 9 },
-
               path: [{ x: 5, z: 5 }, { x: 5, z: 6 }, { x: 6, z: 6 }, { x: 7, z: 6 }, { x: 7, z: 7 }, { x: 7, z: 8 }, { x: 7, z: 9 }],
-
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 7, 9)
         assertParity(ghostPaths, droppedPaths)
@@ -1728,75 +1300,29 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 9, 5, 9, 3)
         factory.moveMachine(9, 5, 9, 3)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | |┌|─|─|Q| | | | | |',
-
-              '| | | | | | |│| | | | | | | | |',
-
-              '| | | | | |S|┘| | | | | | | | |',
-
-              '| | | | | |│| | | | | | | | | |',
-
-              '| | | | | |│| | | | | | | | | |',
-
-              '| | | | | |│| | | | | | | | | |',
-
-              '| | | | | |P| | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 8, 5], expected: [
+              '| | | | |┌|─|─|',
+              '| | | | |│| | |',
+              '| | | | |│| | |',
+              '| | | |S|┘| | |',
             ].join('\n') },
-
           machines: [
-
             { x: 5, z: 5, rotation: 'south' },
-
             { x: 5, z: 9, rotation: 'south' },
-
-            { x: 9, z: 3, rotation: 'east' },
-
+            { x: 9, z: 3, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 5, z: 5 },
-
               destination: { x: 5, z: 9 },
-
               path: [{ x: 5, z: 5 }, { x: 5, z: 6 }, { x: 5, z: 7 }, { x: 5, z: 8 }, { x: 5, z: 9 }],
-
             },
-
             {
-
               source: { x: 5, z: 5 },
-
               destination: { x: 9, z: 3 },
-
-              path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 6, z: 4 }, { x: 6, z: 3 }, { x: 7, z: 3 }, { x: 8, z: 3 }, { x: 9, z: 3 }],
-
+              path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 6, z: 4 }, { x: 6, z: 3 }, { x: 6, z: 2 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 9, z: 2 }, { x: 9, z: 3 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 9, 3)
         assertParity(ghostPaths, droppedPaths)
@@ -1828,65 +1354,24 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 3, 3, 3, 5)
         factory.moveMachine(3, 3, 3, 5)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | |R|P| | | | | | | | |',
-
-              '| | | | | | |│| | | | | | | | |',
-
-              '| | | |A|─|─|┘| | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 8, 5], expected: [
+              '| | |┌|─|┐| | |',
+              '| | |│|R|P| | |',
+              '| | |│| | | | |',
+              '| |A|┘| | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 5, rotation: 'east' },
-
-            { x: 6, z: 3, rotation: 'north' },
-
+            { x: 6, z: 3, rotation: 'south' },
             { x: 5, z: 3, rotation: 'south' },
-
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 5 },
-
               destination: { x: 6, z: 3 },
-
-              path: [{ x: 3, z: 5 }, { x: 4, z: 5 }, { x: 5, z: 5 }, { x: 6, z: 5 }, { x: 6, z: 4 }, { x: 6, z: 3 }],
-
+              path: [{ x: 3, z: 5 }, { x: 4, z: 5 }, { x: 4, z: 4 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 6, z: 3 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 3, 5)
         assertParity(ghostPaths, droppedPaths)
@@ -1912,65 +1397,24 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 6, 3, 8, 3)
         factory.moveMachine(6, 3, 8, 3)
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | |A|┐|R| | |P| | | | | | |',
-
-              '| | | | |└|─|─|─|┘| | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 8, 5], expected: [
+              '| | |┌|─|─|─|┐|',
+              '| |A|┘|R| | |P|',
+              '| | | | | | | |',
+              '| | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 3, rotation: 'east' },
-
-            { x: 8, z: 3, rotation: 'north' },
-
+            { x: 8, z: 3, rotation: 'south' },
             { x: 5, z: 3, rotation: 'south' },
-
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 3 },
-
               destination: { x: 8, z: 3 },
-
-              path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 4 }, { x: 5, z: 4 }, { x: 6, z: 4 }, { x: 7, z: 4 }, { x: 8, z: 4 }, { x: 8, z: 3 }],
-
+              path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 8, z: 3 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 8, 3)
         assertParity(ghostPaths, droppedPaths)
@@ -1982,65 +1426,35 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPaths(factory, 6, 3, 6, 1)
         factory.moveMachine(6, 3, 6, 1)
         expectFactoryState(factory, {
-
           grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | |P| | | | | | | | |',
-
-              '| | | | |┌|─|┘| | | | | | | | |',
-
+              '| | | | |┌|─|┐| | | | | | | | |',
+              '| | | | |│| |P| | | | | | | | |',
+              '| | | | |│| | | | | | | | | | |',
               '| | | |A|┘|R| | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 3, rotation: 'east' },
-
-            { x: 6, z: 1, rotation: 'north' },
-
+            { x: 6, z: 1, rotation: 'south' },
             { x: 5, z: 3, rotation: 'south' },
-
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 3 },
-
               destination: { x: 6, z: 1 },
-
-              path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 6, z: 1 }],
-
+              path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 4, z: 1 }, { x: 4, z: 0 }, { x: 5, z: 0 }, { x: 6, z: 0 }, { x: 6, z: 1 }],
             },
-
           ],
-
         })
         const droppedPaths = getDroppedBeltPaths(factory, 6, 1)
         assertParity(ghostPaths, droppedPaths)
@@ -2927,63 +2341,24 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPathsForRotation(factory, 3, 3, 'west')
         const droppedPaths = rotateAndGetPaths(factory, 3, 3, 'west')
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | |┌|A| | | | | | | | | | | |',
-
-              '| | |└|┐| | | | | | | | | | | |',
-
-              '| | | |│| | | | | | | | | | | |',
-
-              '| | | |│| | | | | | | | | | | |',
-
-              '| | | |│| | | | | | | | | | | |',
-
-              '| | | |P| | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 10, 6], expected: [
+              '| | | | | | | | | |',
+              '|┌|A| | | | | | | |',
+              '|└|┐| | | | | | | |',
+              '| |│| | | | | | | |',
+              '| |│| | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 3, rotation: 'west' },
-
             { x: 3, z: 8, rotation: 'south' },
-
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 3 },
-
               destination: { x: 3, z: 8 },
-
               path: [{ x: 3, z: 3 }, { x: 2, z: 3 }, { x: 2, z: 4 }, { x: 3, z: 4 }, { x: 3, z: 5 }, { x: 3, z: 6 }, { x: 3, z: 7 }, { x: 3, z: 8 }],
-
             },
-
           ],
-
         })
         assertParity(ghostPaths, droppedPaths)
       })
@@ -2998,63 +2373,24 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPathsForRotation(factory, 3, 3, 'north')
         const droppedPaths = rotateAndGetPaths(factory, 3, 3, 'north')
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | |┌|─|─|┐| | | | | | | | |',
-
-              '| | | |A| | |└|─|P| | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 10, 6], expected: [
+              '| |┌|─|─|─|─|┐| | |',
+              '| |A| | | | |P| | |',
+              '| | | | | | | | | |',
+              '| | | | | | | | | |',
+              '| | | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 3, rotation: 'north' },
-
-            { x: 8, z: 3, rotation: 'east' },
-
+            { x: 8, z: 3, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 3 },
-
               destination: { x: 8, z: 3 },
-
-              path: [{ x: 3, z: 3 }, { x: 3, z: 2 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 6, z: 3 }, { x: 7, z: 3 }, { x: 8, z: 3 }],
-
+              path: [{ x: 3, z: 3 }, { x: 3, z: 2 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 8, z: 3 }],
             },
-
           ],
-
         })
         assertParity(ghostPaths, droppedPaths)
       })
@@ -3065,63 +2401,24 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPathsForRotation(factory, 3, 3, 'east')
         const droppedPaths = rotateAndGetPaths(factory, 3, 3, 'east')
         expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | |A|─|─|─|─|P| | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
+          grid: { box: [2, 2, 10, 6], expected: [
+              '| | |┌|─|─|─|┐| | |',
+              '| |A|┘| | | |P| | |',
+              '| | | | | | | | | |',
+              '| | | | | | | | | |',
+              '| | | | | | | | | |',
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 3, rotation: 'east' },
-
-            { x: 8, z: 3, rotation: 'east' },
-
+            { x: 8, z: 3, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 3 },
-
               destination: { x: 8, z: 3 },
-
-              path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 5, z: 3 }, { x: 6, z: 3 }, { x: 7, z: 3 }, { x: 8, z: 3 }],
-
+              path: [{ x: 3, z: 3 }, { x: 4, z: 3 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 8, z: 3 }],
             },
-
           ],
-
         })
         assertParity(ghostPaths, droppedPaths)
       })
@@ -3132,63 +2429,34 @@ describe('GhostDropParity', () => {
         const ghostPaths = computeGhostPathsForRotation(factory, 3, 3, 'west')
         const droppedPaths = rotateAndGetPaths(factory, 3, 3, 'west')
         expectFactoryState(factory, {
-
           grid: { box: [0, 0, 14, 14], expected: [
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
+              '| | |┌|─|─|─|─|─|┐| | | | | | |',
+              '| | |└|A| | | | |P| | | | | | |',
               '| | | | | | | | | | | | | | | |',
-
-              '| | |┌|A| | |┌|─|P| | | | | | |',
-
-              '| | |└|─|─|─|┘| | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
               '| | | | | | | | | | | | | | | |',
-
             ].join('\n') },
-
           machines: [
-
             { x: 3, z: 3, rotation: 'west' },
-
-            { x: 8, z: 3, rotation: 'east' },
-
+            { x: 8, z: 3, rotation: 'south' },
           ],
-
           belts: [
-
             {
-
               source: { x: 3, z: 3 },
-
               destination: { x: 8, z: 3 },
-
-              path: [{ x: 3, z: 3 }, { x: 2, z: 3 }, { x: 2, z: 4 }, { x: 3, z: 4 }, { x: 4, z: 4 }, { x: 5, z: 4 }, { x: 6, z: 4 }, { x: 6, z: 3 }, { x: 7, z: 3 }, { x: 8, z: 3 }],
-
+              path: [{ x: 3, z: 3 }, { x: 2, z: 3 }, { x: 2, z: 2 }, { x: 3, z: 2 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 8, z: 3 }],
             },
-
           ],
-
         })
         assertParity(ghostPaths, droppedPaths)
       })
@@ -4095,85 +3363,45 @@ describe('GhostDropParity', () => {
       const ghost = computeGhostBeltPath(factory, { x: 5, z: 5 }, { x: 8, z: 5 }, 'output')
       const drop = placeBeltAndGetPath(factory, { x: 5, z: 5 }, { x: 8, z: 5 }, 'output')
       expectFactoryState(factory, {
-
         grid: { box: [0, 0, 19, 19], expected: [
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | |A|─|─|P| | | | | | | | | | | |',
-
+            '| | | | | |A|┐| |P| | | | | | | | | | | |',
+            '| | | | | |│|└|─|┘| | | | | | | | | | | |',
             '| | | | | |│| | | | | | | | | | | | | | |',
-
-            '| | | | | |│| | | | | | | | | | | | | | |',
-
             '| | | | | |P| | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
             '| | | | | | | | | | | | | | | | | | | | |',
-
           ].join('\n') },
-
         machines: [
-
           { x: 5, z: 5, rotation: 'south' },
-
           { x: 5, z: 8, rotation: 'south' },
-
-          { x: 8, z: 5, rotation: 'west' },
-
+          { x: 8, z: 5, rotation: 'south' },
         ],
-
         belts: [
-
           {
-
             source: { x: 5, z: 5 },
-
             destination: { x: 5, z: 8 },
-
             path: [{ x: 5, z: 5 }, { x: 5, z: 6 }, { x: 5, z: 7 }, { x: 5, z: 8 }],
-
           },
-
           {
-
             source: { x: 8, z: 5 },
-
             destination: { x: 5, z: 5 },
-
-            path: [{ x: 8, z: 5 }, { x: 7, z: 5 }, { x: 6, z: 5 }, { x: 5, z: 5 }],
-
+            path: [{ x: 8, z: 5 }, { x: 8, z: 6 }, { x: 7, z: 6 }, { x: 6, z: 6 }, { x: 6, z: 5 }, { x: 5, z: 5 }],
           },
-
         ],
-
       })
       assertBeltDragParity(ghost, drop, 'B8: no free output slots')
     })

@@ -68,7 +68,8 @@ export class BeltRouter {
    * Find the best (non-colliding) belt path between two positions.
    * Tries X-first path first; if it collides, tries Z-first.
    * Returns whichever doesn't collide (preferring X-first).
-   * If both collide, returns X-first with `collides: true`.
+   * If all paths collide, prefers the first direction-satisfying candidate
+   * (xFirst → zFirst → BFS); falls back to xFirst if none satisfy constraints.
    * Optional `requiredFirstDir`/`requiredLastDir` constrain path directions at endpoints.
    */
   findBestBeltPath(
@@ -113,7 +114,10 @@ export class BeltRouter {
       return { path: bfsPath, collides: false }
     }
 
-    // No path found — return L-shaped fallback for ghost rendering
+    // No collision-free path — prefer direction-satisfying colliding path for ghost rendering
+    if (satisfiesConstraints(xFirst)) return { path: xFirst, collides: true }
+    if (satisfiesConstraints(zFirst)) return { path: zFirst, collides: true }
+    if (bfsPath) return { path: bfsPath, collides: true }
     return { path: xFirst, collides: true }
   }
 

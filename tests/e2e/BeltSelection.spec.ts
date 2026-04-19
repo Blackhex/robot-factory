@@ -181,7 +181,7 @@ test.describe('Belt drawing — drag from output slot auto-rotates source machin
 
     // Rotate TF/BF to east (default placement is 'south').
     expect(await probe.setMachineRotationDirect(10, 3, 'east')).toBe(true)
-    expect(await probe.setMachineRotationDirect(10, 15, 'east')).toBe(true)
+    expect(await probe.setMachineRotationDirect(10, 15, 'west')).toBe(true)
     // MF must end up 'west' (output on the west side).
     expect(await probe.setMachineRotationDirect(5, 5, 'west')).toBe(true)
     // D rotation 'west' so its input ('back') faces east — free at (9, 5).

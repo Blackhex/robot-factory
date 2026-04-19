@@ -1,7 +1,103 @@
 import type { Direction, GridPosition, MachineInfo, MachineType, SlotPosition } from './types'
 import type { GridReader } from './Factory'
 import type { BeltRouter } from './BeltRouter'
-import { rotationToFace, getSlotPositions, pickBestSlotOffset, slotPositionToOffset } from './SlotUtils'
+import { rotationToFace, getSlotPositions, pickBestSlotOffset, slotPositionToOffset, offsetToSlotPosition } from './SlotUtils'
+import { machineSlotPointsAtNeighbor } from './SlotBlocking'
+
+/**
+ * The direct path bypasses slot constraints. When a specific source/target
+ * slot is requested, ensure the direct path's endpoints actually align with
+ * that slot under the given rotations — otherwise a wrong-slot direct path
+ * could be accepted by the planner and then rejected by `placeBeltChain`'s
+ * slot validation, breaking ghost/placement parity.
+ *
+ * Module-scope (not a per-iteration closure) so it isn't re-allocated on
+ * every candidate rotation.
+ */
+function directPathHonoursSlots(
+  dr: { path: GridPosition[], collides: boolean } | null,
+  sourceSlotPosition: SlotPosition | undefined,
+  targetSlotPosition: SlotPosition | undefined,
+  srcRotation: Direction,
+  tgtRotation: Direction,
+  sourceMachine?: MachineInfo,
+  targetMachine?: MachineInfo,
+  sourceSlotType?: 'input' | 'output',
+): boolean {
+  if (!dr || dr.path.length < 2) return false
+  if (sourceSlotPosition) {
+    const expected = slotPositionToOffset(sourceSlotPosition, srcRotation)
+    const actual = { x: dr.path[1].x - dr.path[0].x, z: dr.path[1].z - dr.path[0].z }
+    if (actual.x !== expected.x || actual.z !== expected.z) return false
+  } else if (sourceMachine && sourceSlotType) {
+    // Without an explicit slot, the path's first step must still correspond
+    // to a valid slot of the requested type under `srcRotation`. Otherwise
+    // committing the plan will fail slot validation in `placeBeltChain`.
+    const actual = { x: dr.path[1].x - dr.path[0].x, z: dr.path[1].z - dr.path[0].z }
+    const slot = offsetToSlotPosition(actual, srcRotation)
+    const allowed = sourceSlotType === 'input' ? sourceMachine.slots.inputs : sourceMachine.slots.outputs
+    if (!slot || !allowed.includes(slot)) return false
+  }
+  if (targetSlotPosition) {
+    const expected = slotPositionToOffset(targetSlotPosition, tgtRotation)
+    const last = dr.path.length - 1
+    const actual = { x: dr.path[last - 1].x - dr.path[last].x, z: dr.path[last - 1].z - dr.path[last].z }
+    if (actual.x !== expected.x || actual.z !== expected.z) return false
+  } else if (targetMachine && sourceSlotType) {
+    const last = dr.path.length - 1
+    const actual = { x: dr.path[last - 1].x - dr.path[last].x, z: dr.path[last - 1].z - dr.path[last].z }
+    const slot = offsetToSlotPosition(actual, tgtRotation)
+    const targetSlotType = sourceSlotType === 'output' ? 'input' : 'output'
+    const allowed = targetSlotType === 'input' ? targetMachine.slots.inputs : targetMachine.slots.outputs
+    if (!slot || !allowed.includes(slot)) return false
+  }
+  return true
+}
+
+/**
+ * Options bag for {@link PlacementPlanner.computePlacementPlan}. All fields are
+ * optional; callers may pass an empty object (or omit the argument entirely)
+ * to use the defaults.
+ */
+export interface PlacementPlanOptions {
+  ignoreBeltIds?: ReadonlySet<string>
+  fixedRotations?: boolean
+  virtualMachines?: ReadonlyMap<string, MachineInfo>
+  ignoreMachinePositions?: ReadonlySet<string>
+  forcedHasBelts?: ReadonlySet<string>
+  extraBlockedCells?: ReadonlySet<string>
+  targetSlotPosition?: SlotPosition
+  sourceSlotPosition?: SlotPosition
+  /**
+   * When true, the planner falls back to placing the belt in the opposite
+   * direction (source↔target swapped, slot type flipped) ONLY if the target
+   * has no free slot of the requested complementary type. Used for
+   * explicit-slot drags from the UI. Defaults to `false`.
+   */
+  tryReverseSlotType?: boolean
+}
+
+/**
+ * Result of {@link PlacementPlanner.computePlacementPlan}. The `srcRotation`
+ * field ALWAYS refers to the original `from` machine passed in, even when
+ * `reversed` is true (the planner internally swaps direction in that case
+ * but reports the rotation against the original mapping). The target's
+ * rotation is never derived — callers should read it from the target
+ * machine directly.
+ */
+export interface PlacementPlanResult {
+  path: GridPosition[]
+  collides: boolean
+  srcRotation?: Direction
+  /**
+   * True when the planner internally fell back to the reverse slot type
+   * (source↔target swapped, slot type flipped). `srcRotation` still refers
+   * to the original `from` machine — it is NOT swapped. Callers must
+   * consult `reversed` to decide which physical machine acts as the belt's
+   * source vs. destination.
+   */
+  reversed?: boolean
+}
 
 export class PlacementPlanner {
   private readonly grid: GridReader
@@ -48,20 +144,52 @@ export class PlacementPlanner {
   computePlacementPlan(
     from: GridPosition, to: GridPosition,
     sourceSlotType: 'input' | 'output',
-    ignoreBeltIds?: ReadonlySet<string>,
-    fixedRotations?: boolean,
-    virtualMachines?: ReadonlyMap<string, MachineInfo>,
-    ignoreMachinePositions?: ReadonlySet<string>,
-    forcedHasBelts?: ReadonlySet<string>,
-    extraBlockedCells?: ReadonlySet<string>,
-    targetSlotPosition?: SlotPosition,
-  ): { path: GridPosition[], collides: boolean, srcRotation?: Direction, tgtRotation?: Direction } | null {
+    opts?: PlacementPlanOptions,
+  ): PlacementPlanResult | null {
+    const {
+      ignoreBeltIds,
+      fixedRotations,
+      virtualMachines,
+      ignoreMachinePositions,
+      forcedHasBelts,
+      extraBlockedCells,
+      targetSlotPosition,
+      sourceSlotPosition,
+      tryReverseSlotType,
+    } = opts ?? {}
     if (!this.grid.isInBounds(from.x, from.z) || !this.grid.isInBounds(to.x, to.z)) return null
     if (from.x === to.x && from.z === to.z) return null
 
     const sourceMachine = this.resolveMachine(from, virtualMachines)
     const targetMachine = this.resolveMachine(to, virtualMachines)
     if (!sourceMachine || !targetMachine) return null
+
+    // Validate sourceSlotPosition (if provided) maps to a slot of the requested type.
+    // Reject early so the call fails instead of silently picking a different slot.
+    if (sourceSlotPosition) {
+      const srcSlotList = sourceSlotType === 'input' ? sourceMachine.slots.inputs : sourceMachine.slots.outputs
+      if (!srcSlotList.includes(sourceSlotPosition)) return null
+    }
+
+    // targetSlotPosition is a *preference*, not a hard constraint. When the
+    // user clicked a slot of the WRONG type on the target machine (e.g. a
+    // splitter 'left' output cell while dragging an output->input belt), skip
+    // the primary attempt and fall back to body-mode picking on the same
+    // target machine. The target's rotation is locked so we don't silently
+    // rotate the machine away from the slot the user pointed at.
+    if (targetSlotPosition) {
+      const neededTgtType: 'input' | 'output' = sourceSlotType === 'output' ? 'input' : 'output'
+      const tgtSlotList = neededTgtType === 'input' ? targetMachine.slots.inputs : targetMachine.slots.outputs
+      if (!tgtSlotList.includes(targetSlotPosition)) {
+        const lockedHasBelts = new Set<string>(forcedHasBelts ?? [])
+        lockedHasBelts.add(`${to.x},${to.z}`)
+        return this.computePlacementPlan(from, to, sourceSlotType, {
+          ...opts,
+          targetSlotPosition: undefined,
+          forcedHasBelts: lockedHasBelts,
+        })
+      }
+    }
 
     // Merge virtual machine positions and extra blocked cells
     let blockedPositions: ReadonlySet<string> | undefined
@@ -73,70 +201,254 @@ export class PlacementPlanner {
     }
 
     const sourceHasBelts = this.resolveHasBelts(from, virtualMachines, ignoreBeltIds, forcedHasBelts)
-    const targetHasBelts = this.resolveHasBelts(to, virtualMachines, ignoreBeltIds, forcedHasBelts)
 
-    // Simulate auto-rotation for machines without belt connections
+    // Local closure mirroring the source-side half of `Factory.isSlotBlocked`
+    // (Direction 2): a slot of `sourceMachine` at the candidate rotation MUST
+    // NOT point directly at any neighboring machine. Delegated to the shared
+    // `machineSlotPointsAtNeighbor` helper so this enforcement and
+    // `Factory.isSlotBlocked`'s Direction-2 cannot drift apart. The lookup
+    // closure consults virtualMachines + ignoreMachinePositions + the grid.
+    const wouldViolateSlotBlocking = (rot: Direction): boolean =>
+      machineSlotPointsAtNeighbor(
+        { ...sourceMachine, rotation: rot },
+        (gx, gz) => {
+          if (ignoreMachinePositions?.has(`${gx},${gz}`)) return null
+          return this.resolveMachine({ x: gx, z: gz }, virtualMachines)
+        },
+      )
+
+    // Derive source auto-rotation for an unconnected source machine.
     let simSrcRotation: Direction = sourceMachine.rotation
-    let simTgtRotation: Direction = targetMachine.rotation
-    if (!fixedRotations && (!sourceHasBelts || !targetHasBelts)) {
-      const trial = this.router.findBestBeltPath(from, to, ignoreBeltIds, undefined, undefined, ignoreMachinePositions, blockedPositions)
+    if (!fixedRotations && !sourceHasBelts) {
+      // When sourceSlotPosition is provided, start the trial path from the
+      // clicked source-slot CELL so the trial's last segment correctly reflects
+      // how the belt will approach the target.
+      const trialFrom: GridPosition = sourceSlotPosition
+        ? (() => {
+            const off = slotPositionToOffset(sourceSlotPosition, sourceMachine.rotation)
+            return { x: from.x + off.x, z: from.z + off.z }
+          })()
+        : from
+      const trial = this.router.findBestBeltPath(trialFrom, to, ignoreBeltIds, undefined, undefined, ignoreMachinePositions, blockedPositions)
       if (trial.path.length >= 2) {
         const reverseAutoRotation = sourceSlotType === 'input'
-        if (!sourceHasBelts) {
+        if (!sourceSlotPosition) {
           let firstDx = Math.sign(trial.path[1].x - trial.path[0].x)
           let firstDz = Math.sign(trial.path[1].z - trial.path[0].z)
           if (reverseAutoRotation) { firstDx = -firstDx; firstDz = -firstDz }
           simSrcRotation = firstDx !== 0 ? rotationToFace(firstDx, 0) : rotationToFace(0, firstDz)
-        }
-        if (!targetHasBelts && !targetSlotPosition) {
-          const lastIdx = trial.path.length - 1
-          let lastDx = Math.sign(trial.path[lastIdx].x - trial.path[lastIdx - 1].x)
-          let lastDz = Math.sign(trial.path[lastIdx].z - trial.path[lastIdx - 1].z)
-          if (reverseAutoRotation) { lastDx = -lastDx; lastDz = -lastDz }
-          simTgtRotation = lastDx !== 0 ? rotationToFace(lastDx, 0) : rotationToFace(0, lastDz)
+        } else {
+          // Constrain srcRotation so the requested slot faces the trial path's first step.
+          // Mirrors the targetSlotPosition contract for source side.
+          const off = slotPositionToOffset(sourceSlotPosition, sourceMachine.rotation)
+          let dx = Math.sign(off.x)
+          let dz = Math.sign(off.z)
+          if (reverseAutoRotation) { dx = -dx; dz = -dz }
+          simSrcRotation = dx !== 0 ? rotationToFace(dx, 0) : rotationToFace(0, dz)
         }
       }
     }
 
-    // Create simulated machine infos with the computed rotations for slot resolution
-    const simSource: MachineInfo = { ...sourceMachine, rotation: simSrcRotation }
-    const simTarget: MachineInfo = { ...targetMachine, rotation: simTgtRotation }
-
-    // Compute both slot-based and direct machine-to-machine paths
-    const slotResult = this.computeSlotPath(from, to, simSource, simTarget, sourceSlotType, ignoreBeltIds, fixedRotations, ignoreMachinePositions, blockedPositions, targetSlotPosition)
-
-    // Only compute direct path when slot-based routing confirms free slots exist.
-    // When no free slots are available, directPath would bypass slot validation and
-    // produce false-positive non-colliding results (ghost preview shows green incorrectly).
+    // Build the list of source-rotation candidates to try.
+    // - When the source has existing belts (or rotations are fixed), the rotation
+    //   is locked: try only the originally-derived one.
+    // - Otherwise, try the originally-derived rotation FIRST (preserving the
+    //   prior behavior whenever it works); only fall back to the other 3 in a
+    //   deterministic order if the original rotation produces no non-colliding
+    //   plan. The same sourceSlotPosition resolves to a different offset per
+    //   rotation (slots rotate with the machine), giving 4 distinct geometric
+    //   attempts.
+    const originalSrcRotation = simSrcRotation
     const neededTargetSlotType: 'input' | 'output' = sourceSlotType === 'output' ? 'input' : 'output'
-    const hasFreeSlots = this.grid.getFreeSlotsOfType(simSource, sourceSlotType, ignoreBeltIds).length > 0
-      && this.grid.getFreeSlotsOfType(simTarget, neededTargetSlotType, ignoreBeltIds).length > 0
-    const directResult = hasFreeSlots ? this.computeDirectPath(from, to, ignoreBeltIds, ignoreMachinePositions, blockedPositions) : null
 
-    // Pick the shortest non-colliding path (direct paths avoid U-turns
-    // when slot geometry forces a long detour around adjacent machines)
-    const slotOk = slotResult && !slotResult.collides
-    const directOk = directResult && !directResult.collides
+    const canIterateSource = !fixedRotations && !sourceHasBelts
+    const rotationOrder: Direction[] = ['south', 'east', 'north', 'west']
+    const candidates: Direction[] = canIterateSource
+      ? [originalSrcRotation, ...rotationOrder.filter((r) => r !== originalSrcRotation)]
+      : [originalSrcRotation]
 
-    if (slotOk && directOk) {
-      return { ...slotResult!, srcRotation: simSrcRotation, tgtRotation: simTgtRotation }
+    // Hoisted invariant: target rotation is fixed across candidates, so its
+    // free-slot probe doesn't change per iteration.
+    const targetHasFreeSlots =
+      this.grid.getFreeSlotsOfType(targetMachine, neededTargetSlotType, ignoreBeltIds).length > 0
+
+    type Attempt = {
+      slotResult: { path: GridPosition[], collides: boolean } | null
+      directResult: { path: GridPosition[], collides: boolean } | null
+      srcRotation: Direction
     }
-    if (slotOk) {
-      return { ...slotResult!, srcRotation: simSrcRotation, tgtRotation: simTgtRotation }
-    }
-    if (directOk) {
-      return { ...directResult!, srcRotation: simSrcRotation, tgtRotation: simTgtRotation }
+    let bestNonColliding: { path: GridPosition[], collides: boolean, srcRotation: Direction } | null = null
+    let firstAttempt: Attempt | null = null
+
+    // Target rotation is preserved — never derived.
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i]
+      // Skip candidate rotations that would violate the same slot-blocking
+      // constraint enforced by Factory.rotateMachine / isSlotBlocked.
+      // Only enforced when the planner is actually free to pick the rotation
+      // (i.e. the source has no existing belts and rotations are not fixed).
+      if (canIterateSource && wouldViolateSlotBlocking(candidate)) {
+        continue
+      }
+      const { slotResult, directResult } = this.evaluateCandidateRotation(
+        candidate, from, to, sourceMachine, targetMachine, sourceSlotType,
+        ignoreBeltIds, fixedRotations, ignoreMachinePositions, blockedPositions,
+        sourceSlotPosition, targetSlotPosition, targetHasFreeSlots,
+      )
+      if (firstAttempt === null) firstAttempt = { slotResult, directResult, srcRotation: candidate }
+
+      // Prefer slotResult; fall back to a slot-honoring directResult.
+      // For fallback candidates (i > 0), the directResult must additionally
+      // map to a valid slot of the candidate rotation (since the planner
+      // didn't derive that rotation from the trial path, the path's first
+      // step is not guaranteed to align with one of the candidate's slots).
+      // For i === 0 the rotation was derived to match the trial path, so
+      // the legacy lenient check is sufficient.
+      let candidateBest: { path: GridPosition[], collides: boolean } | null = null
+      if (slotResult && !slotResult.collides) candidateBest = slotResult
+      else if (directResult && !directResult.collides
+        && directPathHonoursSlots(
+          directResult, sourceSlotPosition, targetSlotPosition,
+          candidate, targetMachine.rotation,
+          i > 0 ? sourceMachine : undefined,
+          i > 0 ? targetMachine : undefined,
+          i > 0 ? sourceSlotType : undefined,
+        )) {
+        candidateBest = directResult
+      }
+      if (candidateBest && (!bestNonColliding || candidateBest.path.length < bestNonColliding.path.length)) {
+        bestNonColliding = { ...candidateBest, srcRotation: candidate }
+      }
+      // The originally-derived rotation (i === 0) wins all ties: if it produced
+      // any non-colliding plan, stop iterating. The strict `<` above only
+      // matters for deterministic tie-breaking among the fallback rotations
+      // (i >= 1), which are tried in a fixed `rotationOrder`.
+      //
+      // Exception: when the user explicitly named a source/target slot, they
+      // have implicitly accepted whatever rotation makes that slot work, so we
+      // must explore all 4 candidates and pick the truly shortest path —
+      // otherwise the original rotation can win with a long looping belt that
+      // wraps around the source machine when a much shorter belt is available
+      // by rotating it.
+      if (i === 0 && bestNonColliding && !sourceSlotPosition && !targetSlotPosition) break
     }
 
-    // Return colliding result for red ghost preview
-    if (slotResult) {
-      return { ...slotResult, srcRotation: simSrcRotation, tgtRotation: simTgtRotation }
+    if (bestNonColliding) {
+      return { path: bestNonColliding.path, collides: false, srcRotation: bestNonColliding.srcRotation }
     }
-    if (directResult) {
-      return { ...directResult, srcRotation: simSrcRotation, tgtRotation: simTgtRotation }
+
+    // BODY-MODE RETRY for explicit-slot drags.
+    //
+    // The user's `targetSlotPosition` is a *preference*. When no candidate
+    // could place a clean belt to that exact slot (because it's occupied,
+    // unreachable, or a different rotation candidate would be needed),
+    // retry once with the slot constraint dropped — picking any free
+    // complementary slot on the SAME target machine ("machine-body mode").
+    //
+    // The target's rotation is locked (forcedHasBelts) so the user's
+    // explicit-slot click semantics are preserved: the target machine is
+    // never auto-rotated when an explicit slot was provided.
+    //
+    // This runs BEFORE the reverse-slot last-resort fallback so a free
+    // sibling slot on the same machine always wins over flipping dataflow
+    // direction.
+    if (targetSlotPosition !== undefined) {
+      const lockedHasBelts = new Set<string>(forcedHasBelts ?? [])
+      lockedHasBelts.add(`${to.x},${to.z}`)
+      const retry = this.computePlacementPlan(from, to, sourceSlotType, {
+        ...opts,
+        targetSlotPosition: undefined,
+        forcedHasBelts: lockedHasBelts,
+        tryReverseSlotType: false,
+      })
+      if (retry && !retry.collides) return retry
+    }
+
+    // No candidate produced a non-colliding plan — fall back to the originally-derived
+    // rotation's colliding plan so the ghost still renders red.
+    if (firstAttempt) {
+      const fb = firstAttempt.slotResult ?? firstAttempt.directResult
+      if (fb) return { ...fb, srcRotation: originalSrcRotation }
+    }
+
+    // LAST-RESORT reverse-slot-type fallback for explicit-slot drags.
+    //
+    // When the primary direction failed entirely (no candidate produced any
+    // path, colliding or not) AND the cause is specifically that the target
+    // machine has no free slot of the required complementary type, retry the
+    // OPPOSITE flow (flip sourceSlotType). This covers the case where the
+    // user clicked one machine's slot, but the only viable physical
+    // connection is in the other direction (e.g. F2.input→F3 fails because
+    // F3.output is consumed, but F2.output→F3.input is available).
+    //
+    // The guard `!targetHasFreeSlots` ensures we only reverse when the
+    // failure is "no slot" — not "rotation/collision" — to avoid silently
+    // inverting the user's intended dataflow direction when their requested
+    // direction is geometrically blocked but semantically valid.
+    if (tryReverseSlotType && !targetHasFreeSlots) {
+      const reversedSlotType: 'input' | 'output' = sourceSlotType === 'output' ? 'input' : 'output'
+      // Drop slot positions on the reverse attempt: it's a last resort, the
+      // user's explicit slot choice no longer applies (different slot type
+      // on the same machine), and we want maximum flexibility.
+      const reversedPlan = this.computePlacementPlan(
+        from, to, reversedSlotType,
+        {
+          ignoreBeltIds, fixedRotations, virtualMachines,
+          ignoreMachinePositions, forcedHasBelts, extraBlockedCells,
+          tryReverseSlotType: false,
+        },
+      )
+      if (reversedPlan) {
+        return { ...reversedPlan, reversed: true }
+      }
     }
 
     return null
+  }
+
+  /**
+   * Evaluate a single candidate source rotation: build a virtual source machine
+   * with that rotation, compute the slot path, and (only when both sides have
+   * free slots) the direct path. Returns both results so the caller can apply
+   * its preference/tie-break policy.
+   *
+   * @param targetHasFreeSlots — hoisted invariant from the caller; target rotation
+   *   doesn't change per candidate, so this probe is computed once.
+   */
+  private evaluateCandidateRotation(
+    candidate: Direction,
+    from: GridPosition, to: GridPosition,
+    sourceMachine: MachineInfo, simTarget: MachineInfo,
+    sourceSlotType: 'input' | 'output',
+    ignoreBeltIds: ReadonlySet<string> | undefined,
+    fixedRotations: boolean | undefined,
+    ignoreMachinePositions: ReadonlySet<string> | undefined,
+    blockedPositions: ReadonlySet<string> | undefined,
+    sourceSlotPosition: SlotPosition | undefined,
+    targetSlotPosition: SlotPosition | undefined,
+    targetHasFreeSlots: boolean,
+  ): {
+    slotResult: { path: GridPosition[], collides: boolean } | null
+    directResult: { path: GridPosition[], collides: boolean } | null
+  } {
+    const simSource: MachineInfo = { ...sourceMachine, rotation: candidate }
+
+    const slotResult = this.computeSlotPath(
+      from, to, simSource, simTarget, sourceSlotType,
+      ignoreBeltIds, fixedRotations, ignoreMachinePositions, blockedPositions,
+      targetSlotPosition, sourceSlotPosition,
+    )
+
+    // Only compute direct path when both sides have free slots. Without that
+    // guard, directPath bypasses slot validation and produces false-positive
+    // non-colliding results (ghost preview shows green incorrectly).
+    const sourceHasFreeSlots =
+      this.grid.getFreeSlotsOfType(simSource, sourceSlotType, ignoreBeltIds).length > 0
+    const directResult = (sourceHasFreeSlots && targetHasFreeSlots)
+      ? this.computeDirectPath(from, to, ignoreBeltIds, ignoreMachinePositions, blockedPositions)
+      : null
+
+    return { slotResult, directResult }
   }
 
   /** Compute slot-based belt path without placing anything.
@@ -152,11 +464,19 @@ export class PlacementPlanner {
     ignoreMachinePositions?: ReadonlySet<string>,
     blockedPositions?: ReadonlySet<string>,
     targetSlotPosition?: SlotPosition,
+    sourceSlotPosition?: SlotPosition,
   ): { path: GridPosition[], collides: boolean } | null {
     const neededTargetSlotType: 'input' | 'output' = sourceSlotType === 'output' ? 'input' : 'output'
-    const sourceSlots = this.grid.getFreeSlotsOfType(simSource, sourceSlotType, ignoreBeltIds)
+    let sourceSlots = this.grid.getFreeSlotsOfType(simSource, sourceSlotType, ignoreBeltIds)
     let targetSlots = this.grid.getFreeSlotsOfType(simTarget, neededTargetSlotType, ignoreBeltIds)
     if (sourceSlots.length === 0 || targetSlots.length === 0) return null
+
+    if (sourceSlotPosition) {
+      const desiredOffset = slotPositionToOffset(sourceSlotPosition, simSource.rotation)
+      const filtered = sourceSlots.filter(s => s.x === desiredOffset.x && s.z === desiredOffset.z)
+      if (filtered.length === 0) return null
+      sourceSlots = filtered
+    }
 
     if (targetSlotPosition) {
       const desiredOffset = slotPositionToOffset(targetSlotPosition, simTarget.rotation)
@@ -273,10 +593,8 @@ export class PlacementPlanner {
     }
     if (!constrainedCollides) return { path: constrainedFull, collides: false }
     if (!relaxedCollides) return { path: relaxedFull, collides: false }
-    // Both collide — pick shorter for ghost preview
-    return constrainedFull.length <= relaxedFull.length
-      ? { path: constrainedFull, collides: true }
-      : { path: relaxedFull, collides: true }
+    // Both collide — prefer slot-direction-aligned path for correct ghost preview
+    return { path: constrainedFull, collides: true }
   }
 
   /** Compute direct machine-to-machine belt path without placing anything. */
@@ -419,11 +737,13 @@ export class PlacementPlanner {
 
         // Try fixedRotations=true first (matching moveMachine behavior)
         let firstPlan = this.computePlacementPlan(
-          firstFrom, firstTo, 'output', ignoreBeltIds, true, firstVMs, ignoreMachinePositions,
+          firstFrom, firstTo, 'output',
+          { ignoreBeltIds, fixedRotations: true, virtualMachines: firstVMs, ignoreMachinePositions },
         )
         if (!firstPlan || firstPlan.collides) {
           const fallback = this.computePlacementPlan(
-            firstFrom, firstTo, 'output', ignoreBeltIds, false, firstVMs, ignoreMachinePositions,
+            firstFrom, firstTo, 'output',
+            { ignoreBeltIds, fixedRotations: false, virtualMachines: firstVMs, ignoreMachinePositions },
           )
           if (fallback) firstPlan = fallback
         }
@@ -432,7 +752,7 @@ export class PlacementPlanner {
           const isSource = firstConn.isMachineSource
           effectiveRotation = isSource
             ? (firstPlan.srcRotation ?? rotation)
-            : (firstPlan.tgtRotation ?? rotation)
+            : rotation
         }
       }
     }
@@ -475,15 +795,19 @@ export class PlacementPlanner {
     // fall back to false if no valid path exists
     const finalForcedHasBelts = forcedHasBelts ?? rotationForcedHasBelts
     let plan = this.computePlacementPlan(
-      from, to, 'output', ignoreBeltIds,
-      true, virtualMachines, ignoreMachinePositions,
-      finalForcedHasBelts, extraBlockedCells,
+      from, to, 'output',
+      {
+        ignoreBeltIds, fixedRotations: true, virtualMachines,
+        ignoreMachinePositions, forcedHasBelts: finalForcedHasBelts, extraBlockedCells,
+      },
     )
     if (!plan || plan.collides) {
       const fallbackPlan = this.computePlacementPlan(
-        from, to, 'output', ignoreBeltIds,
-        false, virtualMachines, ignoreMachinePositions,
-        finalForcedHasBelts, extraBlockedCells,
+        from, to, 'output',
+        {
+          ignoreBeltIds, fixedRotations: false, virtualMachines,
+          ignoreMachinePositions, forcedHasBelts: finalForcedHasBelts, extraBlockedCells,
+        },
       )
       if (fallbackPlan) plan = fallbackPlan
     }

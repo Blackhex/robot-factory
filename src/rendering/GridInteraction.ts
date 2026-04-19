@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { Factory, MachineInfo, BeltInfo } from '../game/Factory'
 import { slotPositionToOffset, pickBestSlotOffset, rotateDirectionCW } from '../game/Factory'
-import type { GridPosition, SlotPosition } from '../game/types'
+import type { GridPosition, SlotPosition, Direction } from '../game/types'
 import type { SceneManager } from './SceneManager'
 import { MACHINE_COLORS, FactoryRenderer, createCornerBeltGeometry, getCornerRotation, getCornerOffset } from './FactoryRenderer'
 
@@ -29,6 +29,7 @@ export class GridInteraction {
   private dragMode: DragMode = null
   private dragOrigin: GridPosition | null = null
   private dragSourceSlotType: 'input' | 'output' | null = null
+  private dragSourceSlotPosition: SlotPosition | null = null
   private dragConnectedMachines: Array<{ position: GridPosition, machineIsSource: boolean }> = []
   private dragIgnoreBeltIds: Set<string> = new Set()
 
@@ -222,6 +223,7 @@ export class GridInteraction {
     this.dragMode = null
     this.dragOrigin = null
     this.dragSourceSlotType = null
+    this.dragSourceSlotPosition = null
     this.dragConnectedMachines = []
     this.dragIgnoreBeltIds = new Set()
     this.ghostMesh.visible = false
@@ -485,6 +487,53 @@ export class GridInteraction {
   // ─── Belt fallback helpers ────────────────────────────
 
   /**
+   * Shared fallback sequence used by both ghost-preview and actual placement.
+   * Runs the same strict→relaxed→reverse attempt ladder, gated on
+   * explicit-slot drags the same way, so ghost appearance matches placement.
+   *
+   * @param attempt — callback invoked for each step; returns the step's
+   *   outcome (T or null). The helper stops at the first non-null successful
+   *   outcome (or first non-colliding path-like outcome) per the rules below.
+   * @param isSuccess — predicate: true when the outcome is "good enough" to
+   *   stop the ladder (a non-colliding path, or a truthy placement).
+   * @param explicitSlot — user clicked a specific slot (source or target).
+   * @param slotType — the requested source slot type.
+   */
+  private runBeltPlacementLadder<T>(
+    slotType: 'input' | 'output',
+    explicitSlot: boolean,
+    attempt: (step: { slotType: 'input' | 'output', fixedRotations?: boolean, tryReverseSlotType: boolean }) => T | null,
+    isSuccess: (result: T | null) => boolean,
+  ): T | null {
+    // When the user explicitly named a source or target slot, skip the strict
+    // (fixedRotations=true) attempt: the user has implicitly accepted whichever
+    // rotation makes that slot work, so we go straight to the relaxed call and
+    // let the planner pick the best rotation for any unconnected machine.
+    // Otherwise, preserve strict-then-relaxed behavior.
+    // Pass tryReverseSlotType=true so the planner can fire its LAST-RESORT
+    // reverse-slot fallback for explicit-slot drags when the target has no
+    // free slot of the requested complementary type.
+    let result = explicitSlot
+      ? attempt({ slotType, tryReverseSlotType: true })
+      : attempt({ slotType, fixedRotations: true, tryReverseSlotType: true })
+    if (!isSuccess(result) && !explicitSlot) {
+      const relaxed = attempt({ slotType, tryReverseSlotType: true })
+      if (isSuccess(relaxed)) result = relaxed
+    }
+    // Outer reverse-slot fallback for non-explicit-slot drags only. For
+    // explicit-slot drags the planner-level reverse fallback above already
+    // covers the legitimate "no free target slot" case; firing here too would
+    // over-relax and silently invert the user's intended dataflow direction
+    // when the failure cause was a blocked source slot.
+    if (!isSuccess(result) && !explicitSlot) {
+      const reverseSlotType: 'input' | 'output' = slotType === 'input' ? 'output' : 'input'
+      const reversed = attempt({ slotType: reverseSlotType, tryReverseSlotType: false })
+      if (isSuccess(reversed)) result = reversed
+    }
+    return result
+  }
+
+  /**
    * Compute the best belt path, trying all fallback strategies:
    * original slot type (strict → relaxed) → reverse slot type (strict → relaxed).
    */
@@ -493,24 +542,18 @@ export class GridInteraction {
     slotType: 'input' | 'output',
     ignoreBeltIds?: ReadonlySet<string>,
     targetSlotPosition?: SlotPosition,
+    sourceSlotPosition?: SlotPosition,
   ): { path: GridPosition[], collides: boolean } | null {
-    // Try original slot type
-    let result = this.factory.computeBeltFromSlotPath(origin, target, slotType, ignoreBeltIds, true, targetSlotPosition)
-    if (!result || result.collides) {
-      const relaxed = this.factory.computeBeltFromSlotPath(origin, target, slotType, ignoreBeltIds, undefined, targetSlotPosition)
-      if (relaxed && (!result || !relaxed.collides)) {
-        result = relaxed
-      }
-    }
-    // Try reverse slot type only when no specific target slot is chosen
-    if ((!result || result.collides) && !targetSlotPosition) {
-      const reverseSlotType: 'input' | 'output' = slotType === 'input' ? 'output' : 'input'
-      const reversed = this.factory.computeBeltFromSlotPath(origin, target, reverseSlotType, ignoreBeltIds)
-      if (reversed && (!result || !reversed.collides)) {
-        result = reversed
-      }
-    }
-    return result
+    const explicitSlot = !!sourceSlotPosition || !!targetSlotPosition
+    return this.runBeltPlacementLadder(
+      slotType,
+      explicitSlot,
+      ({ slotType: st, fixedRotations, tryReverseSlotType }) =>
+        this.factory.computeBeltFromSlotPath(origin, target, st, {
+          ignoreBeltIds, fixedRotations, targetSlotPosition, sourceSlotPosition, tryReverseSlotType,
+        }),
+      (r) => !!r && !r.collides,
+    )
   }
 
   /**
@@ -521,17 +564,19 @@ export class GridInteraction {
     srcMachine: MachineInfo, dstMachine: MachineInfo,
     slotType: 'input' | 'output',
     targetSlotPosition?: SlotPosition,
+    sourceSlotPosition?: SlotPosition,
   ): boolean {
-    let placed = this.factory.placeBeltChain(srcMachine, dstMachine, slotType, true, undefined, undefined, targetSlotPosition)
-    if (!placed) {
-      placed = this.factory.placeBeltChain(srcMachine, dstMachine, slotType, undefined, undefined, undefined, targetSlotPosition)
-    }
-    // Reverse slot type: only when no specific target slot is chosen
-    if (!placed && !targetSlotPosition) {
-      const reverseSlotType: 'input' | 'output' = slotType === 'input' ? 'output' : 'input'
-      placed = this.factory.placeBeltChain(srcMachine, dstMachine, reverseSlotType)
-    }
-    return placed
+    const explicitSlot = !!sourceSlotPosition || !!targetSlotPosition
+    const placed = this.runBeltPlacementLadder(
+      slotType,
+      explicitSlot,
+      ({ slotType: st, fixedRotations, tryReverseSlotType }) =>
+        this.factory.placeBeltChain(srcMachine, dstMachine, st, {
+          fixedRotations, targetSlotPosition, sourceSlotPosition, tryReverseSlotType,
+        }),
+      (r) => r === true,
+    )
+    return placed === true
   }
 
   // ─── Event Handlers ───────────────────────────────────
@@ -607,6 +652,7 @@ export class GridInteraction {
 
         const result = this.computeBestBeltPath(
           this.dragOrigin, effectiveTarget, this.dragSourceSlotType, this.dragIgnoreBeltIds, targetSlotPosition,
+          this.dragSourceSlotPosition ?? undefined,
         )
         this.clearGhostBelts()
         if (result) {
@@ -683,6 +729,13 @@ export class GridInteraction {
           this.dragMode = 'belt'
           this.dragOrigin = { x: owner.x, z: owner.z }
           this.dragSourceSlotType = hit.type
+          // Capture the precise SlotPosition the user clicked (3D raycast path only)
+          if (hit.slotIndex !== undefined) {
+            const slotPositions = hit.type === 'input' ? owner.slots.inputs : owner.slots.outputs
+            if (hit.slotIndex < slotPositions.length) {
+              this.dragSourceSlotPosition = slotPositions[hit.slotIndex]
+            }
+          }
           this.controls.enabled = false
           this.deselectMachine()
           this.deselectBelt()
@@ -790,7 +843,7 @@ export class GridInteraction {
             const slotType = this.dragSourceSlotType ?? 'output'
             // Check if dropping on a specific target slot
             const targetSlotPosition = this.resolveTargetSlotFromRaycast(this.dragOrigin)
-            const placed = this.tryPlaceBeltChain(srcMachine, dstMachine, slotType, targetSlotPosition)
+            const placed = this.tryPlaceBeltChain(srcMachine, dstMachine, slotType, targetSlotPosition, this.dragSourceSlotPosition ?? undefined)
             if (placed) {
               this.onFactoryChanged()
             }
@@ -802,6 +855,7 @@ export class GridInteraction {
     this.dragMode = null
     this.dragOrigin = null
     this.dragSourceSlotType = null
+    this.dragSourceSlotPosition = null
     this.dragConnectedMachines = []
     this.dragIgnoreBeltIds = new Set()
     this.ghostMesh.visible = false
@@ -827,10 +881,15 @@ export class GridInteraction {
       this.selectMachine(machine)
       this.onFactoryChanged()
     } else {
-      const placed = this.factory.placeMachine(cell.x, cell.z, 'part_fabricator')
-      if (placed) {
-        this.selectMachine(placed)
-        this.onFactoryChanged()
+      let rotation: Direction = 'south'
+      for (let i = 0; i < 4; i++) {
+        const placed = this.factory.placeMachine(cell.x, cell.z, 'part_fabricator', rotation)
+        if (placed) {
+          this.selectMachine(placed)
+          this.onFactoryChanged()
+          break
+        }
+        rotation = rotateDirectionCW(rotation)
       }
     }
   }

@@ -494,4 +494,109 @@ describe('BeltRouter', () => {
       }
     })
   })
+
+  describe('findBestBeltPath() — colliding fallback prefers constraint-satisfying path', () => {
+    it('should prefer zFirst over xFirst when xFirst fails requiredFirstDir and both collide', () => {
+      // GIVEN — 4×4 grid with obstacles that force both L-paths to collide
+      // and block all BFS detours.
+      //
+      //   x=0  1    2    3
+      // z=0 [from] .   [M]   .
+      // z=1  .    [M]   .    .
+      // z=2  .    [M]   .    .
+      // z=3  .     .   [M]  [to]
+      //
+      // xFirst: (0,0)→(1,0)→(2,0)→(3,0)→(3,1)→(3,2)→(3,3)
+      //   first step {1,0} ≠ requiredFirstDir {0,1} ✗
+      //   machine at (2,0) → collides
+      //
+      // zFirst: (0,0)→(0,1)→(0,2)→(0,3)→(1,3)→(2,3)→(3,3)
+      //   first step {0,1} = requiredFirstDir {0,1} ✓
+      //   machine at (2,3) → collides
+      //
+      // BFS with requiredFirstDir={0,1}: must start going +Z.
+      //   (0,0)→(0,1)→(0,2)→(0,3)→(1,3)→ dead end ((1,1) and (1,2) blocked)
+      //   → returns null
+      //
+      // Before fix: returned xFirst unconditionally (ignoring constraint satisfaction in fallback).
+      // Now: returns the direction-satisfying zFirst path (satisfies requiredFirstDir).
+      const tiny = new Factory(4, 4)
+      tiny.restoreState([
+        { x: 2, z: 0, type: 'recycler', rotation: 'south' },
+        { x: 1, z: 1, type: 'recycler', rotation: 'south' },
+        { x: 1, z: 2, type: 'recycler', rotation: 'south' },
+        { x: 2, z: 3, type: 'recycler', rotation: 'south' },
+      ], [])
+      const router = new BeltRouter(tiny)
+
+      const from = { x: 0, z: 0 }
+      const to = { x: 3, z: 3 }
+      const requiredFirstDir = { x: 0, z: 1 }
+
+      const zFirst = router.computeBeltPathZFirst(from, to)
+      // Verify zFirst satisfies requiredFirstDir
+      expect(zFirst[1].x - zFirst[0].x).toBe(0)
+      expect(zFirst[1].z - zFirst[0].z).toBe(1)
+
+      // WHEN
+      const result = router.findBestBeltPath(
+        from, to, undefined, requiredFirstDir,
+      )
+
+      // THEN — fallback should prefer the constraint-satisfying zFirst path
+      expect(result.collides).toBe(true)
+      expect(result.path).toEqual(zFirst)
+    })
+
+    it('should prefer zFirst over xFirst when xFirst fails requiredLastDir and both collide', () => {
+      // GIVEN — 4×4 grid with obstacles that force both L-paths to collide
+      // and prevent BFS from satisfying requiredLastDir.
+      //
+      //   x=0  1    2    3
+      // z=0 [from] .   [M]   .
+      // z=1  .     .    .    .
+      // z=2  .     .    .    .
+      // z=3  .     .   [M]  [to]
+      //
+      // xFirst: (0,0)→(1,0)→(2,0)→(3,0)→(3,1)→(3,2)→(3,3)
+      //   last step (3,2)→(3,3) = {0,1} ≠ requiredLastDir {1,0} ✗
+      //   machine at (2,0) → collides
+      //
+      // zFirst: (0,0)→(0,1)→(0,2)→(0,3)→(1,3)→(2,3)→(3,3)
+      //   last step (2,3)→(3,3) = {1,0} = requiredLastDir {1,0} ✓
+      //   machine at (2,3) → collides
+      //
+      // BFS: to reach (3,3) with last step {1,0}, must approach from (2,3).
+      //   (2,3) has machine → BFS can't enter it → can't satisfy requiredLastDir.
+      //   → returns null
+      //
+      // Before fix: returned xFirst unconditionally (ignoring constraint satisfaction in fallback).
+      // Now: returns the direction-satisfying zFirst path (satisfies requiredLastDir).
+      const tiny = new Factory(4, 4)
+      tiny.restoreState([
+        { x: 2, z: 0, type: 'recycler', rotation: 'south' },
+        { x: 2, z: 3, type: 'recycler', rotation: 'south' },
+      ], [])
+      const router = new BeltRouter(tiny)
+
+      const from = { x: 0, z: 0 }
+      const to = { x: 3, z: 3 }
+      const requiredLastDir = { x: 1, z: 0 }
+
+      const zFirst = router.computeBeltPathZFirst(from, to)
+      // Verify zFirst satisfies requiredLastDir
+      const n = zFirst.length
+      expect(zFirst[n - 1].x - zFirst[n - 2].x).toBe(1)
+      expect(zFirst[n - 1].z - zFirst[n - 2].z).toBe(0)
+
+      // WHEN
+      const result = router.findBestBeltPath(
+        from, to, undefined, undefined, requiredLastDir,
+      )
+
+      // THEN — fallback should prefer the constraint-satisfying zFirst path
+      expect(result.collides).toBe(true)
+      expect(result.path).toEqual(zFirst)
+    })
+  })
 })

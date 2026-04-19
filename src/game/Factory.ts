@@ -1,7 +1,43 @@
 import type { GridPosition, MachineType, MachineInfo, BeltInfo, Direction, SlotPosition } from './types'
 import { getSlotPositions, slotPositionToOffset, offsetToSlotPosition, rotateDirectionCW } from './SlotUtils'
+import { machineSlotPointsAtNeighbor } from './SlotBlocking'
 import { BeltRouter } from './BeltRouter'
 import { PlacementPlanner } from './PlacementPlanner'
+
+/**
+ * Options bag for {@link Factory.placeBeltChain}. All fields optional.
+ */
+export interface PlaceBeltChainOptions {
+  fixedRotations?: boolean
+  lockedMachinePos?: GridPosition
+  ignoreBeltIds?: ReadonlySet<string>
+  targetSlotPosition?: SlotPosition
+  sourceSlotPosition?: SlotPosition
+  /**
+   * When true, the planner falls back to placing the belt in the opposite
+   * direction (source↔target swapped, slot type flipped) ONLY if the target
+   * has no free slot of the requested complementary type. Used for
+   * explicit-slot drags from the UI. Defaults to `false`.
+   */
+  tryReverseSlotType?: boolean
+}
+
+/**
+ * Options bag for {@link Factory.computeBeltFromSlotPath}. All fields optional.
+ */
+export interface ComputeBeltFromSlotPathOptions {
+  ignoreBeltIds?: ReadonlySet<string>
+  fixedRotations?: boolean
+  targetSlotPosition?: SlotPosition
+  sourceSlotPosition?: SlotPosition
+  /**
+   * When true, the planner falls back to placing the belt in the opposite
+   * direction (source↔target swapped, slot type flipped) ONLY if the target
+   * has no free slot of the requested complementary type. Used for
+   * explicit-slot drags from the UI. Defaults to `false`.
+   */
+  tryReverseSlotType?: boolean
+}
 
 // Re-export for backward compatibility
 export type { SlotPositions, MachineInfo, BeltInfo } from './types'
@@ -167,28 +203,28 @@ export class Factory implements GridReader {
       }
     }
 
-    // Direction 2: check if the new machine's own slots point at existing machines
-    const newSlots = getSlotPositions(type)
-    const allNewSlots = [...newSlots.inputs, ...newSlots.outputs]
-    for (const sp of allNewSlots) {
-      const offset = slotPositionToOffset(sp, rotation)
-      const target = this.getMachineAt(x + offset.x, z + offset.z)
-      if (target && target.id !== excludeId) return true
-    }
+    // Direction 2: check if the new machine's own slots point at existing
+    // machines. Delegated to the shared `machineSlotPointsAtNeighbor` helper
+    // so this enforcement and the planner's candidate-rotation filter in
+    // `PlacementPlanner.computePlacementPlan` cannot drift apart.
+    if (machineSlotPointsAtNeighbor(
+      { x, z, rotation, slots: getSlotPositions(type), id: excludeId },
+      (gx, gz) => this.getMachineAt(gx, gz),
+    )) return true
 
     return false
   }
 
   // ─── Machine CRUD ──────────────────────────────────────
 
-  placeMachine(x: number, z: number, type: MachineType): MachineInfo | null {
+  placeMachine(x: number, z: number, type: MachineType, rotation: Direction): MachineInfo | null {
     if (!this.isInBounds(x, z)) return null
     if (this.grid[x][z].machine !== null) return null
-    if (this._slotBlockingEnabled && this.isSlotBlocked(x, z, type, 'south')) return null
+    if (this._slotBlockingEnabled && this.isSlotBlocked(x, z, type, rotation)) return null
 
     const id = `machine_${this.nextMachineId++}`
     const name = this.generateMachineName(type)
-    const machine: MachineInfo = { id, name, type, x, z, rotation: 'south', slots: getSlotPositions(type) }
+    const machine: MachineInfo = { id, name, type, x, z, rotation, slots: getSlotPositions(type) }
     this.grid[x][z].machine = machine
     this.machines.set(id, machine)
     return machine
@@ -220,12 +256,12 @@ export class Factory implements GridReader {
         const otherMachine = belt.sourceMachine.id === machine.id ? belt.destinationMachine : belt.sourceMachine
         const machineIsSource = belt.sourceMachine.id === machine.id
         if (machineIsSource) {
-          if (!this.placeBeltChain(machine, otherMachine, 'output', true, lockedPos)) {
-            this.placeBeltChain(machine, otherMachine, 'output', undefined, lockedPos)
+          if (!this.placeBeltChain(machine, otherMachine, 'output', { fixedRotations: true, lockedMachinePos: lockedPos })) {
+            this.placeBeltChain(machine, otherMachine, 'output', { lockedMachinePos: lockedPos })
           }
         } else {
-          if (!this.placeBeltChain(otherMachine, machine, 'output', true, lockedPos)) {
-            this.placeBeltChain(otherMachine, machine, 'output', undefined, lockedPos)
+          if (!this.placeBeltChain(otherMachine, machine, 'output', { fixedRotations: true, lockedMachinePos: lockedPos })) {
+            this.placeBeltChain(otherMachine, machine, 'output', { lockedMachinePos: lockedPos })
           }
         }
       }
@@ -246,12 +282,12 @@ export class Factory implements GridReader {
         const otherMachine = belt.sourceMachine.id === machine.id ? belt.destinationMachine : belt.sourceMachine
         const machineIsSource = belt.sourceMachine.id === machine.id
         if (machineIsSource) {
-          if (!this.placeBeltChain(machine, otherMachine, 'output', true, { x, z })) {
-            this.placeBeltChain(machine, otherMachine, 'output', undefined, { x, z })
+          if (!this.placeBeltChain(machine, otherMachine, 'output', { fixedRotations: true, lockedMachinePos: { x, z } })) {
+            this.placeBeltChain(machine, otherMachine, 'output', { lockedMachinePos: { x, z } })
           }
         } else {
-          if (!this.placeBeltChain(otherMachine, machine, 'output', true, { x, z })) {
-            this.placeBeltChain(otherMachine, machine, 'output', undefined, { x, z })
+          if (!this.placeBeltChain(otherMachine, machine, 'output', { fixedRotations: true, lockedMachinePos: { x, z } })) {
+            this.placeBeltChain(otherMachine, machine, 'output', { lockedMachinePos: { x, z } })
           }
         }
       }
@@ -313,12 +349,12 @@ export class Factory implements GridReader {
       const otherMachine = belt.sourceMachine.id === machine.id ? belt.destinationMachine : belt.sourceMachine
       const machineIsSource = belt.sourceMachine.id === machine.id
       if (machineIsSource) {
-        if (!this.placeBeltChain(machine, otherMachine, 'output', true)) {
+        if (!this.placeBeltChain(machine, otherMachine, 'output', { fixedRotations: true })) {
           canReconnectAll = false
           break
         }
       } else {
-        if (!this.placeBeltChain(otherMachine, machine, 'output', true)) {
+        if (!this.placeBeltChain(otherMachine, machine, 'output', { fixedRotations: true })) {
           canReconnectAll = false
           break
         }
@@ -379,11 +415,11 @@ export class Factory implements GridReader {
       const otherMachine = belt.sourceMachine.id === machine.id ? belt.destinationMachine : belt.sourceMachine
       const machineIsSource = belt.sourceMachine.id === machine.id
       if (machineIsSource) {
-        if (!this.placeBeltChain(machine, otherMachine, 'output', true)) {
+        if (!this.placeBeltChain(machine, otherMachine, 'output', { fixedRotations: true })) {
           this.placeBeltChain(machine, otherMachine, 'output')
         }
       } else {
-        if (!this.placeBeltChain(otherMachine, machine, 'output', true)) {
+        if (!this.placeBeltChain(otherMachine, machine, 'output', { fixedRotations: true })) {
           this.placeBeltChain(otherMachine, machine, 'output')
         }
       }
@@ -515,12 +551,24 @@ export class Factory implements GridReader {
 
   // ─── Belt chain facade ────────────────────────────────
 
-  placeBeltChain(from: MachineInfo, to: MachineInfo, sourceSlotType: 'input' | 'output' = 'output', fixedRotations?: boolean, lockedMachinePos?: GridPosition, ignoreBeltIds?: ReadonlySet<string>, targetSlotPosition?: SlotPosition): boolean {
+  /**
+   * Place a chain of belt segments connecting the `from` machine's slot of
+   * type `sourceSlotType` to a complementary slot on the `to` machine.
+   *
+   * When `opts.tryReverseSlotType` is true, the planner falls back to placing
+   * the belt in the opposite direction (source↔target swapped, slot type
+   * flipped) ONLY if the target has no free slot of the requested
+   * complementary type. Used for explicit-slot drags from the UI. Defaults
+   * to `false`.
+   */
+  placeBeltChain(from: MachineInfo, to: MachineInfo, sourceSlotType: 'input' | 'output' = 'output', opts?: PlaceBeltChainOptions): boolean {
+    const { fixedRotations, lockedMachinePos, ignoreBeltIds, targetSlotPosition, sourceSlotPosition, tryReverseSlotType = false } = opts ?? {}
     // Try without ignoring any existing belts first (matches ghost preview behavior).
     // This avoids crossings with existing belts when a clean path exists.
     const savedFromRot = from.rotation
     const savedToRot = to.rotation
-    if (this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, fixedRotations, lockedMachinePos, ignoreBeltIds, targetSlotPosition)) {
+    const baseOpts = { fixedRotations, lockedMachinePos, ignoreBeltIds, targetSlotPosition, sourceSlotPosition, tryReverseSlotType }
+    if (this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, baseOpts)) {
       return true
     }
     // Restore rotations that the failed attempt may have changed
@@ -533,7 +581,7 @@ export class Factory implements GridReader {
     if (!ignoreBeltIds) {
       const merged = this.mergeIgnoreBeltIds(from.id, to.id)
       if (merged) {
-        return this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, fixedRotations, lockedMachinePos, merged, targetSlotPosition)
+        return this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, { ...baseOpts, ignoreBeltIds: merged })
       }
     }
     return false
@@ -542,11 +590,9 @@ export class Factory implements GridReader {
   private tryPlaceBeltWithIgnore(
     from: MachineInfo, to: MachineInfo,
     sourceSlotType: 'input' | 'output',
-    fixedRotations: boolean | undefined,
-    lockedMachinePos: GridPosition | undefined,
-    ignoreBeltIds: ReadonlySet<string> | undefined,
-    targetSlotPosition?: SlotPosition,
+    opts?: PlaceBeltChainOptions,
   ): boolean {
+    const { fixedRotations, lockedMachinePos, ignoreBeltIds, targetSlotPosition, sourceSlotPosition, tryReverseSlotType } = opts ?? {}
     const fromPos: GridPosition = { x: from.x, z: from.z }
     const toPos: GridPosition = { x: to.x, z: to.z }
     // When a specific machine's rotation is locked, use forcedHasBelts to prevent
@@ -554,25 +600,31 @@ export class Factory implements GridReader {
     const forcedHasBelts = lockedMachinePos
       ? new Set([`${lockedMachinePos.x},${lockedMachinePos.z}`]) as ReadonlySet<string>
       : undefined
-    const plan = this.planner.computePlacementPlan(fromPos, toPos, sourceSlotType, ignoreBeltIds, fixedRotations, undefined, undefined, forcedHasBelts, undefined, targetSlotPosition)
+    const plan = this.planner.computePlacementPlan(fromPos, toPos, sourceSlotType, {
+      ignoreBeltIds, fixedRotations, forcedHasBelts,
+      targetSlotPosition, sourceSlotPosition, tryReverseSlotType,
+    })
 
     if (!plan || plan.collides) return false
 
+    // When the planner internally fell back to the reverse slot type, the
+    // returned plan represents the OPPOSITE flow: the effective sourceSlotType
+    // is flipped, which swaps which machine maps to path start/end.
+    const effectiveSourceSlotType: 'input' | 'output' = plan.reversed
+      ? (sourceSlotType === 'output' ? 'input' : 'output')
+      : sourceSlotType
+
     const isFromLocked = lockedMachinePos && fromPos.x === lockedMachinePos.x && fromPos.z === lockedMachinePos.z
-    const isToLocked = lockedMachinePos && toPos.x === lockedMachinePos.x && toPos.z === lockedMachinePos.z
 
     if (!fixedRotations && !isFromLocked && plan.srcRotation !== undefined) {
       this.setMachineRotation(from.x, from.z, plan.srcRotation)
-    }
-    if (!fixedRotations && !isToLocked && plan.tgtRotation !== undefined) {
-      this.setMachineRotation(to.x, to.z, plan.tgtRotation)
     }
 
     const path = plan.path
     // When sourceSlotType='input', the path flows from the target (output provider)
     // to the source (input receiver), so we swap which machine maps to path start/end
-    const srcMachine = sourceSlotType === 'output' ? from : to
-    const dstMachine = sourceSlotType === 'output' ? to : from
+    const srcMachine = effectiveSourceSlotType === 'output' ? from : to
+    const dstMachine = effectiveSourceSlotType === 'output' ? to : from
 
     const srcSlotOffset = { x: path[1].x - path[0].x, z: path[1].z - path[0].z }
     const dstSlotOffset = { x: path[path.length - 2].x - path[path.length - 1].x, z: path[path.length - 2].z - path[path.length - 1].z }
@@ -601,16 +653,25 @@ export class Factory implements GridReader {
     return true
   }
 
+  /**
+   * Compute the belt path (without committing) that `placeBeltChain` would use
+   * between two machines. Used for ghost preview during drag.
+   *
+   * When `opts.tryReverseSlotType` is true, the planner falls back to placing
+   * the belt in the opposite direction (source↔target swapped, slot type
+   * flipped) ONLY if the target has no free slot of the requested
+   * complementary type. Used for explicit-slot drags from the UI. Defaults
+   * to `false`.
+   */
   computeBeltFromSlotPath(
     from: GridPosition, to: GridPosition,
     sourceSlotType: 'input' | 'output',
-    ignoreBeltIds?: ReadonlySet<string>,
-    fixedRotations?: boolean,
-    targetSlotPosition?: SlotPosition,
+    opts?: ComputeBeltFromSlotPathOptions,
   ): { path: GridPosition[], collides: boolean } | null {
-    // Try without ignoring existing belts between the same pair first
-    const plan = this.planner.computePlacementPlan(from, to, sourceSlotType, ignoreBeltIds, fixedRotations, undefined, undefined, undefined, undefined, targetSlotPosition)
-    if (plan && !plan.collides && this.isValidSlotPath(plan.path, sourceSlotType)) {
+    const { ignoreBeltIds, fixedRotations, targetSlotPosition, sourceSlotPosition, tryReverseSlotType = false } = opts ?? {}
+    const plannerOpts = { ignoreBeltIds, fixedRotations, targetSlotPosition, sourceSlotPosition, tryReverseSlotType }
+    const plan = this.planner.computePlacementPlan(from, to, sourceSlotType, plannerOpts)
+    if (plan && !plan.collides && this.isValidSlotPath(plan.path, this.effectiveSourceSlotType(sourceSlotType, plan.reversed))) {
       return { path: plan.path, collides: false }
     }
 
@@ -622,8 +683,8 @@ export class Factory implements GridReader {
       if (fromMachine && toMachine) {
         const merged = this.mergeIgnoreBeltIds(fromMachine.id, toMachine.id)
         if (merged) {
-          const mergedPlan = this.planner.computePlacementPlan(from, to, sourceSlotType, merged, fixedRotations, undefined, undefined, undefined, undefined, targetSlotPosition)
-          if (mergedPlan && this.isValidSlotPath(mergedPlan.path, sourceSlotType)) {
+          const mergedPlan = this.planner.computePlacementPlan(from, to, sourceSlotType, { ...plannerOpts, ignoreBeltIds: merged })
+          if (mergedPlan && this.isValidSlotPath(mergedPlan.path, this.effectiveSourceSlotType(sourceSlotType, mergedPlan.reversed))) {
             return { path: mergedPlan.path, collides: mergedPlan.collides }
           }
         }
@@ -633,6 +694,11 @@ export class Factory implements GridReader {
     // Return colliding result for ghost preview
     if (plan) return { path: plan.path, collides: plan.collides }
     return null
+  }
+
+  private effectiveSourceSlotType(sourceSlotType: 'input' | 'output', reversed: boolean | undefined): 'input' | 'output' {
+    if (!reversed) return sourceSlotType
+    return sourceSlotType === 'output' ? 'input' : 'output'
   }
 
   /**
@@ -695,8 +761,7 @@ export class Factory implements GridReader {
     const wasEnabled = this._slotBlockingEnabled
     this._slotBlockingEnabled = false
     for (const m of machines) {
-      this.placeMachine(m.x, m.z, m.type)
-      this.setMachineRotation(m.x, m.z, m.rotation)
+      this.placeMachine(m.x, m.z, m.type, m.rotation)
       if (m.name) this.renameMachine(m.x, m.z, m.name)
     }
     this._slotBlockingEnabled = wasEnabled

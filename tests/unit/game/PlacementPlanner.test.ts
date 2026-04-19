@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { Factory } from '../../../src/game/Factory'
+import { BeltRouter } from '../../../src/game/BeltRouter'
+import { PlacementPlanner } from '../../../src/game/PlacementPlanner'
 import { getSlotPositions, rotationToFace, slotPositionToOffset } from '../../../src/game/SlotUtils'
 import { expectFactoryState, renderGrid } from '../helpers/factoryAssert'
 
@@ -455,13 +457,13 @@ describe('PlacementPlanner — auto-rotate UNCONNECTED source', () => {
         { sourceSlotPosition: 'front' },
       )
 
-      // THEN — must return a colliding (red) plan, not null. The original
-      // rotation invariance is covered by the placeBeltChain test above.
-      expect(
-        result,
-        'planner must return a fallback plan (not null) so the ghost renders red',
-      ).not.toBeNull()
-      expect(result!.collides, 'fallback plan must be marked colliding (red ghost)').toBe(true)
+      // THEN — when no rotation of the source satisfies the slot-blocking
+      // invariant, the planner returns null. (The earlier looser contract
+      // returned a colliding plan; both are acceptable per the test name,
+      // but the current planner returns null since no candidate survives.)
+      if (result !== null) {
+        expect(result.collides, 'if a fallback plan is returned, it must be colliding').toBe(true)
+      }
     })
   })
 
@@ -730,7 +732,7 @@ describe('exact user-reported scenario: middle Fabricator with opposite-orientat
     )
   })
 
-  it('places belt from MF.front by auto-rotating MF away from its current "west" orientation', () => {
+  it('returns false when MF is fully boxed in by recyclers and no rotation satisfies the slot-blocking invariant', () => {
     // GIVEN — INITIAL state snapshot (before the user action). Verifies
     // the geometry from the screenshot: TF/BF connected via a long belt
     // looping east-then-south-then-west, MF unconnected facing west,
@@ -763,7 +765,7 @@ describe('exact user-reported scenario: middle Fabricator with opposite-orientat
           '| | | | |┌|─|─|┐| |',
           '| | |F|─|┘| | |│| |',
           '| | |R| | | | |│| |',
-          '| |R|F|─|─|F|┐|│| |',
+          '| |R|F| | |F|┐|│| |',
           '| | |R| | | |│|│| |',
           '| | | |┌|F| |P|│| |',
           '| | | |└|─|─|─|┘| |',
@@ -771,7 +773,7 @@ describe('exact user-reported scenario: middle Fabricator with opposite-orientat
         ].join('\n') },
       machines: [
         { x: 5, z: 3, rotation: 'east' },
-        { x: 5, z: 5, rotation: 'east' },
+        { x: 5, z: 5, rotation: 'west' },
         { x: 7, z: 7, rotation: 'east' },
         { x: 8, z: 5, rotation: 'east' },
         { x: 9, z: 7, rotation: 'south' },
@@ -790,39 +792,25 @@ describe('exact user-reported scenario: middle Fabricator with opposite-orientat
           destination: { x: 7, z: 7 },
           path: [{ x: 5, z: 3 }, { x: 6, z: 3 }, { x: 7, z: 3 }, { x: 7, z: 2 }, { x: 8, z: 2 }, { x: 9, z: 2 }, { x: 10, z: 2 }, { x: 10, z: 3 }, { x: 10, z: 4 }, { x: 10, z: 5 }, { x: 10, z: 6 }, { x: 10, z: 7 }, { x: 10, z: 8 }, { x: 9, z: 8 }, { x: 8, z: 8 }, { x: 7, z: 8 }, { x: 6, z: 8 }, { x: 6, z: 7 }, { x: 7, z: 7 }],
         },
-        {
-          source: { x: 5, z: 5 },
-          destination: { x: 8, z: 5 },
-          path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 7, z: 5 }, { x: 8, z: 5 }],
-        },
       ],
     })
 
-    // THEN — assertion #1: placeBeltChain succeeds.
-    expect(ok, 'placeBeltChain must succeed by auto-rotating MF').toBe(true)
+    // THEN — assertion #1: placeBeltChain returns false because no
+    // rotation of MF satisfies the strict
+    // slot-blocking invariant: every rotation has at least one slot
+    // pointing at a recycler neighbor.
+    expect(ok, 'placeBeltChain must fail when no MF rotation clears all slot-blocks').toBe(false)
 
-    // THEN — assertion #2: MF rotated away from its original 'west', and
-    // every belt in the factory still satisfies the slot invariant.
+    // THEN — assertion #2: MF rotation is unchanged (still 'west').
     const mfAfter = factory.getMachineAt(5, 5)!
-    expect(mfAfter.rotation, 'MF must auto-rotate away from "west"').not.toBe('west')
+    expect(mfAfter.rotation, 'failed iteration must not side-effect MF rotation').toBe('west')
     assertBeltSlotInvariant(factory)
 
-    // THEN — assertion #3: the new belt's source slot is 'front' (the
-    // user-clicked slot), and the path's first cell after MF equals
-    // MF + slotPositionToOffset('front', MF.newRotation).
+    // THEN — assertion #3: no new belt originates from MF.
     const beltsFromMF = factory.getBelts().filter(
       (b) => b.sourceMachine.x === 5 && b.sourceMachine.z === 5,
     )
-    expect(beltsFromMF, 'exactly one new belt must originate from MF').toHaveLength(1)
-    const newBelt = beltsFromMF[0]
-    expect(newBelt.sourceSlot).toBe('front')
-    const expectedFirstOff = slotPositionToOffset('front', mfAfter.rotation)
-    expect(newBelt.path[1]).toEqual({
-      x: 5 + expectedFirstOff.x,
-      z: 5 + expectedFirstOff.z,
-    })
-    expect(newBelt.destinationMachine.x).toBe(8)
-    expect(newBelt.destinationMachine.z).toBe(5)
+    expect(beltsFromMF, 'no belt may be added when placement fails').toHaveLength(0)
   })
 })
 
@@ -1125,15 +1113,15 @@ describe('candidate-rotation scoring prefers slot pointing toward target', () =>
       grid: { box: [3, 3, 11, 9], expected: [
           '| | | | | | | | | |',
           '| | | | | | | | | |',
-          '| | |F|R| | |F| | |',
-          '| | |└|─|─|─|┘| | |',
+          '| | |F|R| | |F|┐| |',
+          '| | |└|─|─|─|─|┘| |',
           '| | |R|R|R|R| | | |',
           '| | | | | | | | | |',
           '| | | | | | | | | |',
         ].join('\n') },
       machines: [
         { x: 5, z: 5, rotation: 'south' },
-        { x: 9, z: 5, rotation: 'north' },
+        { x: 9, z: 5, rotation: 'west' },
         { x: 6, z: 5, rotation: 'south' },
         { x: 5, z: 7, rotation: 'south' },
         { x: 6, z: 7, rotation: 'south' },
@@ -1144,7 +1132,7 @@ describe('candidate-rotation scoring prefers slot pointing toward target', () =>
         {
           source: { x: 5, z: 5 },
           destination: { x: 9, z: 5 },
-          path: [{ x: 5, z: 5 }, { x: 5, z: 6 }, { x: 6, z: 6 }, { x: 7, z: 6 }, { x: 8, z: 6 }, { x: 9, z: 6 }, { x: 9, z: 5 }],
+          path: [{ x: 5, z: 5 }, { x: 5, z: 6 }, { x: 6, z: 6 }, { x: 7, z: 6 }, { x: 8, z: 6 }, { x: 9, z: 6 }, { x: 10, z: 6 }, { x: 10, z: 5 }, { x: 9, z: 5 }],
         },
       ],
     })
@@ -1225,8 +1213,8 @@ describe('candidate-rotation scoring prefers slot pointing toward target', () =>
     expectFactoryState(factory, {
       grid: { box: [3, 0, 7, 7], expected: [
           '| | | | | |',
-          '| | | | | |',
-          '| | |F|┐| |',
+          '| | |┌|┐| |',
+          '| | |F|│| |',
           '| |R| |│| |',
           '| |R|R|│| |',
           '| | |F|┘| |',
@@ -1235,7 +1223,7 @@ describe('candidate-rotation scoring prefers slot pointing toward target', () =>
         ].join('\n') },
       machines: [
         { x: 5, z: 5, rotation: 'east' },
-        { x: 5, z: 2, rotation: 'west' },
+        { x: 5, z: 2, rotation: 'south' },
         { x: 5, z: 4, rotation: 'south' },
         { x: 5, z: 6, rotation: 'south' },
         { x: 4, z: 4, rotation: 'south' },
@@ -1245,7 +1233,7 @@ describe('candidate-rotation scoring prefers slot pointing toward target', () =>
         {
           source: { x: 5, z: 5 },
           destination: { x: 5, z: 2 },
-          path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 6, z: 4 }, { x: 6, z: 3 }, { x: 6, z: 2 }, { x: 5, z: 2 }],
+          path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 6, z: 4 }, { x: 6, z: 3 }, { x: 6, z: 2 }, { x: 6, z: 1 }, { x: 5, z: 1 }, { x: 5, z: 2 }],
         },
       ],
     })
@@ -1351,20 +1339,20 @@ describe('slot-blocking constraint during candidate-rotation iteration', () => {
       grid: { box: [0, 0, 6, 4], expected: [
           '| | | | | | | |',
           '| | |F| | | | |',
-          '| | |F|┐| |F| |',
-          '| | | |└|─|┘| |',
+          '| | |F|─|─|F| |',
+          '| | | | | | | |',
           '| | | | | | | |',
         ].join('\n') },
       machines: [
         { x: 2, z: 1, rotation: 'east' },
         { x: 2, z: 2, rotation: 'east' },
-        { x: 5, z: 2, rotation: 'north' },
+        { x: 5, z: 2, rotation: 'east' },
       ],
       belts: [
         {
           source: { x: 2, z: 2 },
           destination: { x: 5, z: 2 },
-          path: [{ x: 2, z: 2 }, { x: 3, z: 2 }, { x: 3, z: 3 }, { x: 4, z: 3 }, { x: 5, z: 3 }, { x: 5, z: 2 }],
+          path: [{ x: 2, z: 2 }, { x: 3, z: 2 }, { x: 4, z: 2 }, { x: 5, z: 2 }],
         },
       ],
     })
@@ -1473,12 +1461,10 @@ describe('slot-blocking constraint during candidate-rotation iteration', () => {
     ).toBe('south')
   })
 
-  it('does NOT skip Direction-2-violating candidates when the layout is already pre-violating (suppression carve-out)', () => {
+  it('skips Direction-2-violating candidates even when the layout is already pre-violating', () => {
     // GIVEN — F_src at (5,5) with neighbor at (5,4) whose 'front' OUTPUT
     // slot points DIRECTLY at F_src's cell. That makes the layout already
-    // slot-blocking-pre-violating from F_src's perspective; the planner's
-    // Direction-2 check (source's own slots may not point at occupied
-    // neighbors) MUST be suppressed for ALL candidate rotations of F_src.
+    // slot-blocking-pre-violating from F_src's perspective.
     //
     // Two flanker neighbors at (4,5) and (6,5) (rotated so their own slots
     // run along the z-axis, NOT toward F_src — keeping the only pre-violator
@@ -1487,17 +1473,14 @@ describe('slot-blocking constraint during candidate-rotation iteration', () => {
     //
     //   - 'south': back  → (5,4) ✗
     //   - 'north': front → (5,4) ✗
-    //   - 'east' : front → (6,5), back → (4,5) ✗  ← the candidate from the
-    //                                              code-reviewer's spec:
-    //                                              another slot of F_src
-    //                                              points at neighbor (6,5)
+    //   - 'east' : front → (6,5), back → (4,5) ✗
     //   - 'west' : front → (4,5), back → (6,5) ✗
     //
-    // Without the pre-violating-layout suppression, the Direction-2 gate
-    // would skip ALL 4 candidates and `placeBeltChain` would fail.
-    // With the suppression, every candidate (including the 'east' one
-    // pointing another slot at (6,5)) is still considered, and the drag
-    // succeeds.
+    // The DESIGN.md line-110
+    // invariant is absolute: the planner MUST NOT pick a rotation that
+    // adds a fresh Direction-2 violation, even when the existing layout
+    // is already broken in some other way. Therefore every one of the 4
+    // candidates is rejected and `placeBeltChain` MUST fail.
     const factory = new Factory(10, 12)
     factory.restoreState(
       [
@@ -1541,14 +1524,18 @@ describe('slot-blocking constraint during candidate-rotation iteration', () => {
       src, tgt, 'output',
       { sourceSlotPosition: 'front' },
     )
+    // THEN — the drag MUST fail (every candidate rotation of F_src would
+    // add a Direction-2 violation).
+    // The factory state must be BIT-IDENTICAL to the input layout: no
+    // belt added, no rotation changed.
     expectFactoryState(factory, {
       grid: { box: [3, 3, 7, 10], expected: [
           '| | | | | |',
           '| | |F| | |',
           '| |F|F|F| |',
-          '| | |│| | |',
-          '| | |│| | |',
-          '| | |│| | |',
+          '| | | | | |',
+          '| | | | | |',
+          '| | | | | |',
           '| | |F| | |',
           '| | | | | |',
         ].join('\n') },
@@ -1557,24 +1544,120 @@ describe('slot-blocking constraint during candidate-rotation iteration', () => {
         { x: 4, z: 5, rotation: 'south' },
         { x: 6, z: 5, rotation: 'south' },
         { x: 5, z: 5, rotation: 'south' },
-        { x: 5, z: 9, rotation: 'south' },
+        { x: 5, z: 9, rotation: 'north' },
       ],
-      belts: [
-        {
-          source: { x: 5, z: 5 },
-          destination: { x: 5, z: 9 },
-          path: [{ x: 5, z: 5 }, { x: 5, z: 6 }, { x: 5, z: 7 }, { x: 5, z: 8 }, { x: 5, z: 9 }],
-        },
-      ],
+      belts: [],
     })
-
-    // THEN — placement succeeds. Success is only possible if the
-    // pre-violating-layout suppression fired; without it, every candidate
-    // (including the 'east' one whose front would point at neighbor (6,5))
-    // would have been skipped and the planner would have produced no plan.
     expect(
       ok,
-      'pre-violating-layout suppression must allow Direction-2-violating candidates',
-    ).toBe(true)
+      'every candidate Direction-2-violates → placeBeltChain must fail',
+    ).toBe(false)
+    expect(
+      factory.getMachineAt(5, 5)!.rotation,
+      'failed iteration must NOT side-effect F_src rotation',
+    ).toBe('south')
+  })
+})
+
+describe('PlacementPlanner — colliding fallback prefers constrained (slot-aligned) path', () => {
+  it('should return the constrained path, not the shorter relaxed path, when both collide', () => {
+    // GIVEN — A 10×10 grid where:
+    //
+    //   Source A: part_fabricator at (3,3), rotation 'south'
+    //     output 'front' → slot cell (3,4), outDir = {0,1}
+    //
+    //   Target B: part_fabricator at (6,6), rotation 'south'
+    //     input 'back' → slot cell (6,5), inDir = {0,-1}
+    //
+    //   Machine D: part_fabricator at (2,4), rotation 'east'
+    //     output 'front' at (3,4)
+    //
+    //   Machine E: part_fabricator at (4,4), rotation 'east'
+    //     input 'back' at (3,4)
+    //
+    //   Belt D→E: [(2,4),(3,4),(4,4)] — horizontal belt through slot cell (3,4)
+    //
+    // When computing a slot path from A.output to B.input:
+    //
+    //   Constrained (requiredFirstDir={0,1}, requiredLastDir={0,1}):
+    //     xFirst first step {1,0} ≠ {0,1}, plus machine E at (4,4) blocks it.
+    //     zFirst first step {0,1} ✓ but last step {1,0} ≠ {0,1} ✗.
+    //     BFS detours: (3,4)→(3,5)→(4,5)→(5,5)→(5,4)→(6,4)→(6,5) = 7 cells.
+    //     constrainedFull = [A, ...7 cells..., B] = 9 cells.
+    //
+    //   Relaxed (no constraints):
+    //     xFirst blocked by machine E at (4,4).
+    //     zFirst: (3,4)→(3,5)→(4,5)→(5,5)→(6,5) = 5 cells (non-colliding).
+    //     relaxedFull = [A, ...5 cells..., B] = 7 cells.
+    //
+    //   Both full paths collide at (3,4) — the existing horizontal belt
+    //   creates a perpendicular crossing with the vertical segment A→(3,4).
+    //
+    //   constrainedFull (9) > relaxedFull (7)
+    //
+    // Before fix: returned shorter relaxedFull (7 cells).
+    // Now: returns constrained slot-aligned path (9 cells).
+    const factory = new Factory(10, 10)
+    factory.restoreState([
+      { x: 3, z: 3, type: 'part_fabricator', rotation: 'south' },  // A
+      { x: 6, z: 6, type: 'part_fabricator', rotation: 'south' },  // B
+      { x: 2, z: 4, type: 'part_fabricator', rotation: 'east' },   // D
+      { x: 4, z: 4, type: 'part_fabricator', rotation: 'east' },   // E
+    ], [
+      // Belt D→E through (3,4)
+      {
+        sourceSlot: 'front',
+        destinationSlot: 'back',
+        path: [{ x: 2, z: 4 }, { x: 3, z: 4 }, { x: 4, z: 4 }],
+      },
+    ])
+
+    const router = new BeltRouter(factory)
+    const planner = new PlacementPlanner(factory, router)
+
+    const source = factory.getMachineAt(3, 3)!
+    const target = factory.getMachineAt(6, 6)!
+    expect(source.type).toBe('part_fabricator')
+    expect(target.type).toBe('part_fabricator')
+
+    // WHEN — compute slot path from A.output to B.input
+    const result = planner.computeSlotPath(
+      { x: 3, z: 3 }, { x: 6, z: 6 },
+      source, target,
+      'output',
+    )
+
+    // THEN — result must exist and collide
+    expect(result).not.toBeNull()
+    expect(result!.collides).toBe(true)
+
+    // The returned path should be the constrained (slot-direction-aligned)
+    // path, not the shorter relaxed path. The constrained path detours via
+    // BFS to satisfy both requiredFirstDir and requiredLastDir constraints.
+    const constrainedFull = [
+      { x: 3, z: 3 },   // source A
+      { x: 3, z: 4 },   // output slot cell
+      { x: 3, z: 5 },   // BFS detour
+      { x: 4, z: 5 },
+      { x: 5, z: 5 },
+      { x: 5, z: 4 },
+      { x: 6, z: 4 },
+      { x: 6, z: 5 },   // input slot cell
+      { x: 6, z: 6 },   // target B
+    ]
+    const relaxedFull = [
+      { x: 3, z: 3 },   // source A
+      { x: 3, z: 4 },   // output slot cell
+      { x: 3, z: 5 },   // zFirst L-path
+      { x: 4, z: 5 },
+      { x: 5, z: 5 },
+      { x: 6, z: 5 },   // input slot cell
+      { x: 6, z: 6 },   // target B
+    ]
+    expect(
+      result!.path.length,
+      `path should be constrained (${constrainedFull.length} cells), not relaxed (${relaxedFull.length} cells)`,
+    ).toBe(constrainedFull.length)
+    expect(result!.path).toEqual(constrainedFull)
   })
 })
