@@ -425,9 +425,7 @@ export class Factory implements GridReader {
       }
     }
 
-    // Remove belts that create same-direction crossings (different belts sharing
-    // intermediate cells going in the same direction). Bidirectional belts (A→B and
-    // B→A going opposite ways) sharing cells is fine.
+    // Remove belts that create crossings by sharing intermediate cells.
     this.removeCrossingBelts()
 
     return true
@@ -575,15 +573,6 @@ export class Factory implements GridReader {
     this.setMachineRotation(from.x, from.z, savedFromRot)
     this.setMachineRotation(to.x, to.z, savedToRot)
 
-    // Fall back to ignoring existing belts between the same machine pair.
-    // This allows bidirectional belts to share slot cells in tight geometries
-    // where the only path goes through the other belt's cells.
-    if (!ignoreBeltIds) {
-      const merged = this.mergeIgnoreBeltIds(from.id, to.id)
-      if (merged) {
-        return this.tryPlaceBeltWithIgnore(from, to, sourceSlotType, { ...baseOpts, ignoreBeltIds: merged })
-      }
-    }
     return false
   }
 
@@ -673,22 +662,6 @@ export class Factory implements GridReader {
     const plan = this.planner.computePlacementPlan(from, to, sourceSlotType, plannerOpts)
     if (plan && !plan.collides && this.isValidSlotPath(plan.path, this.effectiveSourceSlotType(sourceSlotType, plan.reversed))) {
       return { path: plan.path, collides: false }
-    }
-
-    // Fall back to ignoring existing belts between the same machine pair
-    // (mirrors placeBeltChain behavior for ghost/final parity)
-    if (!ignoreBeltIds) {
-      const fromMachine = this.getMachineAt(from.x, from.z)
-      const toMachine = this.getMachineAt(to.x, to.z)
-      if (fromMachine && toMachine) {
-        const merged = this.mergeIgnoreBeltIds(fromMachine.id, toMachine.id)
-        if (merged) {
-          const mergedPlan = this.planner.computePlacementPlan(from, to, sourceSlotType, { ...plannerOpts, ignoreBeltIds: merged })
-          if (mergedPlan && this.isValidSlotPath(mergedPlan.path, this.effectiveSourceSlotType(sourceSlotType, mergedPlan.reversed))) {
-            return { path: mergedPlan.path, collides: mergedPlan.collides }
-          }
-        }
-      }
     }
 
     // Return colliding result for ghost preview
@@ -879,19 +852,6 @@ export class Factory implements GridReader {
         this.grid[cell.x][cell.z].beltIds.push(belt.id)
       }
     }
-  }
-
-  /** Return IDs of existing belts between the same two machines.
-   *  Used as fallback ignoreBeltIds when clean path can't be found. */
-  private mergeIgnoreBeltIds(fromId: string, toId: string): ReadonlySet<string> | undefined {
-    const merged = new Set<string>()
-    for (const belt of this.belts.values()) {
-      const connectsSamePair =
-        (belt.sourceMachine.id === fromId && belt.destinationMachine.id === toId) ||
-        (belt.sourceMachine.id === toId && belt.destinationMachine.id === fromId)
-      if (connectsSamePair) merged.add(belt.id)
-    }
-    return merged.size > 0 ? merged : undefined
   }
 
   private getConnectedBeltInfos(machineId: string): BeltInfo[] {

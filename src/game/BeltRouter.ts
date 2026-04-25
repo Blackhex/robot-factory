@@ -185,28 +185,8 @@ export class BeltRouter {
         // No duplicate belt segment in the same direction
         if (this.grid.hasBeltSegment(current, { x: nx, z: nz }, ignoreBeltIds)) continue
 
-        // Perpendicular belt crossing checks on intermediate cells
-        let blocked = false
-
-        // Check at current cell (skip if it's the source machine)
-        if (current.x !== from.x || current.z !== from.z) {
-          const dirs = this.getSegmentDirectionsAt(current.x, current.z, ignoreBeltIds)
-          for (const { dx: eDx, dz: eDz } of dirs) {
-            if (dx !== 0 && eDz !== 0) { blocked = true; break }
-            if (dz !== 0 && eDx !== 0) { blocked = true; break }
-          }
-        }
-
-        // Check at neighbor cell (skip if it's the target machine)
-        if (!blocked && !isTarget) {
-          const dirs = this.getSegmentDirectionsAt(nx, nz, ignoreBeltIds)
-          for (const { dx: eDx, dz: eDz } of dirs) {
-            if (dx !== 0 && eDz !== 0) { blocked = true; break }
-            if (dz !== 0 && eDx !== 0) { blocked = true; break }
-          }
-        }
-
-        if (blocked) continue
+        if ((current.x !== from.x || current.z !== from.z) && this.grid.cellHasBeltsExcluding(current.x, current.z, ignoreBeltIds)) continue
+        if (!isTarget && this.grid.cellHasBeltsExcluding(nx, nz, ignoreBeltIds)) continue
 
         // Don't mark target as visited — allow multiple arrival directions
         if (!isTarget) {
@@ -228,6 +208,7 @@ export class BeltRouter {
       const key = `${path[i].x},${path[i].z}`
       if (visitedCells.has(key)) return true
       visitedCells.add(key)
+      if (this.grid.cellHasBeltsExcluding(path[i].x, path[i].z, ignoreBeltIds)) return true
     }
 
     for (let i = 0; i < path.length - 1; i++) {

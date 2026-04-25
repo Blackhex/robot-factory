@@ -1,7 +1,7 @@
 ﻿import { describe, it, expect } from 'vitest'
 import { Factory } from '../../../src/game/Factory'
 import type { GridPosition, Direction } from '../../../src/game/types'
-import { expectFactoryState, renderGrid } from '../helpers/factoryAssert'
+import { expectFactoryState } from '../helpers/factoryAssert'
 
 // ─── INITIAL state constants for setupSx() fixtures (rule-7 / SKILL.md) ───
 const INITIAL_S1 = {
@@ -127,26 +127,6 @@ const INITIAL_S6 = {
       path: [{ x: 1, z: 1 }, { x: 1, z: 2 }, { x: 1, z: 3 }, { x: 1, z: 4 }, { x: 1, z: 5 }] },
     { source: { x: 1, z: 5 }, destination: { x: 1, z: 10 },
       path: [{ x: 1, z: 5 }, { x: 1, z: 6 }, { x: 1, z: 7 }, { x: 1, z: 8 }, { x: 1, z: 9 }, { x: 1, z: 10 }] },
-  ],
-}
-const INITIAL_S7 = {
-  grid: { box: [7, 8, 13, 13] as [number, number, number, number], expected: [
-      '| | | | | | | |',
-      '| | |┌|+|+| | |',
-      '| | |F|F|+| | |',
-      '| | |└|+|+| | |',
-      '| | | | | | | |',
-      '| | | | | | | |',
-    ].join('\n') },
-  machines: [
-    { x: 9, z: 10, rotation: 'south' as const },
-    { x: 10, z: 10, rotation: 'south' as const },
-  ],
-  belts: [
-    { source: { x: 9, z: 10 }, destination: { x: 10, z: 10 },
-      path: [{ x: 9, z: 10 }, { x: 9, z: 11 }, { x: 10, z: 11 }, { x: 11, z: 11 }, { x: 11, z: 10 }, { x: 11, z: 9 }, { x: 10, z: 9 }, { x: 10, z: 10 }] },
-    { source: { x: 10, z: 10 }, destination: { x: 9, z: 10 },
-      path: [{ x: 10, z: 10 }, { x: 10, z: 11 }, { x: 11, z: 11 }, { x: 11, z: 10 }, { x: 11, z: 9 }, { x: 10, z: 9 }, { x: 9, z: 9 }, { x: 9, z: 10 }] },
   ],
 }
 
@@ -344,17 +324,6 @@ function setupS6(): Factory {
   return f
 }
 
-/** S7: Bidirectional belts — F(9,10) ↔ F(10,10), both south */
-function setupS7(): Factory {
-  const f = new Factory(20, 20)
-  const a = f.placeMachine(9, 10, 'part_fabricator', 'south')!
-  const b = f.placeMachine(10, 10, 'part_fabricator', 'south')!
-  f.rotateMachine(a, 'south')
-  f.rotateMachine(b, 'south')
-  f.placeBeltChain(a, b, 'output', { fixedRotations: true })
-  f.placeBeltChain(b, a, 'output', { fixedRotations: true })
-  return f
-}
 
 // ─── Tests ───────────────────────────────────────────────
 
@@ -1869,306 +1838,6 @@ describe('GhostDropParity', () => {
       })
     })
 
-    // ── S7: Adjacent machines ──────────────────────
-
-    describe('S7: Adjacent machines — Q(3,3)→P(3,6), move Q to (4,6)', () => {
-      it('A1: adjacent machines — move source 1 cell east of target', () => {
-        // GIVEN — Q at (3,3) connected to P at (3,6), move Q to (4,6) making it adjacent to P
-        const factory = new Factory(15, 15)
-        factory.placeMachine(3, 3, 'quality_checker', 'south')
-        factory.placeMachine(3, 6, 'painter', 'south')
-        factory.placeBeltChain(factory.getMachineAt(3, 3)!, factory.getMachineAt(3, 6)!)
-
-        // When moving A to (4,6), it becomes adjacent to P at (3,6)
-        // Ghost and drop should both produce short paths
-        const ghostPaths = computeGhostPaths(factory, 3, 3, 4, 6)
-        factory.moveMachine(3, 3, 4, 6)
-        expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | |┌|─|┐| | | | | | | | | |',
-
-              '| | | |P|Q|│| | | | | | | | | |',
-
-              '| | | | |└|┘| | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-            ].join('\n') },
-
-          machines: [
-
-            { x: 4, z: 6, rotation: 'south' },
-
-            { x: 3, z: 6, rotation: 'south' },
-
-          ],
-
-          belts: [
-
-            {
-
-              source: { x: 4, z: 6 },
-
-              destination: { x: 3, z: 6 },
-
-              path: [{ x: 4, z: 6 }, { x: 4, z: 7 }, { x: 5, z: 7 }, { x: 5, z: 6 }, { x: 5, z: 5 }, { x: 4, z: 5 }, { x: 3, z: 5 }, { x: 3, z: 6 }],
-
-            },
-
-          ],
-
-        })
-        const droppedPaths = getDroppedBeltPaths(factory, 4, 6)
-
-        // THEN — with rotation-preserving reconnection, both machines stay south-facing
-        // and the belt routes through valid slots (may be longer than auto-rotated version)
-        expect(renderGrid(factory, 2, 5, 5, 7)).toBe([
-          '| |┌|─|┐|',
-          '| |P|Q|│|',
-          '| | |└|┘|',
-        ].join('\n'))
-        for (const belt of droppedPaths) {
-          expect(belt.path).toEqual([
-            { x: 4, z: 6 },
-            { x: 4, z: 7 },
-            { x: 5, z: 7 },
-            { x: 5, z: 6 },
-            { x: 5, z: 5 },
-            { x: 4, z: 5 },
-            { x: 3, z: 5 },
-            { x: 3, z: 6 },
-          ])
-        }
-        // Ghost should match drop
-        assertParity(ghostPaths, droppedPaths)
-      })
-    })
-
-    // ── S8: Bidirectional belts (ghost crossing prevention) ─
-
-    describe('S8: Bidirectional belts F(9,10)↔F(10,10) south', () => {
-      it('A1: drag machine at same position (no move) — ghost should not cross', () => {
-        const factory = setupS7()
-        expectFactoryState(factory, INITIAL_S7)
-        expect(factory.getBelts()).toHaveLength(2)
-        // Drag machine B at (10,10) to the same position (10,10) — no actual move
-        // Ghost paths for both bidirectional belts should NOT cross
-        const ghostPaths = computeGhostPaths(factory, 10, 10, 10, 10)
-        // Verify no intermediate cells overlap between ghost paths
-        const cellMap = new Map<string, number>()
-        for (let idx = 0; idx < ghostPaths.length; idx++) {
-          for (let i = 1; i < ghostPaths[idx].path.length - 1; i++) {
-            const key = `${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z}`
-            if (cellMap.has(key) && cellMap.get(key) !== idx) {
-              throw new Error(`Ghost paths cross at (${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z})`)
-            }
-            cellMap.set(key, idx)
-          }
-        }
-      })
-
-      it('A2: move B east +2 — ghost should not cross', () => {
-        const factory = setupS7()
-        expectFactoryState(factory, INITIAL_S7)
-        const ghostPaths = computeGhostPaths(factory, 10, 10, 12, 10)
-        factory.moveMachine(10, 10, 12, 10)
-        expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | |┌|─|─|─|┐| |',
-
-              '| | | | | | | | | |│| |┌|┐|│| |',
-
-              '| | | | | | | | | |F| |│|F|│| |',
-
-              '| | | | | | | | | |└|─|┘|└|┘| |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-            ].join('\n') },
-
-          machines: [
-
-            { x: 9, z: 10, rotation: 'south' },
-
-            { x: 12, z: 10, rotation: 'south' },
-
-          ],
-
-          belts: [
-
-            {
-
-              source: { x: 9, z: 10 },
-
-              destination: { x: 12, z: 10 },
-
-              path: [{ x: 9, z: 10 }, { x: 9, z: 11 }, { x: 10, z: 11 }, { x: 11, z: 11 }, { x: 11, z: 10 }, { x: 11, z: 9 }, { x: 12, z: 9 }, { x: 12, z: 10 }],
-
-            },
-
-            {
-
-              source: { x: 12, z: 10 },
-
-              destination: { x: 9, z: 10 },
-
-              path: [{ x: 12, z: 10 }, { x: 12, z: 11 }, { x: 13, z: 11 }, { x: 13, z: 10 }, { x: 13, z: 9 }, { x: 13, z: 8 }, { x: 12, z: 8 }, { x: 11, z: 8 }, { x: 10, z: 8 }, { x: 9, z: 8 }, { x: 9, z: 9 }, { x: 9, z: 10 }],
-
-            },
-
-          ],
-
-        })
-        const droppedPaths = getDroppedBeltPaths(factory, 12, 10)
-        assertEndpointParity(ghostPaths, droppedPaths)
-        // Verify no ghost crossing
-        const cellMap = new Map<string, number>()
-        for (let idx = 0; idx < ghostPaths.length; idx++) {
-          for (let i = 1; i < ghostPaths[idx].path.length - 1; i++) {
-            const key = `${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z}`
-            if (cellMap.has(key) && cellMap.get(key) !== idx) {
-              throw new Error(`Ghost paths cross at (${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z})`)
-            }
-            cellMap.set(key, idx)
-          }
-        }
-      })
-
-      it('A3: move B south +3 — ghost should not cross', () => {
-        const factory = setupS7()
-        expectFactoryState(factory, INITIAL_S7)
-        const ghostPaths = computeGhostPaths(factory, 10, 10, 10, 13)
-        factory.moveMachine(10, 10, 10, 13)
-        expectFactoryState(factory, {
-
-          grid: { box: [0, 0, 14, 14], expected: [
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | | | | | | | |',
-
-              '| | | | | | | | | |┌|┐| | | | |',
-
-              '| | | | | | | | | |F|└|┐| | | |',
-
-              '| | | | | | | | | |└|┐|│| | | |',
-
-              '| | | | | | | | | | |│|│| | | |',
-
-              '| | | | | | | | | | |F|│| | | |',
-
-              '| | | | | | | | | | |└|┘| | | |',
-
-            ].join('\n') },
-
-          machines: [
-
-            { x: 9, z: 10, rotation: 'south' },
-
-            { x: 10, z: 13, rotation: 'south' },
-
-          ],
-
-          belts: [
-
-            {
-
-              source: { x: 9, z: 10 },
-
-              destination: { x: 10, z: 13 },
-
-              path: [{ x: 9, z: 10 }, { x: 9, z: 11 }, { x: 10, z: 11 }, { x: 10, z: 12 }, { x: 10, z: 13 }],
-
-            },
-
-            {
-
-              source: { x: 10, z: 13 },
-
-              destination: { x: 9, z: 10 },
-
-              path: [{ x: 10, z: 13 }, { x: 10, z: 14 }, { x: 11, z: 14 }, { x: 11, z: 13 }, { x: 11, z: 12 }, { x: 11, z: 11 }, { x: 11, z: 10 }, { x: 10, z: 10 }, { x: 10, z: 9 }, { x: 9, z: 9 }, { x: 9, z: 10 }],
-
-            },
-
-          ],
-
-        })
-        const droppedPaths = getDroppedBeltPaths(factory, 10, 13)
-        assertEndpointParity(ghostPaths, droppedPaths)
-        // Verify no ghost crossing
-        const cellMap = new Map<string, number>()
-        for (let idx = 0; idx < ghostPaths.length; idx++) {
-          for (let i = 1; i < ghostPaths[idx].path.length - 1; i++) {
-            const key = `${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z}`
-            if (cellMap.has(key) && cellMap.get(key) !== idx) {
-              throw new Error(`Ghost paths cross at (${ghostPaths[idx].path[i].x},${ghostPaths[idx].path[i].z})`)
-            }
-            cellMap.set(key, idx)
-          }
-        }
-      })
-    })
   })
 
   describe('rotateMachine() parity', () => {
@@ -2681,9 +2350,9 @@ describe('GhostDropParity', () => {
       slotType: 'input' | 'output',
     ): { path: GridPosition[], collides: boolean } | null {
       // Try original slot type (strict → relaxed)
-      let result = factory.computeBeltFromSlotPath(from, to, slotType, { fixedRotations: true })
+      let result = factory.computeBeltFromSlotPath(from, to, slotType, { fixedRotations: true, tryReverseSlotType: true })
       if (!result || result.collides) {
-        const relaxed = factory.computeBeltFromSlotPath(from, to, slotType)
+        const relaxed = factory.computeBeltFromSlotPath(from, to, slotType, { tryReverseSlotType: true })
         if (relaxed && (!result || !relaxed.collides)) {
           result = relaxed
         }
@@ -2691,7 +2360,7 @@ describe('GhostDropParity', () => {
       // Try reverse slot type
       if (!result || result.collides) {
         const reverseSlotType: 'input' | 'output' = slotType === 'input' ? 'output' : 'input'
-        const reversed = factory.computeBeltFromSlotPath(from, to, reverseSlotType)
+        const reversed = factory.computeBeltFromSlotPath(from, to, reverseSlotType, { tryReverseSlotType: false })
         if (reversed && (!result || !reversed.collides)) {
           result = reversed
         }
@@ -2712,13 +2381,13 @@ describe('GhostDropParity', () => {
       const dstMachine = factory.getMachineAt(to.x, to.z)!
 
       // Mirror tryPlaceBeltChain fallback strategy
-      let placed = factory.placeBeltChain(srcMachine, dstMachine, slotType, { fixedRotations: true })
+      let placed = factory.placeBeltChain(srcMachine, dstMachine, slotType, { fixedRotations: true, tryReverseSlotType: true })
       if (!placed) {
-        placed = factory.placeBeltChain(srcMachine, dstMachine, slotType)
+        placed = factory.placeBeltChain(srcMachine, dstMachine, slotType, { tryReverseSlotType: true })
       }
       if (!placed) {
         const reverseSlotType: 'input' | 'output' = slotType === 'input' ? 'output' : 'input'
-        placed = factory.placeBeltChain(srcMachine, dstMachine, reverseSlotType)
+        placed = factory.placeBeltChain(srcMachine, dstMachine, reverseSlotType, { tryReverseSlotType: false })
       }
 
       if (!placed) return { path: [], placed: false }
@@ -2986,192 +2655,7 @@ describe('GhostDropParity', () => {
       assertBeltDragParity(ghost, drop, 'B3: first belt diagonal')
     })
 
-    // ── Second belt (bidirectional) — the crossing scenario ────
 
-    it('B4: second belt (B→A) between south-facing machines that already have A→B', () => {
-      const factory = new Factory(20, 20)
-      const a = factory.placeMachine(9, 10, 'part_fabricator', 'south')!
-      const b = factory.placeMachine(10, 10, 'part_fabricator', 'south')!
-      factory.rotateMachine(a, 'south')
-      factory.rotateMachine(b, 'south')
-      factory.placeBeltChain(a, b, 'output', { fixedRotations: true })
-
-      // Now compute ghost for the reverse belt B→A
-      const ghost = computeGhostBeltPath(factory, { x: 10, z: 10 }, { x: 9, z: 10 }, 'output')
-      const drop = placeBeltAndGetPath(factory, { x: 10, z: 10 }, { x: 9, z: 10 }, 'output')
-      expectFactoryState(factory, {
-
-        grid: { box: [0, 0, 19, 19], expected: [
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | |┌|+|+| | | | | | | | |',
-
-            '| | | | | | | | | |F|F|+| | | | | | | | |',
-
-            '| | | | | | | | | |└|+|+| | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-          ].join('\n') },
-
-        machines: [
-
-          { x: 9, z: 10, rotation: 'south' },
-
-          { x: 10, z: 10, rotation: 'south' },
-
-        ],
-
-        belts: [
-
-          {
-
-            source: { x: 9, z: 10 },
-
-            destination: { x: 10, z: 10 },
-
-            path: [{ x: 9, z: 10 }, { x: 9, z: 11 }, { x: 10, z: 11 }, { x: 11, z: 11 }, { x: 11, z: 10 }, { x: 11, z: 9 }, { x: 10, z: 9 }, { x: 10, z: 10 }],
-
-          },
-
-          {
-
-            source: { x: 10, z: 10 },
-
-            destination: { x: 9, z: 10 },
-
-            path: [{ x: 10, z: 10 }, { x: 10, z: 11 }, { x: 11, z: 11 }, { x: 11, z: 10 }, { x: 11, z: 9 }, { x: 10, z: 9 }, { x: 9, z: 9 }, { x: 9, z: 10 }],
-
-          },
-
-        ],
-
-      })
-      assertBeltDragParity(ghost, drop, 'B4: second belt B→A (same pair)')
-    })
-
-    it('B5: second belt (B→A) between adjacent south-facing fabricators', () => {
-      const factory = new Factory(12, 12)
-      const a = factory.placeMachine(3, 5, 'part_fabricator', 'south')!
-      const b = factory.placeMachine(4, 5, 'part_fabricator', 'south')!
-      factory.rotateMachine(a, 'south')
-      factory.rotateMachine(b, 'south')
-      factory.placeBeltChain(a, b, 'output', { fixedRotations: true })
-
-      const ghost = computeGhostBeltPath(factory, { x: 4, z: 5 }, { x: 3, z: 5 }, 'output')
-      const drop = placeBeltAndGetPath(factory, { x: 4, z: 5 }, { x: 3, z: 5 }, 'output')
-      expectFactoryState(factory, {
-
-        grid: { box: [0, 0, 19, 19], expected: [
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | |┌|+|+| | | | | | | | | | | | | | |',
-
-            '| | | |F|F|+| | | | | | | | | | | | | | |',
-
-            '| | | |└|+|+| | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-            '| | | | | | | | | | | | | | | | | | | | |',
-
-          ].join('\n') },
-
-        machines: [
-
-          { x: 3, z: 5, rotation: 'south' },
-
-          { x: 4, z: 5, rotation: 'south' },
-
-        ],
-
-        belts: [
-
-          {
-
-            source: { x: 3, z: 5 },
-
-            destination: { x: 4, z: 5 },
-
-            path: [{ x: 3, z: 5 }, { x: 3, z: 6 }, { x: 4, z: 6 }, { x: 5, z: 6 }, { x: 5, z: 5 }, { x: 5, z: 4 }, { x: 4, z: 4 }, { x: 4, z: 5 }],
-
-          },
-
-          {
-
-            source: { x: 4, z: 5 },
-
-            destination: { x: 3, z: 5 },
-
-            path: [{ x: 4, z: 5 }, { x: 4, z: 6 }, { x: 5, z: 6 }, { x: 5, z: 5 }, { x: 5, z: 4 }, { x: 4, z: 4 }, { x: 3, z: 4 }, { x: 3, z: 5 }],
-
-          },
-
-        ],
-
-      })
-      assertBeltDragParity(ghost, drop, 'B5: second belt adjacent south')
-    })
 
     it('B6: second belt between spaced south-facing machines', () => {
       const factory = new Factory(15, 15)
@@ -3487,9 +2971,9 @@ describe('GhostDropParity', () => {
       assertBeltDragParity(ghost, drop, 'B9: input slot type')
     })
 
-    // ── Bidirectional with different rotations ────
+    // ── Second belt between two machines using a non-overlapping route ────
 
-    it('B10: second belt between east-facing machines', () => {
+    it('B10: allows B→A belt between east-facing machines when its route does not overlap', () => {
       const factory = new Factory(15, 15)
       const a = factory.placeMachine(5, 3, 'part_fabricator', 'south')!
       const b = factory.placeMachine(5, 7, 'part_fabricator', 'south')!
