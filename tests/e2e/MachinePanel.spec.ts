@@ -38,20 +38,25 @@ test.describe('Machine Panel — single interaction mode', () => {
     await machinePanel.expectNamePlaceholder('Assembler')
   })
 
-  test('drag-and-drop moves a machine to a new cell', async ({ grid, machinePanel }) => {
+  test('drag-and-drop moves a machine to a new cell', async ({ grid, machinePanel, probe }) => {
     await grid.clickCell({ x: 10, z: 10 })
     await machinePanel.expectVisible()
 
     const originalInfo = await machinePanel.getInfoText()
     expect(originalInfo).toMatch(/^\(\d+, \d+\) · \w+$/)
 
+    const machinesBefore = await probe.getMachines()
+    expect(machinesBefore).toHaveLength(1)
+    const source = { x: machinesBefore[0].x, z: machinesBefore[0].z }
+    const destination = { x: source.x, z: source.z + 4 }
+
     await machinePanel.clickClose()
     await machinePanel.expectHidden()
 
-    await grid.dragCell({ x: 10, z: 10 }, { x: 10, z: 14 })
+    await grid.dragMachineToCell(source, destination)
 
     if (!(await machinePanel.isVisibleNow())) {
-      await grid.clickCell({ x: 10, z: 14 })
+      await grid.clickMachineAt(destination)
     }
 
     await machinePanel.expectVisible(3000)

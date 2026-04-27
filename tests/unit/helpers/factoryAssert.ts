@@ -14,9 +14,17 @@
 
 import { expect } from 'vitest'
 import type { Factory } from '../../../src/game/Factory'
-import type { Direction, GridPosition, MachineType } from '../../../src/game/types'
+import type { Direction, GridPosition, MachineType, SlotPosition } from '../../../src/game/types'
 
 export type Rotation = Direction
+
+export interface BeltExpectation {
+  source: { x: number; z: number }
+  destination: { x: number; z: number }
+  sourceSlot?: SlotPosition
+  destinationSlot?: SlotPosition
+  path: Array<{ x: number; z: number }>
+}
 
 /** Machine type → single display character. */
 export const MACHINE_CHAR: Record<MachineType, string> = {
@@ -146,22 +154,22 @@ export function expectMachines(
 }
 
 /**
- * Rule-7 (c): assert EVERY belt on the grid by source/destination + path.
+ * Rule-7 (c): assert EVERY belt on the grid by source/destination + path,
+ * and by source/destination slot when those fields are provided.
  *
  * Internally calls:
  *   - `expect(factory.getBelts()).toHaveLength(n)`
  *   - `expect(belt.path).toEqual([...])`
  *   - asserts source/destination machine x/z.
+ *   - asserts source/destination slots for expected entries that include them.
  *
- * Belts are matched by (source.x, source.z) → (destination.x, destination.z).
+ * Endpoint/path-only expectations remain useful for geometry tests, but
+ * migration tests that depend on lane identity should pass `sourceSlot` and
+ * `destinationSlot` so same-endpoint belts cannot be silently swapped.
  */
 export function expectBelts(
   factory: Factory,
-  expected: Array<{
-    source: { x: number; z: number }
-    destination: { x: number; z: number }
-    path: Array<{ x: number; z: number }>
-  }>
+  expected: BeltExpectation[]
 ): void {
   const belts = factory.getBelts()
   expect(belts).toHaveLength(expected.length)
@@ -173,29 +181,41 @@ export function expectBelts(
       b.sourceMachine.z === e.source.z &&
       b.destinationMachine.x === e.destination.x &&
       b.destinationMachine.z === e.destination.z &&
+      (e.sourceSlot === undefined || b.sourceSlot === e.sourceSlot) &&
+      (e.destinationSlot === undefined || b.destinationSlot === e.destinationSlot) &&
       b.path.length === e.path.length &&
       b.path.every((p, i) => p.x === e.path[i].x && p.z === e.path[i].z)
     )
     // If no exact (source+dest+path) match remains, fall back to source+dest
-    // only — preserves prior behaviour for tests that don't pin the path
-    // uniquely yet still consumes one belt per expected entry.
+    // and any requested slot fields. This preserves prior geometry-test
+    // behaviour while keeping slot-aware migration expectations strict.
     const idx = matchIdx >= 0
       ? matchIdx
       : remaining.findIndex(b =>
           b.sourceMachine.x === e.source.x &&
           b.sourceMachine.z === e.source.z &&
           b.destinationMachine.x === e.destination.x &&
-          b.destinationMachine.z === e.destination.z
+          b.destinationMachine.z === e.destination.z &&
+          (e.sourceSlot === undefined || b.sourceSlot === e.sourceSlot) &&
+          (e.destinationSlot === undefined || b.destinationSlot === e.destinationSlot)
         )
     expect(
       idx,
-      `Expected an unmatched belt from (${e.source.x},${e.source.z}) → (${e.destination.x},${e.destination.z})`,
+      `Expected an unmatched belt from (${e.source.x},${e.source.z}) → (${e.destination.x},${e.destination.z})` +
+        `${e.sourceSlot === undefined ? '' : ` sourceSlot=${e.sourceSlot}`}` +
+        `${e.destinationSlot === undefined ? '' : ` destinationSlot=${e.destinationSlot}`}`,
     ).toBeGreaterThanOrEqual(0)
     const belt = remaining.splice(idx, 1)[0]
     expect(belt.sourceMachine.x).toBe(e.source.x)
     expect(belt.sourceMachine.z).toBe(e.source.z)
     expect(belt.destinationMachine.x).toBe(e.destination.x)
     expect(belt.destinationMachine.z).toBe(e.destination.z)
+    if (e.sourceSlot !== undefined) {
+      expect(belt.sourceSlot).toBe(e.sourceSlot)
+    }
+    if (e.destinationSlot !== undefined) {
+      expect(belt.destinationSlot).toBe(e.destinationSlot)
+    }
     expect(belt.path).toEqual(e.path)
   }
 }
@@ -213,11 +233,7 @@ export function expectFactoryState(
   opts: {
     grid?: { box: [number, number, number, number]; expected: string }
     machines: Array<{ x: number; z: number; rotation: Rotation }>
-    belts: Array<{
-      source: { x: number; z: number }
-      destination: { x: number; z: number }
-      path: Array<{ x: number; z: number }>
-    }>
+    belts: BeltExpectation[]
   }
 ): void {
   if (opts.grid) {
@@ -268,6 +284,8 @@ export function dumpFactoryAssertions(
     lines.push(`    {`)
     lines.push(`      source: { x: ${b.sourceMachine.x}, z: ${b.sourceMachine.z} },`)
     lines.push(`      destination: { x: ${b.destinationMachine.x}, z: ${b.destinationMachine.z} },`)
+    lines.push(`      sourceSlot: '${b.sourceSlot}',`)
+    lines.push(`      destinationSlot: '${b.destinationSlot}',`)
     lines.push(`      path: [${path}],`)
     lines.push(`    },`)
   }

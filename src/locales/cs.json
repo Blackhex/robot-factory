@@ -169,6 +169,13 @@
     "retry": "Znovu",
     "back_to_menu": "Zpět do menu"
   },
+  "game_over": {
+    "title": "Konec hry",
+    "reason": {
+      "unconsumable_input": "Stroj {{machine}} nemůže zpracovat předmět {{item}}."
+    },
+    "restart": "Restartovat"
+  },
   "belt_panel": {
     "title": "Pás",
     "segments": "Segmenty",

@@ -169,6 +169,13 @@
     "retry": "Retry",
     "back_to_menu": "Back to Menu"
   },
+  "game_over": {
+    "title": "Game Over",
+    "reason": {
+      "unconsumable_input": "Machine {{machine}} cannot consume item {{item}}."
+    },
+    "restart": "Restart"
+  },
   "belt_panel": {
     "title": "Belt",
     "segments": "Segments",

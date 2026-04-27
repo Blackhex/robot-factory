@@ -2,16 +2,19 @@ import './style.css'
 import { initI18n, i18next } from './i18n/i18n'
 import { GameManager, type GameState } from './game/GameManager'
 import { getAllLevels, type LevelDefinition } from './game/Level'
+import { ConveyorBelt } from './game/ConveyorBelt'
 import { SceneManager } from './rendering/SceneManager'
 import { FactoryRenderer } from './rendering/FactoryRenderer'
 import { ItemRenderer } from './rendering/ItemRenderer'
-import { GridInteraction } from './rendering/GridInteraction'
+import { GridInteraction, type PausableSimulation } from './rendering/GridInteraction'
 import { CameraController } from './rendering/CameraController'
 import { ParticleEffects } from './rendering/ParticleEffects'
 import { MainMenu } from './ui/MainMenu'
 import { LevelSelect } from './ui/LevelSelect'
 import { HUD } from './ui/HUD'
 import { ScoreScreen } from './ui/ScoreScreen'
+import { GameOverModal } from './ui/GameOverModal'
+import type { GameOverInfo } from './game/types'
 import { TutorialOverlay, type TutorialStep } from './ui/TutorialOverlay'
 import { Toolbar } from './ui/Toolbar'
 import { MachinePanel } from './ui/MachinePanel'
@@ -74,6 +77,7 @@ async function main(): Promise<void> {
   const levelSelect = new LevelSelect(uiOverlay)
   const hud = new HUD(uiOverlay)
   const scoreScreen = new ScoreScreen(uiOverlay)
+  const gameOverModal = new GameOverModal(uiOverlay)
   // Mounted on document.body (not uiOverlay) so the tooltip's z-index escapes
   // the #ui-overlay stacking context (z-index 10) and renders above the editor.
   const tutorialOverlay = new TutorialOverlay(document.body)
@@ -91,7 +95,6 @@ async function main(): Promise<void> {
   let itemRenderer: ItemRenderer | null = null
   let gridInteraction: GridInteraction | null = null
   let editorVisible = false
-  let lastClock = performance.now()
 
   // --- Helpers ---
 
@@ -100,6 +103,7 @@ async function main(): Promise<void> {
     levelSelect.hide()
     hud.hide()
     scoreScreen.hide()
+    gameOverModal.hide()
     tutorialOverlay.hide()
     toolbar.hide()
     machinePanel.hide()
@@ -277,7 +281,7 @@ async function main(): Promise<void> {
         const dst = factory.getMachineAt(dstX, dstZ)
         if (!src || !dst) return false
         const result = factory.placeBeltChain(src, dst, 'output')
-        factoryRenderer?.update()
+        factoryRenderer?.syncMeshes()
         return !!result
       },
       getBelts: () => {
@@ -304,6 +308,10 @@ async function main(): Promise<void> {
       { itemsProduced: 0, robotsCompleted: 0, timeElapsed: 0, qualityPercent: 100, outputsDelivered: 0 }
   }
 
+  function getPausableSimulation(): PausableSimulation | undefined {
+    return gameManager.simulation ?? undefined
+  }
+
   function setupBuildPhase(level: LevelDefinition): void {
     const factory = gameManager.factory
     if (!factory) return
@@ -317,9 +325,9 @@ async function main(): Promise<void> {
     particleEffects = new ParticleEffects(sceneManager.getScene())
 
     gridInteraction = new GridInteraction(sceneManager, factory, () => {
-      factoryRenderer?.update()
+      factoryRenderer?.syncMeshes()
       syncFactoryToEditor()
-    }, factoryRenderer)
+    }, factoryRenderer, getPausableSimulation)
     wireGridInteractionCallbacks(gridInteraction)
     gridInteraction.enable()
 
@@ -330,7 +338,7 @@ async function main(): Promise<void> {
 
     // Auto-restore saved factory layout
     autoRestoreFactory()
-    factoryRenderer.update()
+    factoryRenderer.syncMeshes()
     syncFactoryToEditor()
 
     // Camera: zoom to fit grid
@@ -356,9 +364,9 @@ async function main(): Promise<void> {
     particleEffects = new ParticleEffects(sceneManager.getScene())
 
     gridInteraction = new GridInteraction(sceneManager, factory, () => {
-      factoryRenderer?.update()
+      factoryRenderer?.syncMeshes()
       syncFactoryToEditor()
-    }, factoryRenderer)
+    }, factoryRenderer, getPausableSimulation)
     wireGridInteractionCallbacks(gridInteraction)
     gridInteraction.enable()
 
@@ -371,7 +379,7 @@ async function main(): Promise<void> {
 
     // Auto-restore sandbox factory layout
     autoRestoreFactory()
-    factoryRenderer.update()
+    factoryRenderer.syncMeshes()
     syncFactoryToEditor()
 
     cameraController.zoomToFit(20, 20)
@@ -496,6 +504,8 @@ async function main(): Promise<void> {
         if (commands.length > 0) {
           sim.enqueueCommands(commands)
         }
+        audio.playBeltRolling()
+        wireSimulationEffects()
         sim.start()
         hud.show()
         toolbar.setPaused(false)
@@ -521,8 +531,7 @@ async function main(): Promise<void> {
     }
   }
 
-  toolbar.onRestart = () => {
-    audio.playUIClick()
+  const restartCurrentSession = () => {
     const state = gameManager.getCurrentState()
     if (state === 'play_phase') {
       gameManager.stopSimulation()
@@ -532,6 +541,11 @@ async function main(): Promise<void> {
       hud.hide()
     }
     toolbar.setPaused(false)
+  }
+
+  toolbar.onRestart = () => {
+    audio.playUIClick()
+    restartCurrentSession()
   }
 
   // --- ScoreScreen callbacks ---
@@ -559,6 +573,14 @@ async function main(): Promise<void> {
     gameManager.enterLevelSelect()
   }
 
+  // --- GameOverModal callback ---
+
+  gameOverModal.onRetry = () => {
+    audio.playUIClick()
+    gameOverModal.hide()
+    restartCurrentSession()
+  }
+
   // --- Tutorial callback ---
 
   tutorialOverlay.onComplete = () => tutorialOverlay.hide()
@@ -576,7 +598,7 @@ async function main(): Promise<void> {
     if (!gridInteraction) return
     gridInteraction.deleteSelectedBelt()
     factoryRenderer?.clearBeltHighlight()
-    factoryRenderer?.update()
+    factoryRenderer?.syncMeshes()
     beltPanel.hide()
   }
 
@@ -593,7 +615,7 @@ async function main(): Promise<void> {
     const factory = gameManager.factory
     if (!factory) return
     if (factory.updateMachineType(machine.x, machine.z, newType)) {
-      factoryRenderer?.update()
+      factoryRenderer?.syncMeshes()
       // Refresh the panel with updated info
       const updated = factory.getMachineAt(machine.x, machine.z)
       machinePanel.setMachine(updated)
@@ -624,7 +646,7 @@ async function main(): Promise<void> {
         const factory = gameManager.factory
         if (!factory) return
         importFactoryWithProgram(save, factory, pxtEditor)
-        factoryRenderer?.update()
+        factoryRenderer?.syncMeshes()
         syncFactoryToEditor()
       })
       .catch(() => {
@@ -643,9 +665,16 @@ async function main(): Promise<void> {
 
   // --- Simulation effects (particles + audio) ---
 
+  let wiredSim: object | null = null
+
   function wireSimulationEffects(): void {
     const sim = gameManager.simulation
-    if (!sim) return
+    if (!sim || sim === wiredSim) return
+    wiredSim = sim
+
+    sim.on('game_over', (event) => {
+      gameOverModal.show(event.data as unknown as GameOverInfo)
+    })
 
     sim.on('machine_state_changed', (event) => {
       if (event.data.to === 'processing') {
@@ -692,22 +721,30 @@ async function main(): Promise<void> {
 
   // --- Animation loop with HUD updates ---
 
-  sceneManager.onAnimate(() => {
-    const now = performance.now()
-    const dt = Math.min((now - lastClock) / 1000, 0.1)
-    lastClock = now
+  sceneManager.onAnimate((dt) => {
+    const sim = gameManager.simulation
+    const factory = gameManager.factory
+    const paused = !sim?.running || !!sim?.paused
 
-    factoryRenderer?.update()
+    factoryRenderer?.syncMeshes()
+    // Per-belt chevron scroll rate: probe sim by belt logical id (multi-cell
+    // belts are stored as `${id}_seg${N}`; segment lookup is centralized in
+    // ConveyorBelt.getBeltSpeedByLogicalId). When `sim` is missing we omit
+    // getSpeed entirely so the renderer falls back to its built-in default
+    // 1.0 UV/sec advance.
+    const getSpeed = sim
+      ? (beltLogicalId: string): number =>
+          ConveyorBelt.getBeltSpeedByLogicalId(sim, beltLogicalId)
+      : undefined
+    factoryRenderer?.tick(dt, paused, getSpeed)
     cameraController.update(dt)
     particleEffects?.update(dt)
 
     // Update item meshes on belts when simulation is running
-    const sim = gameManager.simulation
-    const factory = gameManager.factory
     if (itemRenderer && sim?.running && factory) {
       const beltRenderData = itemRenderer.buildRenderData(sim.getBelts())
 
-      itemRenderer.update(beltRenderData, factory.width, factory.height)
+      itemRenderer.update(beltRenderData, factory.width, factory.height, dt, !!sim?.paused)
 
       // Publish rendered item count as a data attribute for testability
       const totalItems = beltRenderData.reduce((sum, b) => sum + b.items.length, 0)

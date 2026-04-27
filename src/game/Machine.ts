@@ -81,6 +81,37 @@ export class Machine {
     return this.inputSlots.length < this.maxInputSlots
   }
 
+  /**
+   * Whether this machine is willing to consume the given item type at all,
+   * regardless of slot capacity. Used by the simulation to detect a fatal
+   * mis-routing (item delivered to a machine that has no use for it).
+   *
+   * - factory_output and pass-through machines (quality_checker, splitter,
+   *   recycler) accept any item type.
+   * - Recipe-driven machines (part_fabricator, assembler, painter) accept
+   *   only types listed in their currently-set recipe inputs. With no
+   *   recipe set or a zero-input recipe, nothing is consumable.
+   */
+  canConsume(itemType: ItemType): boolean {
+    switch (this.machineType) {
+      case 'factory_output':
+      case 'quality_checker':
+      case 'splitter':
+      case 'recycler':
+        return true
+      case 'part_fabricator':
+      case 'assembler':
+      case 'painter': {
+        const recipe = this.currentRecipe
+        if (recipe === null) return false
+        if (recipe.inputs.length === 0) return false
+        return recipe.inputs.some((i) => i.type === itemType)
+      }
+      default:
+        return false
+    }
+  }
+
   tick(): void {
     switch (this.machineType) {
       case 'quality_checker':

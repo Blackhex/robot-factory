@@ -1,70 +1,11 @@
 import { test, expect } from './pom'
-import type { SimulationProbe } from './pom/canvas/SimulationProbe'
-import type { FactoryGridPage } from './pom/canvas/FactoryGridPage'
-import type { ToolbarPage } from './pom/screens/ToolbarPage'
-import type { MachinePanelPage } from './pom/screens/MachinePanelPage'
-import type { EditorPanelPage } from './pom/screens/EditorPanelPage'
-import type { MainMenuPage } from './pom/screens/MainMenuPage'
+import {
+  buildAndRunSandboxFactory,
+  enterSandbox,
+} from './pom/scenarios/SandboxFactoryScenario'
 
 // Use a wide viewport so the PXT editor has enough room for the toolbox + workspace
 test.use({ viewport: { width: 1920, height: 1080 } })
-
-async function enterSandbox(mainMenu: MainMenuPage, toolbar: ToolbarPage) {
-  await mainMenu.open()
-  await mainMenu.clickSandbox()
-  await toolbar.expectVisible()
-  // Wait for the camera zoom-to-fit animation
-  await toolbar.waitForCameraSettle()
-}
-
-async function buildAndRunSandboxFactory(
-  mainMenu: MainMenuPage,
-  toolbar: ToolbarPage,
-  grid: FactoryGridPage,
-  machinePanel: MachinePanelPage,
-  editorPanel: EditorPanelPage,
-  probe: SimulationProbe,
-) {
-  await enterSandbox(mainMenu, toolbar)
-  await grid.expectCanvasVisible()
-
-  await grid.dblClickCell({ x: 10, z: 10 })
-  await grid.dblClickCell({ x: 13, z: 10 })
-
-  await grid.clickCell({ x: 13, z: 10 })
-  await machinePanel.expectVisible()
-  await machinePanel.selectType('factory_output')
-  await machinePanel.expectTypeValue('factory_output')
-  await machinePanel.clickClose()
-  await machinePanel.expectHidden()
-
-  const machines = await probe.getMachines()
-  const fabricator = machines.find((m) => m.type === 'part_fabricator')
-  const output = machines.find((m) => m.type === 'factory_output')
-  expect(fabricator).toBeTruthy()
-  expect(output).toBeTruthy()
-
-  const beltPlaced = await probe.placeBeltViaTestApi(
-    fabricator!.x, fabricator!.z, output!.x, output!.z,
-  )
-  expect(beltPlaced).toBe(true)
-
-  await toolbar.clickEditor()
-  await editorPanel.expectOpen()
-  const programCode =
-    'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
-    'machines.startMachine(Machine.A)'
-  await editorPanel.expectFallbackTextareaAttached()
-  await editorPanel.setFallbackProgramViaValueAssignment(programCode)
-  await toolbar.clickEditor()
-  await editorPanel.expectClosed()
-
-  await toolbar.clickStart()
-  await expect(async () => {
-    const snap = await probe.readSnapshot()
-    expect(snap.itemsOnBelts).toBeGreaterThan(0)
-  }).toPass({ timeout: 30000, intervals: [250] })
-}
 
 test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
   test('place machines, program editor, run simulation, verify item production', async ({
@@ -72,7 +13,6 @@ test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
   }) => {
     test.setTimeout(90000)
 
-    // ======================== STEP 1: Enter sandbox ========================
     await mainMenu.open()
     await mainMenu.clickSandbox()
     await toolbar.expectVisible()
@@ -80,7 +20,6 @@ test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
 
     await grid.expectCanvasVisible()
 
-    // ======================== STEP 2: Place machines =========================
     await grid.dblClickCell({ x: 10, z: 10 })
 
     await grid.clickCell({ x: 10, z: 10 })
@@ -89,7 +28,6 @@ test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
     await machinePanel.clickClose()
     await machinePanel.expectHidden()
 
-    // Second machine: convert to factory_output so produced items can be delivered.
     await grid.dblClickCell({ x: 13, z: 10 })
     await grid.clickCell({ x: 13, z: 10 })
     await machinePanel.expectVisible()
@@ -98,7 +36,6 @@ test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
     await machinePanel.clickClose()
     await machinePanel.expectHidden()
 
-    // Connect the two machines with a belt so produced items can travel.
     const placedMachines = await probe.getMachines()
     const fabricator = placedMachines.find((m) => m.type === 'part_fabricator')
     const output = placedMachines.find((m) => m.type === 'factory_output')
@@ -109,7 +46,6 @@ test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
     )
     expect(beltPlaced).toBe(true)
 
-    // ======================== STEP 3: Open editor & set program =============
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
 
@@ -123,16 +59,12 @@ test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
       await pxt.waitForBlocklyWorkspaceVisible()
       await pxt.waitForToolboxInteractive()
 
-      // Open "Actions" category (index 0 — the only category in the sandbox
-      // toolbox at level 1) and drag "set recipe" block.
       await pxt.clickToolboxCategoryByIndex(0)
       await pxt.dragBlockFromFlyout('set recipe', 0)
 
-      // Re-open the same "Actions" category and drag "start" block.
       await pxt.clickToolboxCategoryByIndex(0)
       await pxt.dragBlockFromFlyout('start', 80)
 
-      // Also write to the fallback textarea as a reliable getProgram() source
       await pxt.setFallbackProgramViaValueAssignment(programCode)
     } else {
       await editorPanel.expectFallbackTextareaVisible()
@@ -142,17 +74,14 @@ test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
 
-    // ======================== STEP 4: Start simulation ======================
     await toolbar.expectStartButtonVisible()
     await toolbar.clickStart()
 
     await hud.expectVisible()
 
-    // ======================== STEP 5: Verify simulation runs =================
     await hud.expectItemsDeliveredGreaterThan(0, 20000)
     await hud.expectTimeAdvancing(10000)
 
-    // ======================== STEP 6: Restart and verify ====================
     await toolbar.clickRestart()
     await probe.settle(500)
 
@@ -167,12 +96,9 @@ test.describe('Sandbox — Restart clears in-flight items and resets machines', 
   }) => {
     test.setTimeout(90000)
 
-    // ======================== STEP 1: Enter sandbox ========================
     await enterSandbox(mainMenu, toolbar)
 
     await grid.expectCanvasVisible()
-
-    // ======================== STEP 2: Place two machines ====================
     await grid.dblClickCell({ x: 10, z: 10 })
     await grid.dblClickCell({ x: 13, z: 10 })
 
@@ -183,7 +109,6 @@ test.describe('Sandbox — Restart clears in-flight items and resets machines', 
     await machinePanel.clickClose()
     await machinePanel.expectHidden()
 
-    // ======================== STEP 3: Connect with belt =====================
     const machines = await probe.getMachines()
     const fabricator = machines.find((m) => m.type === 'part_fabricator')
     const output = machines.find((m) => m.type === 'factory_output')
@@ -195,7 +120,6 @@ test.describe('Sandbox — Restart clears in-flight items and resets machines', 
     )
     expect(beltPlaced).toBe(true)
 
-    // ======================== STEP 4: Write program =========================
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
 
@@ -208,8 +132,6 @@ test.describe('Sandbox — Restart clears in-flight items and resets machines', 
 
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
-
-    // ======================== STEP 5: Start simulation ======================
     await toolbar.expectStartButtonVisible()
     await toolbar.clickStart()
 
@@ -217,7 +139,6 @@ test.describe('Sandbox — Restart clears in-flight items and resets machines', 
     expect(layoutBefore.machineCount).toBe(2)
     expect(layoutBefore.beltCount).toBeGreaterThan(0)
 
-    // ======================== STEP 6: Wait until belts have items ===========
     await expect(async () => {
       const snap = await probe.readSnapshot()
       expect(snap.itemsOnBelts).toBeGreaterThan(0)
@@ -227,14 +148,12 @@ test.describe('Sandbox — Restart clears in-flight items and resets machines', 
     expect(beforeRestart.itemsOnBelts).toBeGreaterThan(0)
     expect(beforeRestart.running).toBe(true)
 
-    // ======================== STEP 7: Click Restart =========================
     await toolbar.clickRestart()
     await probe.settle(300)
 
     const afterRestart = await probe.readSnapshot()
 
     expect(afterRestart.running).toBe(false)
-
     expect(afterRestart.machineCount).toBe(beforeRestart.machineCount)
     expect(afterRestart.beltCount).toBe(beforeRestart.beltCount)
 
@@ -243,14 +162,13 @@ test.describe('Sandbox — Restart clears in-flight items and resets machines', 
       expect(count).toBe(0)
     }
 
-    for (const m of afterRestart.machineStates) {
-      expect(m.state).toBe('idle')
-      expect(m.inputSlots).toBe(0)
-      expect(m.outputSlot).toBe(false)
-      expect(m.consumedItems).toBe(0)
+    for (const machine of afterRestart.machineStates) {
+      expect(machine.state).toBe('idle')
+      expect(machine.inputSlots).toBe(0)
+      expect(machine.outputSlot).toBe(false)
+      expect(machine.consumedItems).toBe(0)
     }
 
-    // ======================== STEP 8: Layout still works ====================
     await toolbar.clickStart()
     await expect(async () => {
       const snap = await probe.readSnapshot()
@@ -265,7 +183,6 @@ test.describe('Sandbox — Restart clears in-flight items and resets machines', 
 
     await buildAndRunSandboxFactory(mainMenu, toolbar, grid, machinePanel, editorPanel, probe)
 
-    // Sanity: items must be rendered before Restart
     await expect(async () => {
       const before = await probe.readSceneItemMeshes()
       expect(before.totalCount).toBeGreaterThan(0)
@@ -287,9 +204,197 @@ test.describe('Sandbox — Restart clears in-flight items and resets machines', 
       `Expected 0 ghost item instances in the scene after Restart, got ${after.totalCount} ` +
         `(per-mesh counts: ${JSON.stringify(after.meshes)})`,
     ).toBe(0)
-    for (const m of after.meshes) {
-      expect(m.count).toBe(0)
-      expect(m.instancesAtItemY).toBe(0)
+    for (const mesh of after.meshes) {
+      expect(mesh.count).toBe(0)
+      expect(mesh.instancesAtItemY).toBe(0)
     }
+  })
+
+  test('Pause should freeze rendered belt items in place; Resume advances them again', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
+  }) => {
+    test.setTimeout(90000)
+
+    await buildAndRunSandboxFactory(mainMenu, toolbar, grid, machinePanel, editorPanel, probe)
+    await expect(async () => {
+      const snap = await probe.readItemInstancePositions()
+      expect(snap.totalCount).toBeGreaterThan(0)
+    }).toPass({ timeout: 15000, intervals: [200] })
+
+    const running1 = await probe.readItemInstancePositions()
+    await probe.settle(400)
+    const running2 = await probe.readItemInstancePositions()
+    expect(running2.totalCount).toBeGreaterThan(0)
+    const runningDelta =
+      Math.abs(running2.sumX - running1.sumX) + Math.abs(running2.sumZ - running1.sumZ)
+    expect(
+      runningDelta,
+      'Sanity check: items must visibly advance while the simulation is running',
+    ).toBeGreaterThan(1e-3)
+
+    const noJump = await probe.capturePositionsAcrossPause()
+    expect(
+      noJump.after.totalCount,
+      `Item count changed across pause boundary: ${noJump.before.totalCount} -> ${noJump.after.totalCount}`,
+    ).toBe(noJump.before.totalCount)
+    let maxPerItemJump = 0
+    for (let index = 0; index < noJump.before.positions.length; index++) {
+      const before = noJump.before.positions[index]
+      const after = noJump.after.positions[index]
+      const distance = Math.hypot(after.x - before.x, after.z - before.z)
+      if (distance > maxPerItemJump) maxPerItemJump = distance
+    }
+    expect(
+      maxPerItemJump,
+      `At least one item jumped on pause by ${maxPerItemJump.toFixed(4)} world units`,
+    ).toBeLessThan(1e-3)
+
+    await toolbar.expectPauseButtonText('Resume')
+    await expect.poll(() => probe.isPaused(), { timeout: 2000 }).toBe(true)
+
+    await probe.flushAnimationFrame()
+    const paused1 = await probe.readItemInstancePositions()
+    expect(paused1.totalCount).toBeGreaterThan(0)
+
+    await probe.settle(1000)
+    await probe.flushAnimationFrame()
+    const paused2 = await probe.readItemInstancePositions()
+
+    expect(
+      paused2.totalCount,
+      `Items rendered changed while paused: ${paused1.totalCount} -> ${paused2.totalCount}`,
+    ).toBe(paused1.totalCount)
+
+    const pauseDelta =
+      Math.abs(paused2.sumX - paused1.sumX) + Math.abs(paused2.sumZ - paused1.sumZ)
+    expect(
+      pauseDelta,
+      `Rendered items moved while simulation was paused: ` +
+        `delta(sumX)=${(paused2.sumX - paused1.sumX).toFixed(4)}, ` +
+        `delta(sumZ)=${(paused2.sumZ - paused1.sumZ).toFixed(4)}`,
+    ).toBeLessThan(1e-4)
+
+    await toolbar.clickPause()
+    await toolbar.expectPauseButtonText('Pause')
+    await expect.poll(() => probe.isPaused(), { timeout: 2000 }).toBe(false)
+
+    await probe.settle(500)
+    const resumed = await probe.readItemInstancePositions()
+    expect(resumed.totalCount).toBeGreaterThan(0)
+
+    const resumeDelta =
+      Math.abs(resumed.sumX - paused2.sumX) + Math.abs(resumed.sumZ - paused2.sumZ)
+    expect(
+      resumeDelta,
+      'Items must advance again after Resume',
+    ).toBeGreaterThan(1e-3)
+  })
+})
+
+test.describe('Sandbox — Live machine drag pause semantics', () => {
+  test('holding a live machine drag keeps simulation unpaused and resumes after drop', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
+  }) => {
+    test.setTimeout(90000)
+
+    await buildAndRunSandboxFactory(mainMenu, toolbar, grid, machinePanel, editorPanel, probe)
+
+    const machinesBefore = await probe.getMachines()
+    const output = machinesBefore.find((m) => m.type === 'factory_output')
+    expect(output, 'destination machine must exist before live drag').toBeTruthy()
+
+    expect(await probe.isRunning()).toBe(true)
+    expect(await probe.isPaused()).toBe(false)
+
+    const occupiedCells = new Set(machinesBefore.map((machine) => `${machine.x},${machine.z}`))
+    const destination = [
+      { x: output!.x + 3, z: output!.z },
+      { x: output!.x - 3, z: output!.z },
+      { x: output!.x, z: output!.z + 3 },
+      { x: output!.x, z: output!.z - 3 },
+    ].find((cell) =>
+      cell.x >= 0 && cell.x < 20 &&
+      cell.z >= 0 && cell.z < 20 &&
+      !occupiedCells.has(`${cell.x},${cell.z}`),
+    )
+    expect(destination, 'live drag needs a valid empty destination cell').toBeTruthy()
+    const pauseSemantics = await grid.dragMachineToCellCapturingPauseSemantics(
+      { x: output!.x, z: output!.z },
+      destination!,
+    )
+
+    expect(pauseSemantics.beforeDrag.running).toBe(true)
+    expect(pauseSemantics.beforeDrag.paused).toBe(false)
+    expect(pauseSemantics.whilePointerHeldAtDestination.running).toBe(true)
+    expect(
+      pauseSemantics.whilePointerHeldAtDestination.paused,
+      'Starting and holding a live machine drag must not leave the simulation paused before drop',
+    ).toBe(false)
+    expect(pauseSemantics.afterDrop.running).toBe(true)
+    expect(
+      pauseSemantics.afterDrop.paused,
+      'Simulation must be resumed after the valid machine drop commit completes',
+    ).toBe(false)
+
+    const machinesAfter = await probe.getMachines()
+    const movedOutput = machinesAfter.find((m) => m.id === output!.id)
+    expect(movedOutput, 'same destination machine must still exist after live drag').toBeTruthy()
+    expect(movedOutput!.x).toBe(destination!.x)
+    expect(movedOutput!.z).toBe(destination!.z)
+  })
+})
+
+test.describe('Sandbox — Game Over modal', () => {
+  test('game-over modal appears when an item reaches a machine that cannot consume it', async ({
+    mainMenu, toolbar, grid, editorPanel, probe, gameOverModal,
+  }) => {
+    test.setTimeout(90000)
+
+    // Enter sandbox mode
+    await enterSandbox(mainMenu, toolbar)
+    await grid.expectCanvasVisible()
+
+    // Place fabricator A at (10,10) — default type is part_fabricator
+    await grid.dblClickCell({ x: 10, z: 10 })
+
+    // Place fabricator B at (13,10) — leave as part_fabricator with NO recipe
+    await grid.dblClickCell({ x: 13, z: 10 })
+
+    // Connect A → B via belt
+    const machines = await probe.getMachines()
+    const machineA = machines.find((m) => m.x === 10 && m.z === 10)
+    const machineB = machines.find((m) => m.x === 13 && m.z === 10)
+    expect(machineA, 'Machine A must exist at (10,10)').toBeTruthy()
+    expect(machineB, 'Machine B must exist at (13,10)').toBeTruthy()
+
+    const beltPlaced = await probe.placeBeltViaTestApi(
+      machineA!.x, machineA!.z, machineB!.x, machineB!.z,
+    )
+    expect(beltPlaced).toBe(true)
+
+    // Program: set recipe on Machine A only, start it
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
+    const programCode =
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+      'machines.startMachine(Machine.A)'
+    await editorPanel.expectFallbackTextareaAttached()
+    await editorPanel.setFallbackProgramViaValueAssignment(programCode)
+    await toolbar.clickEditor()
+    await editorPanel.expectClosed()
+
+    // Start simulation
+    await toolbar.expectStartButtonVisible()
+    await toolbar.clickStart()
+
+    // Wait for game-over modal — this MUST timeout now because
+    // wireSimulationEffects() is not called in sandbox mode
+    await gameOverModal.expectVisible(30_000)
+    await gameOverModal.expectTitleText('Game Over')
+    await gameOverModal.expectRestartButtonVisible()
+
+    // Click Restart, assert modal hides
+    await gameOverModal.clickRestart()
+    await gameOverModal.expectHidden()
   })
 })

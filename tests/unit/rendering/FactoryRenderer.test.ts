@@ -8,41 +8,11 @@
  * - Shared icon materials are created per machine type, not per instance
  */
 import { describe, it, expect, beforeEach, vi, beforeAll } from 'vitest'
+import { installJsdomCanvasMock } from './jsdomCanvasMock'
 
 // ── Mock canvas 2d context (jsdom has no real canvas) ──────
 
-beforeAll(() => {
-  const mockCtx = {
-    clearRect: vi.fn(),
-    fillRect: vi.fn(),
-    strokeRect: vi.fn(),
-    fillText: vi.fn(),
-    beginPath: vi.fn(),
-    closePath: vi.fn(),
-    moveTo: vi.fn(),
-    lineTo: vi.fn(),
-    arc: vi.fn(),
-    quadraticCurveTo: vi.fn(),
-    stroke: vi.fn(),
-    fill: vi.fn(),
-    save: vi.fn(),
-    restore: vi.fn(),
-    translate: vi.fn(),
-    rotate: vi.fn(),
-    scale: vi.fn(),
-    setTransform: vi.fn(),
-    strokeStyle: '',
-    fillStyle: '',
-    lineWidth: 0,
-    lineCap: '',
-    lineJoin: '',
-    globalCompositeOperation: '',
-    font: '',
-    textAlign: '',
-    textBaseline: '',
-  }
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(mockCtx as any)
-})
+beforeAll(installJsdomCanvasMock)
 
 // ── Mock Three.js ──────────────────────────────────────────
 

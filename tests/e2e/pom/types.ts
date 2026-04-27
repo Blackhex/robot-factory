@@ -44,6 +44,42 @@ export interface SimSnapshot {
   }>
 }
 
+export interface SimulationRunState {
+  running: boolean
+  paused: boolean
+}
+
+export interface DragMachinePauseSemantics {
+  beforeDrag: SimulationRunState
+  whilePointerHeldAtDestination: SimulationRunState
+  afterDrop: SimulationRunState
+}
+
+export interface BeltItemSnapshot {
+  id: string
+  type: string
+  quality: number
+  positionOnBelt: number
+  beltId: string
+  fromX: number
+  fromZ: number
+  toX: number
+  toZ: number
+}
+
+export interface OutputDeliverySnapshot {
+  itemId: string
+  itemType: string
+  machineId: string
+  tick: number
+}
+
+export interface OutputDeliveryRecorderState {
+  hasSimulation: boolean
+  attachedFlag: boolean
+  listenerCount: number
+}
+
 export interface BeltMeshInspection {
   corners: Array<{
     key: string
@@ -86,6 +122,33 @@ export type BeltClearInspection = BeltCornerHighlightState
 export interface SceneItemMeshes {
   totalCount: number
   meshes: Array<{ count: number; instancesAtItemY: number }>
+}
+
+export interface ItemInstancePosition {
+  x: number
+  z: number
+}
+
+export interface ItemInstancePositions {
+  totalCount: number
+  /** Sum of all instance X coordinates — a stable signature for movement detection. */
+  sumX: number
+  /** Sum of all instance Z coordinates — a stable signature for movement detection. */
+  sumZ: number
+  positions: ItemInstancePosition[]
+}
+
+/**
+ * A single straight segment of a belt path expressed in **world-space**
+ * coordinates (ItemRenderer's coordinate system: cell `(gx, gz)` maps to
+ * world `(gx - W/2 + 0.5, gz - H/2 + 0.5)`). Used by edit-during-simulation
+ * tests to assert rendered item positions lie on a current belt path.
+ */
+export interface BeltPathSegment {
+  ax: number
+  az: number
+  bx: number
+  bz: number
 }
 
 export interface DropdownSnapshot {

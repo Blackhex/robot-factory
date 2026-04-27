@@ -128,6 +128,7 @@ export function createBeltDirectionMaterial(
 ): THREE.MeshStandardMaterial {
   const tex = beltArrowTexture.clone()
   tex.needsUpdate = true
+  // repeat=1 ⇒ 1 UV cycle = 1 cell — keep in sync with BeltMeshRenderer.BELT_SCROLL_SPEED
   tex.repeat.set(1, 1)
 
   if (dir !== 'east') {

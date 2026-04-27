@@ -1,0 +1,96 @@
+import type { Direction, GridPosition, MachineInfo, MachineType } from './types'
+import { getSlotPositions, slotPositionToOffset } from './SlotUtils'
+import { machineSlotPointsAtNeighbor } from './SlotBlocking'
+import type { FactoryGridCell, FactoryQueries } from './FactoryQueries'
+
+interface FactoryMachineRegistryState {
+  readonly grid: FactoryGridCell[][]
+  readonly machines: Map<string, MachineInfo>
+}
+
+interface FactoryMachineRegistryHost {
+  isInBounds(x: number, z: number): boolean
+  isSlotBlockingEnabled(): boolean
+}
+
+export class FactoryMachineRegistry {
+  private nextMachineId = 1
+  private readonly machineNameCounters: Map<MachineType, number> = new Map()
+  private readonly state: FactoryMachineRegistryState
+  private readonly host: FactoryMachineRegistryHost
+  private readonly queries: FactoryQueries
+
+  constructor(
+    state: FactoryMachineRegistryState,
+    host: FactoryMachineRegistryHost,
+    queries: FactoryQueries,
+  ) {
+    this.state = state
+    this.host = host
+    this.queries = queries
+  }
+
+  placeMachine(x: number, z: number, type: MachineType, rotation: Direction): MachineInfo | null {
+    if (!this.host.isInBounds(x, z)) return null
+    if (this.state.grid[x][z].machine !== null) return null
+    if (this.host.isSlotBlockingEnabled() && this.isSlotBlocked(x, z, type, rotation)) return null
+
+    const id = `machine_${this.nextMachineId++}`
+    const name = this.generateMachineName(type)
+    const machine: MachineInfo = { id, name, type, x, z, rotation, slots: getSlotPositions(type) }
+    this.state.grid[x][z].machine = machine
+    this.state.machines.set(id, machine)
+    return machine
+  }
+
+  setMachineRotation(x: number, z: number, rotation: Direction): void {
+    const machine = this.state.grid[x]?.[z]?.machine
+    if (machine) {
+      ; (machine as { rotation: Direction }).rotation = rotation
+    }
+  }
+
+  renameMachine(x: number, z: number, name: string): boolean {
+    const machine = this.state.grid[x]?.[z]?.machine
+    if (!machine) return false
+      ; (machine as { name: string }).name = name
+    return true
+  }
+
+  updateMachineType(x: number, z: number, newType: MachineType): boolean {
+    if (!this.host.isInBounds(x, z)) return false
+    const machine = this.state.grid[x][z].machine
+    if (!machine) return false
+      ; (machine as { type: MachineType }).type = newType
+    machine.slots = getSlotPositions(newType)
+    return true
+  }
+
+  isSlotBlocked(x: number, z: number, type: MachineType, rotation: Direction, excludeId?: string): boolean {
+    const neighbors: GridPosition[] = [
+      { x: x - 1, z }, { x: x + 1, z },
+      { x, z: z - 1 }, { x, z: z + 1 },
+    ]
+    for (const nPos of neighbors) {
+      const neighbor = this.queries.getMachineAt(nPos.x, nPos.z)
+      if (!neighbor || neighbor.id === excludeId) continue
+      const allSlotPositions = [...neighbor.slots.inputs, ...neighbor.slots.outputs]
+      for (const sp of allSlotPositions) {
+        const offset = slotPositionToOffset(sp, neighbor.rotation)
+        if (nPos.x + offset.x === x && nPos.z + offset.z === z) return true
+      }
+    }
+
+    return machineSlotPointsAtNeighbor(
+      { x, z, rotation, slots: getSlotPositions(type), id: excludeId },
+      (gx, gz) => this.queries.getMachineAt(gx, gz),
+    )
+  }
+
+  private generateMachineName(type: MachineType): string {
+    const label = type.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join(' ')
+    const count = (this.machineNameCounters.get(type) ?? 0) + 1
+    this.machineNameCounters.set(type, count)
+    return `${label} ${count}`
+  }
+}

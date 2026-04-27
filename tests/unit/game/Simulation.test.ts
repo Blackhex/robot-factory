@@ -21,6 +21,18 @@ function wheelPressRecipe(): Recipe {
   return recipe
 }
 
+/**
+ * Returns an assembler recipe whose inputs include `wheel_small` and
+ * `circuit_basic`, used by belt→assembler delivery tests so the assembler
+ * is willing to consume the items the test sends to it (avoids the
+ * game-over trip wired into deliverItems()).
+ */
+function assemblerWheelAcceptingRecipe(): Recipe {
+  const recipe = getRecipeById('assemble_drivetrain_basic')
+  if (!recipe) throw new Error('assemble_drivetrain_basic recipe not found')
+  return recipe
+}
+
 // --- Simulation tests ---
 
 describe('Simulation', () => {
@@ -184,6 +196,70 @@ describe('Simulation', () => {
     })
   })
 
+  describe('SET_BELT_SPEED on segmented belts', () => {
+    // A logical belt drawn across multiple cells is registered in the
+    // simulation as N independent ConveyorBelt segments with ids of the
+    // form `${logicalId}_seg${i}` (see ConveyorBelt.fromBeltInfo and
+    // GameManager.populateSimulation). The BlockInterpreter resolves
+    // dropdown belt references to the LOGICAL id (e.g. `belt_X`), so
+    // SET_BELT_SPEED commands carry a logical id, not a segment id.
+    // The simulation must therefore propagate the speed change to every
+    // matching segment, not only to a belt whose id is an exact match.
+
+    it('should propagate SET_BELT_SPEED to every segment of a multi-cell belt', () => {
+      // GIVEN a 3-cell belt registered as three segments under logical id `belt_X`
+      const seg0 = new ConveyorBelt('belt_X_seg0', 0, 0, 1, 0, 1.0)
+      const seg1 = new ConveyorBelt('belt_X_seg1', 1, 0, 2, 0, 1.0)
+      const seg2 = new ConveyorBelt('belt_X_seg2', 2, 0, 3, 0, 1.0)
+      sim.addBelt(seg0)
+      sim.addBelt(seg1)
+      sim.addBelt(seg2)
+
+      // WHEN a SET_BELT_SPEED command is enqueued targeting the logical id
+      sim.enqueueCommand({ type: 'SET_BELT_SPEED', beltId: 'belt_X', speed: 2.5 })
+      sim.tick()
+
+      // THEN every segment of the logical belt receives the new speed
+      expect(sim.getBelt('belt_X_seg0')!.speed).toBe(2.5)
+      expect(sim.getBelt('belt_X_seg1')!.speed).toBe(2.5)
+      expect(sim.getBelt('belt_X_seg2')!.speed).toBe(2.5)
+    })
+
+    it('should still update a single belt registered under its exact id (no _seg suffix)', () => {
+      // GIVEN a single belt registered with the exact id (no segments)
+      const b = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
+      sim.addBelt(b)
+
+      // WHEN
+      sim.enqueueCommand({ type: 'SET_BELT_SPEED', beltId: 'b1', speed: 3.0 })
+      sim.tick()
+
+      // THEN the single belt is updated by exact-id match
+      expect(sim.getBelt('b1')!.speed).toBe(3.0)
+    })
+
+    it('should not match belts whose id only shares a numeric prefix (e.g. belt_1 vs belt_10_seg0)', () => {
+      // GIVEN two unrelated belts whose ids share a numeric prefix:
+      //   - `belt_1`        : exact-id target of the SET_BELT_SPEED command
+      //   - `belt_10_seg0`  : segment of an unrelated logical belt `belt_10`
+      // The segment-propagation regex is `^${escaped}_seg\d+$`, which must
+      // anchor against the FULL logical id and therefore must NOT match
+      // `belt_10_seg0` when the command targets `belt_1`.
+      const exact = new ConveyorBelt('belt_1', 0, 0, 1, 0, 1.0)
+      const unrelated = new ConveyorBelt('belt_10_seg0', 5, 0, 6, 0, 1.0)
+      sim.addBelt(exact)
+      sim.addBelt(unrelated)
+
+      // WHEN
+      sim.enqueueCommand({ type: 'SET_BELT_SPEED', beltId: 'belt_1', speed: 7 })
+      sim.tick()
+
+      // THEN the exact-id belt is updated and the unrelated belt is untouched
+      expect(sim.getBelt('belt_1')!.speed).toBe(7)
+      expect(sim.getBelt('belt_10_seg0')!.speed).toBe(1)
+    })
+  })
+
   describe('tick orchestration', () => {
     it('should tick machines during simulation tick', () => {
       // GIVEN
@@ -216,6 +292,7 @@ describe('Simulation', () => {
       // GIVEN
       const b = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
       const m = new Machine('m1', 'assembler')
+      m.setRecipe(assemblerWheelAcceptingRecipe())
       sim.addBelt(b)
       sim.addMachine(m)
       sim.setMachinePosition('m1', 1, 0) // machine at belt destination
@@ -307,6 +384,7 @@ describe('Simulation', () => {
       sim.on('item_delivered', (e) => events.push(e))
       const b = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
       const m = new Machine('m1', 'assembler')
+      m.setRecipe(assemblerWheelAcceptingRecipe())
       sim.addBelt(b)
       sim.addMachine(m)
       sim.setMachinePosition('m1', 1, 0)
@@ -792,6 +870,7 @@ describe('Integration: full pipeline', () => {
     const belt = new ConveyorBelt('belt1', 0, 0, 1, 0, 1.0)
     sim.addBelt(belt)
     const assembler = new Machine('asm1', 'assembler')
+    assembler.setRecipe(assemblerWheelAcceptingRecipe())
     sim.addMachine(assembler)
     sim.setMachinePosition('asm1', 1, 0)
 

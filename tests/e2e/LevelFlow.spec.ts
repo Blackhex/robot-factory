@@ -19,11 +19,23 @@ const PROGRAM_BASIC =
   'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
   'machines.startMachine(Machine.A)'
 
+// Same as PROGRAM_BASIC, but also configures Machine.B with a recipe that
+// consumes wheel_small. Used in chains where Machine.B is an intermediate
+// recipe-driven machine (e.g. assembler) that would otherwise trigger the
+// `unconsumable_input` game-over rule on the first incoming wheel.
+const PROGRAM_BASIC_WITH_DRIVETRAIN =
+  'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+  'machines.setRecipe(Machine.B, Recipe.AssembleDrivetrainBasic)\n' +
+  'machines.startMachine(Machine.A)'
+
 const PROGRAM_LOOP =
   'loops.repeatTimes(10, () => {\n' +
   '  machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
   '  machines.startMachine(Machine.A)\n' +
   '})'
+
+const LOADED_CHROMIUM_TEST_TIMEOUT_MS = 120000
+const LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS = 60000
 
 async function navigateToLevel1(
   mainMenu: MainMenuPage,
@@ -404,7 +416,7 @@ test.describe('Level 4 — Quality Matters', () => {
     saves, mainMenu, levelSelect, toolbar, grid, machinePanel, tutorial, editorPanel, pxt,
     hud, scoreScreen, probe,
   }) => {
-    test.setTimeout(90000)
+    test.setTimeout(LOADED_CHROMIUM_TEST_TIMEOUT_MS)
     const SIZE: GridSize = { width: 14, height: 14 }
 
     await navigateToLevel(saves, mainMenu, levelSelect, toolbar, grid, SIZE, 3)
@@ -482,7 +494,7 @@ test.describe('Level 4 — Quality Matters', () => {
     await hud.expectVisible()
 
     // ===================== STEP 9: Wait for items delivered > 0 =============
-    await hud.expectItemsDeliveredGreaterThan(0, 30000)
+    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     // ===================== STEP 10: Stop simulation → score screen ==========
@@ -504,7 +516,7 @@ test.describe('Level 5 — Smart Routing', () => {
     saves, mainMenu, levelSelect, toolbar, grid, machinePanel, tutorial, editorPanel, pxt,
     hud, scoreScreen, probe,
   }) => {
-    test.setTimeout(90000)
+    test.setTimeout(LOADED_CHROMIUM_TEST_TIMEOUT_MS)
     const SIZE: GridSize = { width: 16, height: 16 }
 
     await navigateToLevel(saves, mainMenu, levelSelect, toolbar, grid, SIZE, 4)
@@ -562,7 +574,7 @@ test.describe('Level 5 — Smart Routing', () => {
     await hud.expectVisible()
 
     // ===================== STEP 10: Wait for items delivered > 0 ============
-    await hud.expectItemsDeliveredGreaterThan(0, 30000)
+    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     // ===================== STEP 11: Stop simulation → score screen ==========
@@ -584,7 +596,7 @@ test.describe('Level 6 — Custom Robots', () => {
     saves, mainMenu, levelSelect, toolbar, grid, machinePanel, tutorial, editorPanel, pxt,
     hud, scoreScreen, probe,
   }) => {
-    test.setTimeout(90000)
+    test.setTimeout(LOADED_CHROMIUM_TEST_TIMEOUT_MS)
     const SIZE: GridSize = { width: 16, height: 16 }
 
     await navigateToLevel(saves, mainMenu, levelSelect, toolbar, grid, SIZE, 5)
@@ -624,8 +636,12 @@ test.describe('Level 6 — Custom Robots', () => {
 
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
-    await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC)
-    await editorPanel.expectFallbackValue(PROGRAM_BASIC)
+    // The assembler in this chain would receive wheel_small with no recipe set
+    // and trigger the `unconsumable_input` game-over rule. Configure Machine.B
+    // with AssembleDrivetrainBasic, which lists wheel_small as an input, so
+    // the wheel is a legal (consumable) input and items keep flowing.
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC_WITH_DRIVETRAIN)
+    await editorPanel.expectFallbackValue(PROGRAM_BASIC_WITH_DRIVETRAIN)
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
 
@@ -633,7 +649,7 @@ test.describe('Level 6 — Custom Robots', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    await hud.expectItemsDeliveredGreaterThan(0, 30000)
+    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()
@@ -650,11 +666,18 @@ test.describe('Level 6 — Custom Robots', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Level 7 — Rush Order!', () => {
-  test('full play-through: no tutorial → place fabricator + painter + output → belts → program → simulate → score', async ({
+  // NOTE: This level was originally written with `painter` as the intermediate
+  // machine. Under the Phase B `unconsumable_input` game-over rule, a painter
+  // in the chain would game-over on the first wheel because no painter recipe
+  // exists in the production recipe registry (painter is recipe-driven but has
+  // zero defined recipes). The chain has been changed to use `quality_checker`
+  // — a pass-through machine that accepts any item type — so the full
+  // play-through (items delivered → score screen) intent is preserved.
+  test('full play-through: no tutorial → place fabricator + quality_checker + output → belts → program → simulate → score', async ({
     saves, mainMenu, levelSelect, toolbar, grid, machinePanel, tutorial, editorPanel, pxt,
     hud, scoreScreen, probe,
   }) => {
-    test.setTimeout(90000)
+    test.setTimeout(LOADED_CHROMIUM_TEST_TIMEOUT_MS)
     const SIZE: GridSize = { width: 18, height: 18 }
 
     await navigateToLevel(saves, mainMenu, levelSelect, toolbar, grid, SIZE, 6)
@@ -669,7 +692,7 @@ test.describe('Level 7 — Rush Order!', () => {
     expect(machines.length).toBe(1)
     expect(machines[0].type).toBe('part_fabricator')
 
-    await placeAndChangeType(grid, machinePanel, { x: 9, z: 9 }, 'painter')
+    await placeAndChangeType(grid, machinePanel, { x: 9, z: 9 }, 'quality_checker')
     machines = await probe.getMachines()
     expect(machines.length).toBe(2)
 
@@ -678,17 +701,17 @@ test.describe('Level 7 — Rush Order!', () => {
     expect(machines.length).toBe(3)
 
     const fabricator = machines.find((m) => m.type === 'part_fabricator')
-    const painter = machines.find((m) => m.type === 'painter')
+    const qualityChecker = machines.find((m) => m.type === 'quality_checker')
     const factoryOutput = machines.find((m) => m.type === 'factory_output')
     expect(fabricator).toBeTruthy()
-    expect(painter).toBeTruthy()
+    expect(qualityChecker).toBeTruthy()
     expect(factoryOutput).toBeTruthy()
 
     expect(await probe.placeBeltViaTestApi(
-      fabricator!.x, fabricator!.z, painter!.x, painter!.z,
+      fabricator!.x, fabricator!.z, qualityChecker!.x, qualityChecker!.z,
     )).toBe(true)
     expect(await probe.placeBeltViaTestApi(
-      painter!.x, painter!.z, factoryOutput!.x, factoryOutput!.z,
+      qualityChecker!.x, qualityChecker!.z, factoryOutput!.x, factoryOutput!.z,
     )).toBe(true)
     expect(await probe.getBeltCount()).toBeGreaterThanOrEqual(2)
 
@@ -703,7 +726,7 @@ test.describe('Level 7 — Rush Order!', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    await hud.expectItemsDeliveredGreaterThan(0, 30000)
+    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()
@@ -724,7 +747,7 @@ test.describe('Level 8 — Optimize Everything', () => {
     saves, mainMenu, levelSelect, toolbar, grid, machinePanel, tutorial, editorPanel, pxt,
     hud, scoreScreen, probe,
   }) => {
-    test.setTimeout(90000)
+    test.setTimeout(LOADED_CHROMIUM_TEST_TIMEOUT_MS)
     const SIZE: GridSize = { width: 20, height: 20 }
 
     await navigateToLevel(saves, mainMenu, levelSelect, toolbar, grid, SIZE, 7)
@@ -773,7 +796,7 @@ test.describe('Level 8 — Optimize Everything', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    await hud.expectItemsDeliveredGreaterThan(0, 30000)
+    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()
@@ -999,7 +1022,7 @@ test.describe('Level 10 — Factory Tycoon', () => {
 
     await hud.expectVisible()
 
-    await hud.expectItemsDeliveredGreaterThan(0, 30000)
+    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()

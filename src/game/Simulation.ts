@@ -1,4 +1,5 @@
 import type {
+  GameOverInfo,
   SimulationCommand,
   SimulationEvent,
   SimulationEventType,
@@ -27,6 +28,7 @@ export class Simulation {
   private intervalId: ReturnType<typeof setInterval> | null = null
   private _running = false
   private _paused = false
+  private _gameOver: GameOverInfo | null = null
 
   currentTick = 0
   readonly tickRate: number
@@ -139,14 +141,25 @@ export class Simulation {
     return this._paused
   }
 
+  /**
+   * The fatal game-over state, if any. `null` while the simulation is
+   * running normally; populated the first time a belt tries to deliver an
+   * item to a machine that cannot consume it. Once set, `tick()` becomes
+   * a no-op until the simulation is reset.
+   */
+  get gameOver(): GameOverInfo | null {
+    return this._gameOver
+  }
+
   // --- Tick ---
 
   tick(): void {
+    if (this._gameOver !== null) return
     this.processCommands()
     this.updateMachines()
-    this.transferMachineOutputs()
     this.advanceBelts()
     this.deliverItems()
+    this.transferMachineOutputs()
     this.updateScoring()
     this.emit('tick', { tick: this.currentTick })
     this.currentTick++
@@ -184,6 +197,16 @@ export class Simulation {
         const belt = this.belts.get(command.beltId)
         if (belt) {
           belt.speed = command.speed
+        }
+        // Multi-cell belts are registered as per-cell segments under ids of the
+        // form `${logicalId}_seg${N}` (see ConveyorBelt.fromBeltInfo). Apply the
+        // speed to every matching segment so the dropdown's logical id works.
+        const escaped = command.beltId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const segmentRegex = new RegExp(`^${escaped}_seg\\d+$`)
+        for (const [id, segment] of this.belts) {
+          if (segmentRegex.test(id)) {
+            segment.speed = command.speed
+          }
         }
         break
       }
@@ -270,39 +293,72 @@ export class Simulation {
   }
 
   private deliverItems(): void {
-    for (const belt of this.belts.values()) {
-      const readyItems = belt.getReadyItems()
-      for (const item of readyItems) {
-        // First, try to deliver to a machine at the belt's destination
-        const targetMachine = this.findMachineAt(belt.toX, belt.toZ)
-        if (targetMachine && targetMachine.canAcceptInput()) {
-          targetMachine.addInput(item)
-          belt.removeItem(item.id)
-          this.itemsDelivered++
-          this.emit('item_delivered', {
-            itemId: item.id,
-            beltId: belt.id,
-            machineId: targetMachine.id,
-          })
-          if (targetMachine.machineType === 'factory_output') {
-            this.outputsDelivered++
-            this.emit('output_delivered', {
+    // Order-independent fixed-point delivery. Each pass attempts to
+    // deliver every ready item to its downstream machine or belt. A
+    // pass that frees at least one cell may unblock another delivery
+    // upstream, so we iterate until no progress is made. Bounded by
+    // belts.length + 1 — each progressing pass frees at least one cell,
+    // so convergence is guaranteed.
+    const belts = Array.from(this.belts.values())
+    let progress = true
+    let safety = belts.length + 1
+    while (progress && safety-- > 0) {
+      progress = false
+      for (const belt of belts) {
+        const readyItems = belt.getReadyItems()
+        for (const item of readyItems) {
+          // First, try to deliver to a machine at the belt's destination
+          const targetMachine = this.findMachineAt(belt.toX, belt.toZ)
+          if (targetMachine && targetMachine.canAcceptInput()) {
+            // Fatal mis-routing: machine cannot consume this item type at
+            // all (wrong recipe, no recipe, or zero-input recipe). Trip
+            // game-over once and leave the item parked at the belt end.
+            if (!targetMachine.canConsume(item.type)) {
+              if (this._gameOver === null) {
+                this._gameOver = {
+                  reason: 'unconsumable_input',
+                  machineId: targetMachine.id,
+                  itemId: item.id,
+                  itemType: item.type,
+                  tick: this.currentTick,
+                }
+                this._paused = true
+                this.emit('game_over', { ...this._gameOver })
+              }
+              continue
+            }
+            targetMachine.addInput(item)
+            belt.removeItem(item.id)
+            this.itemsDelivered++
+            this.emit('item_delivered', {
               itemId: item.id,
-              itemType: item.type,
+              beltId: belt.id,
               machineId: targetMachine.id,
             })
+            if (targetMachine.machineType === 'factory_output') {
+              this.outputsDelivered++
+              this.emit('output_delivered', {
+                itemId: item.id,
+                itemType: item.type,
+                machineId: targetMachine.id,
+              })
+            }
+            progress = true
+            continue
           }
-          continue
-        }
 
-        // No machine (or machine full) — try to transfer to a belt starting here
-        const nextBelt = this.findBeltStartingAt(belt.toX, belt.toZ)
-        if (nextBelt && nextBelt.id !== belt.id) {
-          if (nextBelt.addItem(item)) {
-            belt.removeItem(item.id)
+          // No machine (or machine full) — try to transfer to a belt starting here
+          const nextBelt = this.findBeltStartingAt(belt.toX, belt.toZ)
+          if (nextBelt && nextBelt.id !== belt.id) {
+            // Plain normalized position overshoot — no arc-length conversion.
+            const overshoot = item.positionOnBelt - 1.0
+            if (nextBelt.acceptHandover(item, overshoot)) {
+              belt.removeItem(item.id)
+              progress = true
+            }
           }
+          // If neither machine nor next belt, item stays (belt jam)
         }
-        // If neither machine nor next belt, item stays (belt jam)
       }
     }
   }
@@ -409,6 +465,7 @@ export class Simulation {
     this.robotsProduced = 0
     this.defects = 0
     this.totalIdleTicks = 0
+    this._gameOver = null
   }
 
   reset(): void {

@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 export class SceneManager {
+  /** Clamp ceiling for per-frame dt (seconds) to absorb tab-switch / breakpoint gaps. */
+  private static readonly MAX_FRAME_DT_SECONDS = 0.1
   private scene: THREE.Scene
   private camera: THREE.PerspectiveCamera
   private renderer: THREE.WebGLRenderer
@@ -9,7 +11,8 @@ export class SceneManager {
   private ambientLight: THREE.AmbientLight
   private directionalLight: THREE.DirectionalLight
   private animationFrameId: number | null = null
-  private onAnimateCallbacks: Array<() => void> = []
+  private onAnimateCallbacks: Array<(dt: number) => void> = []
+  private lastTimeMs: number | null = null
 
   constructor() {
     this.scene = new THREE.Scene()
@@ -63,16 +66,24 @@ export class SceneManager {
     this.camera.updateProjectionMatrix()
   }
 
-  onAnimate(callback: () => void): void {
+  onAnimate(callback: (dt: number) => void): void {
     this.onAnimateCallbacks.push(callback)
   }
 
   animate(): void {
     const loop = () => {
       this.animationFrameId = requestAnimationFrame(loop)
+      const now = performance.now()
+      let dt: number
+      if (this.lastTimeMs === null) {
+        dt = 0
+      } else {
+        dt = Math.min((now - this.lastTimeMs) / 1000, SceneManager.MAX_FRAME_DT_SECONDS)
+      }
+      this.lastTimeMs = now
       this.controls.update()
       for (const cb of this.onAnimateCallbacks) {
-        cb()
+        cb(dt)
       }
       this.renderer.render(this.scene, this.camera)
     }

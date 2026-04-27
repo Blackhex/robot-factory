@@ -113,6 +113,9 @@ function pxtWatchPlugin(): Plugin {
 export default defineConfig({
   plugins: [pxtWatchPlugin()],
   server: {
+    // Listen on all network interfaces so the dev server is reachable from
+    // other devices on the LAN (Vite prints both Local and Network URLs).
+    host: true,
     watch: {
       // Don't trigger HMR/full-reload when PXT writes to its output folder
       // inside public/, otherwise the page reloads in a loop on every build.

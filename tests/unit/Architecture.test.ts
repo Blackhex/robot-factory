@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, existsSync } from 'fs'
-import { join } from 'path'
+import { dirname, join, relative, resolve } from 'path'
 
-/** Read all .ts files in a directory (non-recursive). */
+/** Read all .ts files in a directory recursively. */
 function tsFilesIn(dir: string): string[] {
   if (!existsSync(dir)) return []
-  return readdirSync(dir).filter((f) => f.endsWith('.ts'))
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = join(dir, entry.name)
+    if (entry.isDirectory()) return tsFilesIn(entryPath)
+    return entry.name.endsWith('.ts') ? [entryPath] : []
+  })
 }
 
 /** Assert no file in `dir` matches any of the `patterns`. */
@@ -15,14 +19,75 @@ function assertNoImport(
   patterns: RegExp[],
 ): void {
   for (const file of tsFilesIn(dir)) {
-    const content = readFileSync(join(dir, file), 'utf-8')
+    const content = readFileSync(file, 'utf-8')
+    const fileLabel = relative(dir, file).replace(/\\/g, '/')
     for (const pattern of patterns) {
       expect(
         content,
-        `${label}/${file} matches forbidden import ${pattern}`,
+        `${label}/${fileLabel} matches forbidden import ${pattern}`,
       ).not.toMatch(pattern)
     }
   }
+}
+
+function importSpecifiers(content: string): string[] {
+  const specifiers: string[] = []
+  const importPattern = /(?:import|export)\s+(?:type\s+)?(?:[^'";]+?\s+from\s+)?['"]([^'"]+)['"]/g
+  const dynamicImportPattern = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+
+  for (const pattern of [importPattern, dynamicImportPattern]) {
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(content)) !== null) {
+      specifiers.push(match[1])
+    }
+  }
+
+  return specifiers
+}
+
+function normalizeTsFilePath(path: string): string {
+  const withoutExtension = path.replace(/\.ts$/, '')
+  return `${withoutExtension}.ts`
+}
+
+function localGameDependencies(file: string, files: Set<string>): string[] {
+  const content = readFileSync(file, 'utf-8')
+  return importSpecifiers(content)
+    .filter((specifier) => specifier.startsWith('./') || specifier.startsWith('../'))
+    .map((specifier) => normalizeTsFilePath(resolve(dirname(file), specifier)))
+    .filter((resolvedFile) => files.has(resolvedFile))
+}
+
+function findCycle(graph: Map<string, string[]>): string[] | null {
+  const visiting = new Set<string>()
+  const visited = new Set<string>()
+  const stack: string[] = []
+
+  function visit(file: string): string[] | null {
+    if (visiting.has(file)) {
+      return stack.slice(stack.indexOf(file)).concat(file)
+    }
+    if (visited.has(file)) return null
+
+    visiting.add(file)
+    stack.push(file)
+    for (const dependency of graph.get(file) ?? []) {
+      const cycle = visit(dependency)
+      if (cycle) return cycle
+    }
+    stack.pop()
+    visiting.delete(file)
+    visited.add(file)
+
+    return null
+  }
+
+  for (const file of graph.keys()) {
+    const cycle = visit(file)
+    if (cycle) return cycle
+  }
+
+  return null
 }
 
 describe('Architecture', () => {
@@ -37,27 +102,76 @@ describe('Architecture', () => {
   // ── src/game/ ─────────────────────────────────────────
   describe('src/game/ isolation', () => {
     const forbidden = [
-      /from\s+['"]three['"]/,
+      /from\s+['"]three(?:\/[^'"]*)?['"]/,
       /from\s+['"]pxt-core['"]/,
       /from\s+['"]blockly['"]/,
-      /from\s+['"].*rendering\//,
+      /from\s+['"][^'"]*(?:src\/)?rendering(?:\/|['"])/,
+      /from\s+['"][^'"]*(?:src\/)?editor(?:\/|['"])/,
+      /from\s+['"][^'"]*(?:src\/)?ui(?:\/|['"])/,
+      /import\s*\(\s*['"]three(?:\/[^'"]*)?['"]\s*\)/,
+      /import\s*\(\s*['"][^'"]*(?:src\/)?rendering(?:\/|['"])\s*\)/,
+      /import\s*\(\s*['"][^'"]*(?:src\/)?editor(?:\/|['"])\s*\)/,
+      /import\s*\(\s*['"][^'"]*(?:src\/)?ui(?:\/|['"])\s*\)/,
     ]
 
-    it('must not import from three, pxt-core, blockly, or rendering', () => {
+    it('must not import from three, pxt-core, blockly, rendering, editor, or ui', () => {
       // WHEN + THEN
       assertNoImport(gameDir, 'game', forbidden)
     })
 
-    const extractedFiles = ['BeltRouter.ts', 'PlacementPlanner.ts', 'SlotUtils.ts']
+    it('must not use DOM APIs', () => {
+      // WHEN + THEN
+      assertNoImport(gameDir, 'game', [
+        /\bdocument\./,
+        /\bwindow\./,
+        /\bHTMLElement\b/,
+        /\bHTMLCanvasElement\b/,
+        /\bDOMRect\b/,
+        /\bMouseEvent\b/,
+        /\bPointerEvent\b/,
+        /\bKeyboardEvent\b/,
+        /\baddEventListener\s*\(/,
+        /\bremoveEventListener\s*\(/,
+      ])
+    })
+
+    it('must not have circular dependencies between game modules', () => {
+      // GIVEN
+      const files = new Set(tsFilesIn(gameDir).map((file) => resolve(file)))
+      const graph = new Map(
+        [...files].map((file) => [file, localGameDependencies(file, files)]),
+      )
+
+      // WHEN
+      const cycle = findCycle(graph)
+
+      // THEN
+      expect(
+        cycle?.map((file) => relative(gameDir, file).replace(/\\/g, '/')).join(' -> '),
+      ).toBeUndefined()
+    })
+
+    const extractedFiles = [
+      'BeltRouter.ts',
+      'ConnectedBeltEditOrchestrator.ts',
+      'FactoryMachineMover.ts',
+      'FactorySimulationSync.ts',
+      'GridReader.ts',
+      'PlacementPlanner.ts',
+      'PlacementPathEvaluator.ts',
+      'PlacementPlanTypes.ts',
+      'ReconnectPreviewPlanner.ts',
+      'SlotUtils.ts',
+    ]
     for (const file of extractedFiles) {
       it(`${file} must not import from three, rendering, ui, or editor`, () => {
         const filePath = join(gameDir, file)
         if (!existsSync(filePath)) return
         const content = readFileSync(filePath, 'utf-8')
-        expect(content, `${file} imports from three`).not.toMatch(/from\s+['"]three['"]/);
-        expect(content, `${file} imports from rendering`).not.toMatch(/from\s+['"].*rendering\//);
-        expect(content, `${file} imports from ui`).not.toMatch(/from\s+['"].*ui\//);
-        expect(content, `${file} imports from editor`).not.toMatch(/from\s+['"].*editor\//);
+        expect(content, `${file} imports from three`).not.toMatch(/from\s+['"]three(?:\/[^'"]*)?['"]|import\s*\(\s*['"]three(?:\/[^'"]*)?['"]\s*\)/)
+        expect(content, `${file} imports from rendering`).not.toMatch(/from\s+['"][^'"]*(?:src\/)?rendering(?:\/|['"])|import\s*\(\s*['"][^'"]*(?:src\/)?rendering(?:\/|['"])\s*\)/)
+        expect(content, `${file} imports from ui`).not.toMatch(/from\s+['"][^'"]*(?:src\/)?ui(?:\/|['"])|import\s*\(\s*['"][^'"]*(?:src\/)?ui(?:\/|['"])\s*\)/)
+        expect(content, `${file} imports from editor`).not.toMatch(/from\s+['"][^'"]*(?:src\/)?editor(?:\/|['"])|import\s*\(\s*['"][^'"]*(?:src\/)?editor(?:\/|['"])\s*\)/)
       })
     }
   })
@@ -86,7 +200,7 @@ describe('Architecture', () => {
     it('rendering imports use "import type" only', () => {
       // WHEN + THEN
       for (const file of tsFilesIn(uiDir)) {
-        const content = readFileSync(join(uiDir, file), 'utf-8')
+        const content = readFileSync(file, 'utf-8')
         const renderingImports =
           content.match(/^import\s.*from\s+['"].*rendering\/.*/gm) ?? []
         for (const imp of renderingImports) {
@@ -139,7 +253,7 @@ describe('Architecture', () => {
 
       // WHEN + THEN
       for (const file of tsFilesIn(renderingDir)) {
-        const content = readFileSync(join(renderingDir, file), 'utf-8')
+        const content = readFileSync(file, 'utf-8')
         const gameImports = content.match(/^import\s.*from\s+['"].*game\/.*/gm) ?? []
         for (const imp of gameImports) {
           const isTypeImport = /import\s+type\s/.test(imp)

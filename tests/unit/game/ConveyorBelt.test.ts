@@ -48,16 +48,27 @@ describe('ConveyorBelt', () => {
       expect(item.positionOnBelt).toBeCloseTo(0.15)
     })
 
-    it('should cap at 1.0 regardless of dt', () => {
-      // GIVEN
+    it('should preserve first overshoot value but freeze it on subsequent advances', () => {
+      // INTENT PRESERVED: the first advance that crosses 1.0 is NOT
+      // clamped (overshoot is preserved for the boundary handover).
+      // BEFORE: only asserted single advance to 5.0 (no follow-up tick).
+      // AFTER (A1 drift cap): added a follow-up advance to assert that
+      // the position stays at 5.0 — once an item is past 1.0 it is
+      // frozen until handover/delivery clears the cell.
       const item = createItem('wheel_small')
       belt.addItem(item)
 
-      // WHEN
-      belt.advance(5.0) // speed=1.0, dt=5.0 → delta=5.0, but capped at 1.0
+      // WHEN: one big advance overshoots well past 1.0
+      belt.advance(5.0) // speed=1.0, dt=5.0 → first-overshoot value 5.0
 
-      // THEN
-      expect(item.positionOnBelt).toBe(1.0)
+      // THEN: first overshoot preserved
+      expect(item.positionOnBelt).toBe(5.0)
+
+      // WHEN: another tick under back-pressure
+      belt.advance(0.1)
+
+      // THEN: A1 — already at >=1.0, advance is a no-op. No drift.
+      expect(item.positionOnBelt).toBe(5.0)
     })
 
     it('should default to 0.1 when dt is omitted', () => {
@@ -87,19 +98,20 @@ describe('ConveyorBelt', () => {
       expect(item.positionOnBelt).toBeCloseTo(0.1)
     })
 
-    it('should cap item position at 1.0', () => {
+    it('after sufficient advances item is past 1.0 and counted as ready', () => {
       // GIVEN
       const item = createItem('wheel_small')
       belt.addItem(item)
 
       // WHEN
-      // 11 advances at 0.1 each = 1.1, but should cap at 1.0
+      // 11 advances at 0.1 each = 1.1; overshoot is preserved.
       for (let i = 0; i < 11; i++) {
         belt.advance()
       }
 
       // THEN
-      expect(item.positionOnBelt).toBe(1.0)
+      expect(item.positionOnBelt).toBeCloseTo(1.1, 10)
+      expect(belt.getReadyItems().length).toBe(1)
     })
 
     it('should report items at position >= 1.0 as ready', () => {
@@ -109,7 +121,7 @@ describe('ConveyorBelt', () => {
 
       // WHEN
       // Due to floating point, 10 additions of 0.1 yields ~0.999...
-      // Need 11 ticks so Math.min caps it to 1.0
+      // Need 11 ticks so accumulated position passes 1.0.
       for (let i = 0; i < 11; i++) {
         belt.advance()
       }
@@ -162,7 +174,11 @@ describe('ConveyorBelt', () => {
       expect(belt.getItems()[0].positionOnBelt).toBe(0)
     })
 
-    it('should reject item when another is near the start', () => {
+    // TODO: removed in one-item-per-belt refactor — assertion frames
+    // rejection in terms of `BELT_ITEM_SPACING` ("near the start") which
+    // is being retired. The one-item-per-belt rule is covered by the new
+    // `ConveyorBelt.oneItemPerCell.test.ts`.
+    it.skip('should reject item when another is near the start', () => {
       // GIVEN
       const a = createItem('wheel_small')
       belt.addItem(a)
@@ -175,7 +191,10 @@ describe('ConveyorBelt', () => {
       expect(result).toBe(false) // first item is at 0 < 0.15
     })
 
-    it('should accept second item when first has advanced past 0.15', () => {
+    // TODO: removed in one-item-per-belt refactor — verifies multi-item
+    // belt acceptance once the leader passes `BELT_ITEM_SPACING`. Under
+    // the new model `addItem` returns false until the leader leaves.
+    it.skip('should accept second item when first has advanced past 0.15', () => {
       // GIVEN
       const a = createItem('wheel_small')
       belt.addItem(a)
@@ -213,7 +232,9 @@ describe('ConveyorBelt', () => {
     })
   })
 
-  describe('multiple items maintain order', () => {
+  // TODO: removed in one-item-per-belt refactor — entire suite assumes
+  // multiple items can coexist on a single ConveyorBelt instance.
+  describe.skip('multiple items maintain order', () => {
     it('should keep items sorted by position', () => {
       // GIVEN
       const a = createItem('wheel_small')
@@ -294,7 +315,7 @@ describe('ConveyorBelt', () => {
 
       // THEN
       expect(belt.getReadyItems.length).toBeDefined()
-      expect(item.positionOnBelt).toBe(1.0)
+      expect(item.positionOnBelt).toBeCloseTo(1.0, 10)
     })
   })
 })

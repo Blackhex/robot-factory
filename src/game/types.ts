@@ -127,9 +127,20 @@ export type SimulationEventType =
   | 'belt_jam'
   | 'machine_idle'
   | 'tick'
+  | 'game_over'
 
 export interface SimulationEvent {
   type: SimulationEventType
   tick: number
   data: Record<string, unknown>
+}
+
+export type GameOverReason = 'unconsumable_input'
+
+export interface GameOverInfo {
+  reason: GameOverReason
+  machineId: string
+  itemId: string
+  itemType: ItemType
+  tick: number
 }

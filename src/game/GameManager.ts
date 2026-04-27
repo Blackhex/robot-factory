@@ -131,15 +131,17 @@ export class GameManager {
 
     for (const info of factory.getBelts()) {
       // Create one ConveyorBelt per path segment
-      for (let i = 0; i < info.path.length - 1; i++) {
-        const segId = `${info.id}_seg${i}`
-        simulation.addBelt(
-          new ConveyorBelt(segId, info.path[i].x, info.path[i].z, info.path[i + 1].x, info.path[i + 1].z),
-        )
+      for (const segment of ConveyorBelt.fromBeltInfo(info)) {
+        simulation.addBelt(segment)
       }
-      // Wire source machine output to the first segment
       simulation.setMachineOutputBelt(info.sourceMachine.id, `${info.id}_seg0`)
     }
+
+    // Wire factory edits → sim sync. After this, mid-run belt edits
+    // (move/rotate/remove) keep `Simulation.belts` in lock-step with
+    // `Factory.getBelts()` and preserve removed-belt items only for
+    // exact source/destination slot replacements.
+    factory.attachSimulation(simulation)
   }
 
   // --- Progress ---
