@@ -11,6 +11,7 @@ export class ToolbarPage {
   private readonly pauseBtn: Locator
   private readonly restartBtn: Locator
   private readonly langBtn: Locator
+  private readonly saveBtn: Locator
   private readonly toolbarSelect: Locator
   private readonly selectToolBtn: Locator
   private readonly placeMachineToolBtn: Locator
@@ -25,6 +26,7 @@ export class ToolbarPage {
     this.pauseBtn = page.locator('.ui-toolbar-btn--pause')
     this.restartBtn = page.locator('.ui-toolbar-btn--restart')
     this.langBtn = page.locator('.ui-lang-btn')
+    this.saveBtn = page.locator('.ui-toolbar button[data-i18n-key="toolbar.save"]')
     this.toolbarSelect = page.locator('.ui-toolbar-select')
     this.selectToolBtn = page.locator('.ui-toolbar-btn[data-tool="select"]')
     this.placeMachineToolBtn = page.locator('.ui-toolbar-btn[data-tool="place_machine"]')
@@ -77,6 +79,15 @@ export class ToolbarPage {
 
   async clickLanguageToggle(): Promise<void> {
     await this.langBtn.click()
+  }
+
+  async clickSave(): Promise<void> {
+    await expect(this.saveBtn).toBeVisible()
+    await this.saveBtn.click()
+  }
+
+  async expectSaveButtonVisible(): Promise<void> {
+    await expect(this.saveBtn).toBeVisible()
   }
 
   async expectLanguageButtonText(text: string): Promise<void> {

@@ -27,6 +27,8 @@ export class PxtEditor {
   private currentLevel = 1
   private pxtReady = false
   private lastPxtSource = ''
+  private lastPxtBlocks = ''
+  private pendingWorkspaceLoad: { ts: string; blocks: string | undefined } | null = null
   private messageHandler: ((ev: MessageEvent) => void) | null = null
   private pendingMachineUpdate: Array<{id: string, name: string, type: string}> | null = null
   private pendingBeltUpdate: Array<{id: string, name: string, sourceName: string, destName: string}> | null = null
@@ -34,6 +36,22 @@ export class PxtEditor {
   private textPatched = false
   private stylesInjected = false
   private toolboxObserver: MutationObserver | null = null
+  private nextRequestId = 1
+  private pendingResponses = new Map<string, () => void>()
+  /**
+   * Tracks an in-flight `loadWorkspaceXml` direct-load operation. PXT's
+   * `loadHeaderAsync` (kicked off by the initial `workspacesync` reply)
+   * runs asynchronously and will overwrite our injected blocks with its
+   * own decompiled view of `main.ts` after we've already injected. We
+   * remember the desired XML and re-apply it on every `workspacesave`
+   * echo whose `main.blocks` doesn't match, until either the workspace
+   * stabilizes on the desired state or the deadline expires.
+   */
+  private pendingDirectLoad: {
+    expectedBlockTypes: string[]
+    blocksXml: string
+    deadline: number
+  } | null = null
 
   /**
    * Mount the editor into the given container.
@@ -172,27 +190,154 @@ export class PxtEditor {
     return this.interpreter.triggerEvent(eventType)
   }
 
+  /**
+   * Read the live Blockly workspace XML directly from the embedded editor.
+   * Returns '' if Blockly is not available or serialization fails so that
+   * callers can fall back to the cached `lastPxtBlocks` value.
+   */
+  private readLiveBlocksXml(): string {
+    try {
+      const Blockly: any = this.getBlockly()
+      const ws: any = this.getBlocklyWorkspace()
+      if (!Blockly?.Xml || !ws) return ''
+      const dom = Blockly.Xml.workspaceToDom(ws)
+      if (!dom) return ''
+      const xml = Blockly.Xml.domToText(dom)
+      return typeof xml === 'string' ? xml : ''
+    } catch {
+      return ''
+    }
+  }
+
   /** Get the current workspace state for save/load. */
   getWorkspaceXml(): string {
+    const fallbackValue = this.fallbackTextarea?.value ?? ''
     if (this.pxtReady) {
-      return this.lastPxtSource
+      // Prefer the live Blockly XML at save time; fall back to the cached
+      // value captured from `workspacesave` (which PXT only sometimes echoes).
+      const liveBlocks = this.readLiveBlocksXml()
+      const blocks = liveBlocks !== '' ? liveBlocks : this.lastPxtBlocks
+      // Preserve AutoSave's empty-XML guard: if nothing has been captured
+      // yet from PXT and the fallback is empty too, return '' so AutoSave
+      // skips persisting an empty envelope.
+      if (this.lastPxtSource === '' && blocks === '' && fallbackValue === '') {
+        return ''
+      }
+      return JSON.stringify({ ts: this.lastPxtSource, blocks })
     }
-    return this.fallbackTextarea?.value ?? ''
+    return fallbackValue
   }
 
   /** Restore a previously saved workspace state. */
   loadWorkspaceXml(xml: string): void {
-    if (this.pxtReady) {
+    let ts = xml
+    let blocks: string | undefined
+    let parsedEnvelope = false
+
+    try {
+      const parsed = JSON.parse(xml) as { ts?: unknown; blocks?: unknown } | null
+      if (parsed && typeof parsed === 'object' && (typeof parsed.ts === 'string' || typeof parsed.blocks === 'string')) {
+        parsedEnvelope = true
+        ts = typeof parsed.ts === 'string' ? parsed.ts : ''
+        blocks = typeof parsed.blocks === 'string' ? parsed.blocks : ''
+      }
+    } catch {
+      // Legacy plain TS string — fall through with `ts = xml`, blocks undefined.
+    }
+
+    if (!this.pxtReady) {
+      // PXT iframe hasn't completed its workspacesync handshake yet.
+      // Queue the payload so the workspacesync handler can deliver it as
+      // the initial project, and seed our cached state so an immediate
+      // re-save still produces a faithful envelope. Posting `importproject`
+      // now would be silently dropped by the not-yet-listening iframe.
+      this.pendingWorkspaceLoad = { ts, blocks: parsedEnvelope ? (blocks ?? '') : undefined }
+      this.lastPxtSource = ts
+      this.lastPxtBlocks = parsedEnvelope ? (blocks ?? '') : ''
+      if (this.fallbackTextarea) {
+        this.fallbackTextarea.value = ts
+      }
+      return
+    }
+
+    // pxtReady is true (the early-return above handles the not-ready case).
+    // Prefer loading directly into the embedded Blockly workspace when we
+    // have a blocks XML payload. PXT's `importproject` controller action is
+    // unreliable for round-tripping orphan/free blocks: it installs the
+    // header but `loadHeaderAsync` re-derives `main.blocks` from `main.ts`,
+    // dropping any block that lacks a corresponding TS statement (which is
+    // the case for newly created, unconnected blocks). Direct Blockly
+    // injection avoids this entirely; the next `workspacesave` echo from
+    // PXT will then refresh our cache with the correct serialized XML.
+    //
+    // Block type definitions (e.g. `pxt-on-start`, `factory_*`) are
+    // registered asynchronously by PXT after the workspacesync handshake,
+    // so the direct load may need to wait until those are available.
+    const blocksXml = typeof blocks === 'string' ? blocks : ''
+    void this.loadBlocksWithRegistrationReady(blocksXml).then((loaded) => {
+      if (loaded) {
+        // Register a pending direct-load watch. PXT's async init pipeline
+        // (loadHeaderAsync) may overwrite our injection a few hundred ms
+        // later by re-loading `main.blocks` from PXT's stored copy. The
+        // workspacesave handler re-applies this XML until the echo matches
+        // or the deadline expires.
+        this.pendingDirectLoad = {
+          expectedBlockTypes: this.extractBlockTypes(blocksXml),
+          blocksXml,
+          deadline: Date.now() + 4000,
+        }
+        return
+      }
+      const text: Record<string, string> = { 'main.ts': ts }
+      if (blocksXml.length > 0) text['main.blocks'] = blocksXml
       this.postToEditor({
         type: 'pxteditor',
         action: 'importproject',
-        project: { text: { 'main.ts': xml, 'main.blocks': '' }, name: 'factory' },
+        project: { text, name: 'factory' },
         response: true,
       })
+    })
+
+    // Seed our cached state so a re-save before PXT echoes a new
+    // workspacesave still produces a faithful envelope. On the legacy
+    // (non-envelope) branch, also reset lastPxtBlocks so a stale value from
+    // a previous envelope load can't leak into a subsequent envelope.
+    this.lastPxtSource = ts
+    if (parsedEnvelope) {
+      this.lastPxtBlocks = blocks ?? ''
+    } else {
+      this.lastPxtBlocks = ''
     }
+
     if (this.fallbackTextarea) {
-      this.fallbackTextarea.value = xml
+      this.fallbackTextarea.value = ts
     }
+  }
+
+  /**
+   * Force PXT to flush its debounced internal save and resolve once the
+   * controller acknowledges. Necessary before reading `getWorkspaceXml()`
+   * for a save/export, because PXT only updates `main.blocks` in our
+   * cache when its own debounced `workspacesave` postMessage fires.
+   *
+   * Resolves immediately if the editor is not yet ready, on the matching
+   * `pxteditor` response, or after `timeoutMs` to guarantee no hang.
+   */
+  flushPendingSaveAsync(timeoutMs = 1000): Promise<void> {
+    if (!this.pxtReady) return Promise.resolve()
+    const id = `rf-flush-${this.nextRequestId++}`
+    return new Promise<void>((resolve) => {
+      let settled = false
+      const finish = (): void => {
+        if (settled) return
+        settled = true
+        this.pendingResponses.delete(id)
+        resolve()
+      }
+      this.pendingResponses.set(id, finish)
+      setTimeout(finish, timeoutMs)
+      this.postToEditor({ type: 'pxteditor', action: 'saveproject', id, response: true })
+    })
   }
 
   dispose(): void {
@@ -445,6 +590,27 @@ export class PxtEditor {
             '<xml xmlns="https://developers.google.com/blockly/xml">' +
             '<block type="pxt-on-start" x="0" y="0"></block>' +
             '</xml>'
+          const projectText: Record<string, string> = {
+            'main.ts': '',
+            'main.blocks': initialBlocks,
+            'pxt.json': JSON.stringify({
+              name: 'factory',
+              dependencies: { core: '*' },
+              files: ['main.blocks', 'main.ts'],
+            }),
+          }
+          if (this.pendingWorkspaceLoad) {
+            const pending = this.pendingWorkspaceLoad
+            projectText['main.ts'] = pending.ts
+            if (typeof pending.blocks === 'string' && pending.blocks.length > 0) {
+              projectText['main.blocks'] = pending.blocks
+            } else {
+              // Omit so PXT decompiles the TS back into blocks instead of
+              // clobbering the canvas with empty/default XML.
+              delete projectText['main.blocks']
+            }
+            this.pendingWorkspaceLoad = null
+          }
           const defaultProject = {
             header: {
               id: 'factory-default',
@@ -458,15 +624,7 @@ export class PxtEditor {
               modificationTime: Date.now(),
               path: 'factory',
             },
-            text: {
-              'main.ts': '',
-              'main.blocks': initialBlocks,
-              'pxt.json': JSON.stringify({
-                name: 'factory',
-                dependencies: { core: '*' },
-                files: ['main.blocks', 'main.ts'],
-              }),
-            },
+            text: projectText,
           }
           this.postToEditor({
             type: 'pxthost',
@@ -504,6 +662,12 @@ export class PxtEditor {
             if (text?.['main.ts']) {
               this.lastPxtSource = text['main.ts']
             }
+            if (typeof text?.['main.blocks'] === 'string') {
+              this.lastPxtBlocks = text['main.blocks']
+            }
+            // If a direct-load is pending and PXT just echoed a workspace
+            // that's missing some of the expected block types, re-apply.
+            this.maybeReapplyPendingDirectLoad(text?.['main.blocks'])
           }
           // Respond to acknowledge
           if (msg.response) {
@@ -538,6 +702,31 @@ export class PxtEditor {
       const resp = msg.resp as Record<string, unknown> | undefined
       if (resp?.main) {
         this.lastPxtSource = resp.main as string
+      }
+      if (resp) {
+        // Defensively capture any blocks XML PXT sends back. The exact key
+        // varies between PXT controller versions ('main.blocks', 'blocks',
+        // or a generic *.blocks file entry), so accept any string field
+        // whose key ends in '.blocks' or equals 'blocks'.
+        for (const [key, value] of Object.entries(resp)) {
+          if (typeof value === 'string' && value.length > 0 && (key === 'blocks' || key.endsWith('.blocks'))) {
+            this.lastPxtBlocks = value
+            break
+          }
+        }
+      }
+    }
+
+    // Resolve any pending flushPendingSaveAsync() awaiter keyed by id.
+    // PXT controller responses to our `saveproject` may arrive in several
+    // shapes (e.g. `{type:'pxteditor', response:true, id, ...}` or
+    // `{type:'pxteditor', id, success:true}`), so match on type+id and
+    // ignore the `response` flag here.
+    if (msg.type === 'pxteditor') {
+      const id = msg.id
+      if (typeof id === 'string') {
+        const resolver = this.pendingResponses.get(id)
+        if (resolver) resolver()
       }
     }
   }
@@ -926,6 +1115,92 @@ export class PxtEditor {
   /** Return the main Blockly workspace inside the PXT iframe, or undefined. */
   private getBlocklyWorkspace(): any {
     return this.getBlockly()?.getMainWorkspace?.()
+  }
+
+  private loadBlocksDirectly(blocksXml: string): boolean {
+    if (!blocksXml) return false
+    try {
+      const Blockly: any = this.getBlockly()
+      const ws: any = this.getBlocklyWorkspace()
+      if (!Blockly?.Xml || !ws) return false
+      const textToDom = Blockly.Xml.textToDom ?? Blockly.utils?.xml?.textToDom
+      const domToWorkspace = Blockly.Xml.domToWorkspace ?? Blockly.Xml.appendDomToWorkspace
+      if (typeof textToDom !== 'function' || typeof domToWorkspace !== 'function') return false
+      const dom = textToDom(blocksXml)
+      if (!dom) return false
+      ws.clear?.()
+      domToWorkspace(dom, ws)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Replace the embedded Blockly workspace contents with the given XML.
+   * PXT registers block definitions asynchronously after the
+   * `workspacesync` handshake (it loads the initial project and only then
+   * registers `pxt-on-start` and the `factory_*` blocks). If we try to
+   * inject XML before that registration completes, `Blockly.Xml.domToWorkspace`
+   * throws "Unknown block type" and silently aborts.
+   *
+   * This wrapper polls until every block type referenced in the XML has a
+   * registered constructor in `Blockly.Blocks`, then calls
+   * `loadBlocksDirectly`. Returns true on success, false on timeout.
+   */
+  private async loadBlocksWithRegistrationReady(
+    blocksXml: string,
+    timeoutMs = 5000,
+  ): Promise<boolean> {
+    if (!blocksXml) return false
+    const uniqueTypes = this.extractBlockTypes(blocksXml)
+    const start = Date.now()
+    const POLL_MS = 50
+    while (Date.now() - start < timeoutMs) {
+      const Blockly: any = this.getBlockly()
+      const registry = Blockly?.Blocks
+      if (registry && uniqueTypes.every((t) => registry[t])) {
+        return this.loadBlocksDirectly(blocksXml)
+      }
+      await new Promise<void>((r) => setTimeout(r, POLL_MS))
+    }
+    return false
+  }
+
+  /** Extract every `<block ... type="...">` type referenced in an XML string. */
+  private extractBlockTypes(blocksXml: string): string[] {
+    const matches = Array.from(blocksXml.matchAll(/<block[^>]*\stype="([^"]+)"/g)).map((m) => m[1])
+    return Array.from(new Set(matches))
+  }
+
+  /**
+   * Called from the `workspacesave` handler whenever PXT echoes its view
+   * of the workspace. If we have an outstanding direct-load request, and
+   * the echoed `main.blocks` is missing block types we explicitly loaded,
+   * PXT has clobbered our injection — re-apply it. Once the echo contains
+   * every expected type, or the deadline expires, the pending state is
+   * cleared.
+   */
+  private maybeReapplyPendingDirectLoad(echoedBlocksXml: string | undefined): void {
+    const pending = this.pendingDirectLoad
+    if (!pending) return
+    if (Date.now() > pending.deadline) {
+      this.pendingDirectLoad = null
+      return
+    }
+    const echoed = typeof echoedBlocksXml === 'string' ? echoedBlocksXml : ''
+    const echoedTypes = new Set(this.extractBlockTypes(echoed))
+    const missing = pending.expectedBlockTypes.filter((t) => !echoedTypes.has(t))
+    if (missing.length === 0) {
+      this.pendingDirectLoad = null
+      return
+    }
+    // Re-apply on next microtask so PXT finishes whatever caused the echo
+    // before we overwrite again.
+    setTimeout(() => {
+      if (!this.pendingDirectLoad) return
+      this.loadBlocksDirectly(this.pendingDirectLoad.blocksXml)
+    }, 0)
   }
 
 }

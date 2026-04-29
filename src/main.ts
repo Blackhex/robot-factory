@@ -19,17 +19,18 @@ import { BeltPanel } from './ui/BeltPanel'
 import { PxtEditor } from './editor/PxtEditor'
 import { AudioManager } from './audio/AudioManager'
 import {
-  saveFactory,
-  loadFactory,
-  saveToLocalStorage,
-  loadFromLocalStorage,
   exportToFile,
   importFromFile,
 } from './utils/SaveLoad'
+import {
+  autoSaveFactory as autoSaveFactoryImpl,
+  autoRestoreFactory as autoRestoreFactoryImpl,
+  exportFactoryWithProgram,
+  importFactoryWithProgram,
+} from './utils/AutoSave'
 import * as THREE from 'three'
 
 const PROGRESS_KEY = 'rf_progress'
-const FACTORY_SAVE_PREFIX = 'rf_factory_'
 
 async function main(): Promise<void> {
   await initI18n()
@@ -228,35 +229,12 @@ async function main(): Promise<void> {
     }
   }
 
-  function getFactorySaveKey(levelId?: string): string {
-    return FACTORY_SAVE_PREFIX + (levelId ?? 'sandbox')
-  }
-
-  function autoSaveFactory(): void {
-    const factory = gameManager.factory
-    if (!factory) return
-    const levelId = gameManager.currentLevel?.id
-    const workspace = ''
-    const save = saveFactory(factory, workspace, levelId)
-    saveToLocalStorage(getFactorySaveKey(levelId), save)
+  function autoSaveFactory(): Promise<void> {
+    return autoSaveFactoryImpl(gameManager.factory, pxtEditor, gameManager.currentLevel?.id)
   }
 
   function autoRestoreFactory(): boolean {
-    const levelId = gameManager.currentLevel?.id
-    const save = loadFromLocalStorage(getFactorySaveKey(levelId))
-    if (!save) return false
-    try {
-      const result = loadFactory(save)
-      const factory = gameManager.factory
-      if (!factory) return false
-      factory.restoreState(
-        result.factory.getMachines().map(m => ({ x: m.x, z: m.z, type: m.type, rotation: m.rotation, name: m.name })),
-        result.factory.getBelts().map(b => ({ sourceSlot: b.sourceSlot, destinationSlot: b.destinationSlot, path: b.path, name: b.name })),
-      )
-      return true
-    } catch {
-      return false
-    }
+    return autoRestoreFactoryImpl(gameManager.factory, pxtEditor, gameManager.currentLevel?.id)
   }
 
   function wireGridInteractionCallbacks(gi: GridInteraction): void {
@@ -432,7 +410,7 @@ async function main(): Promise<void> {
 
       case 'play_phase':
         // Auto-save factory before entering play
-        autoSaveFactory()
+        void autoSaveFactory()
         toolbar.show()
         hud.show()
         if (gridInteraction) gridInteraction.disable()
@@ -607,7 +585,7 @@ async function main(): Promise<void> {
     if (!factory) return
     factory.renameBelt(belt.id, newName)
     syncFactoryToEditor()
-    autoSaveFactory()
+    void autoSaveFactory()
   }
 
   machinePanel.onTypeChange = (machine, newType) => {
@@ -626,7 +604,7 @@ async function main(): Promise<void> {
     const factory = gameManager.factory
     if (!factory) return
     factory.renameMachine(machine.x, machine.z, newName)
-    autoSaveFactory()
+    void autoSaveFactory()
   }
 
   toolbar.onToggleEditor = () => {
@@ -636,20 +614,16 @@ async function main(): Promise<void> {
 
   toolbar.onSave = () => {
     audio.playUIClick()
-    autoSaveFactory()
+    void autoSaveFactory()
   }
 
   toolbar.onLoad = () => {
     audio.playUIClick()
     void importFromFile()
       .then((save) => {
-        const result = loadFactory(save)
         const factory = gameManager.factory
         if (!factory) return
-        factory.restoreState(
-          result.factory.getMachines().map(m => ({ x: m.x, z: m.z, type: m.type, rotation: m.rotation, name: m.name })),
-          result.factory.getBelts().map(b => ({ sourceSlot: b.sourceSlot, destinationSlot: b.destinationSlot, path: b.path })),
-        )
+        importFactoryWithProgram(save, factory, pxtEditor)
         factoryRenderer?.update()
         syncFactoryToEditor()
       })
@@ -658,13 +632,12 @@ async function main(): Promise<void> {
       })
   }
 
-  toolbar.onExport = () => {
+  toolbar.onExport = async () => {
     audio.playUIClick()
     const factory = gameManager.factory
     if (!factory) return
     const levelId = gameManager.currentLevel?.id
-    const workspace = ''
-    const save = saveFactory(factory, workspace, levelId)
+    const save = await exportFactoryWithProgram(factory, pxtEditor, levelId)
     exportToFile(save)
   }
 

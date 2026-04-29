@@ -39,4 +39,13 @@ export class BasePage {
       return !!c && c.width > 0 && c.height > 0
     })
   }
+
+  /**
+   * Reload the current page (full browser reload) and wait for the
+   * Three.js canvas to be ready again. Used by save/reload round-trip tests.
+   */
+  async reload(): Promise<void> {
+    await this.page.reload()
+    await this.waitForCanvasReady()
+  }
 }

@@ -418,4 +418,66 @@ export class PxtEditorPage {
     await this.page.mouse.up()
     await this.page.waitForTimeout(500)
   }
+
+  /**
+   * Snapshot of the live Blockly workspace contents — used for save/reload
+   * round-trip assertions. `count` is the number of blocks on the main
+   * workspace (excluding the flyout). `xml` is the full
+   * `Blockly.Xml.workspaceToDom` text.
+   */
+  async getWorkspaceBlocksSnapshot(): Promise<{
+    count: number
+    types: string[]
+    fieldValues: Record<string, string>
+    xml: string
+  }> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      if (!win || !win.Blockly) throw new Error('Blockly not available on PXT iframe window')
+      const ws = win.Blockly.mainWorkspace
+      if (!ws) throw new Error('Blockly main workspace not available')
+      const all: any[] = ws.getAllBlocks?.(false) ?? []
+      const types: string[] = all.map((b: any) => String(b.type ?? '')).sort()
+      const fieldValues: Record<string, string> = {}
+      for (const b of all) {
+        const inputs = b.inputList ?? []
+        for (const input of inputs) {
+          for (const f of input.fieldRow ?? []) {
+            const name = typeof f.name === 'string' ? f.name : ''
+            if (!name) continue
+            try {
+              const val = typeof f.getValue === 'function' ? f.getValue() : ''
+              fieldValues[`${b.type}.${name}`] = String(val ?? '')
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+      let xml = ''
+      try {
+        const dom = win.Blockly.Xml.workspaceToDom(ws)
+        xml = dom ? String(win.Blockly.Xml.domToText(dom) ?? '') : ''
+      } catch {
+        xml = ''
+      }
+      return { count: all.length, types, fieldValues, xml }
+    }, iframeEl!)
+  }
+
+  /**
+   * Add a non-trivial user-authored program to the workspace on top of the
+   * default `on start`. Currently this drops a `factory_start_machine` block
+   * onto the main workspace via the Blockly API. The block is initialized,
+   * rendered, and serialized into the workspace XML by Blockly so it
+   * participates in autosave.
+   *
+   * Returns the IDs of the blocks that were added.
+   */
+  async addNonTrivialProgram(): Promise<string[]> {
+    const id = await this.createStartMachineBlock()
+    return [id]
+  }
 }

@@ -496,3 +496,88 @@ test.describe('flyout updates on machine placement', () => {
     })
   })
 })
+
+test.describe('Save / Reload Round-Trip', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  test('blocks added to the editor survive an explicit Save + page reload', async ({
+    mainMenu,
+    levelSelect,
+    toolbar,
+    tutorial,
+    editorPanel,
+    pxt,
+    page,
+  }) => {
+    // 1. Reach build phase on the first level.
+    await enterBuildPhase(mainMenu, levelSelect, toolbar, tutorial)
+
+    // 2. Open the PXT editor and wait for Blockly to become interactive.
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
+    await editorPanel.expectIframeVisible()
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForBlocklyWorkspaceVisible()
+    await pxt.waitForToolboxInteractive()
+
+    // 3. Add a non-trivial program on top of the default `on start`.
+    await pxt.addNonTrivialProgram()
+
+    // 4. Capture the BEFORE snapshot.
+    const before = await pxt.getWorkspaceBlocksSnapshot()
+    expect(
+      before.count,
+      `precondition: workspace must have more than just the default \`on start\` ` +
+        `before reload — got ${before.count} blocks (${JSON.stringify(before.types)})`,
+    ).toBeGreaterThan(1)
+    expect(before.xml).not.toEqual('')
+
+    // 5. Trigger autosave via the toolbar Save button.
+    await toolbar.clickSave()
+    // Allow the async PXT workspace flush + localStorage write to settle.
+    await page.waitForTimeout(500)
+
+    // 6. Full browser reload.
+    await mainMenu.reload()
+
+    // 7. Navigate back to the same level.
+    await mainMenu.expectVisible()
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickFirstUnlocked()
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent()
+
+    // 8. Re-open the PXT editor and wait for Blockly to load the restored project.
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
+    await editorPanel.expectIframeVisible()
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForBlocklyWorkspaceVisible()
+    await pxt.waitForToolboxInteractive()
+    // Give PXT a beat to import the saved project into the workspace.
+    await page.waitForTimeout(1000)
+
+    // 9. Capture the AFTER snapshot and assert round-trip equality.
+    const after = await pxt.getWorkspaceBlocksSnapshot()
+
+    expect(
+      after.count,
+      `block count must survive reload: had ${before.count} before ` +
+        `(${JSON.stringify(before.types)}), got ${after.count} after ` +
+        `(${JSON.stringify(after.types)})`,
+    ).toBe(before.count)
+
+    expect(
+      after.types,
+      `block types must survive reload: before=${JSON.stringify(before.types)} ` +
+        `after=${JSON.stringify(after.types)}`,
+    ).toEqual(before.types)
+
+    expect(
+      after.fieldValues,
+      `block field values must survive reload: before=${JSON.stringify(before.fieldValues)} ` +
+        `after=${JSON.stringify(after.fieldValues)}`,
+    ).toEqual(before.fieldValues)
+  })
+})
