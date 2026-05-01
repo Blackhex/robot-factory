@@ -65,7 +65,7 @@ export class MachineMeshRenderer {
       }))
     }
 
-    this.slotGeometry = new THREE.BoxGeometry(0.5, 0.12, 0.3)
+    this.slotGeometry = new THREE.BoxGeometry(0.5, 0.25, 0.25)
     this.inputSlotMaterial = new THREE.MeshStandardMaterial({
       color: 0x44ff44,
       emissive: 0x226622,
@@ -340,8 +340,8 @@ export class MachineMeshRenderer {
     outputOffsets: SlotOffset[],
     worldPos: THREE.Vector3,
   ): void {
-    this.positionOffsetMeshes(slots.inputs, inputOffsets, worldPos, 0.55, 0.06, 'slot')
-    this.positionOffsetMeshes(slots.outputs, outputOffsets, worldPos, 0.55, 0.06, 'slot')
+    this.positionOffsetMeshes(slots.inputs, inputOffsets, worldPos, 0.575, 0.125, 'slot')
+    this.positionOffsetMeshes(slots.outputs, outputOffsets, worldPos, 0.575, 0.125, 'slot')
   }
 
   private positionArrowMeshes(

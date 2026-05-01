@@ -291,12 +291,12 @@ export class GridInteraction {
   private handlePointerMove(event: PointerEvent): void {
     this.updateMouseNDC(event)
     const cell = this.raycastToDragGrid()
-    if (!cell) { this.preview.hideHighlight(); this.rendererDom.style.cursor = 'default'; return }
-
-    const worldPos = this.gridToWorld(cell.x, cell.z)
-    this.preview.moveHighlight(worldPos)
 
     if (this.dragMode === 'machine' && this.dragOrigin) {
+      this.rendererDom.style.cursor = 'grabbing'
+      if (!cell) { this.preview.hideHighlight(); return }
+      const worldPos = this.gridToWorld(cell.x, cell.z)
+      this.preview.moveHighlight(worldPos)
       this.machineDragPreview.showPreview({
         origin: this.dragOrigin,
         cell,
@@ -304,7 +304,14 @@ export class GridInteraction {
         connectedMachines: this.dragConnectedMachines,
         ignoreBeltIds: this.dragIgnoreBeltIds,
       })
-    } else if (this.dragMode === 'belt' && this.dragOrigin) {
+      return
+    }
+
+    if (this.dragMode === 'belt' && this.dragOrigin) {
+      this.rendererDom.style.cursor = 'grabbing'
+      if (!cell) { this.preview.hideHighlight(); return }
+      const worldPos = this.gridToWorld(cell.x, cell.z)
+      this.preview.moveHighlight(worldPos)
       const raycaster = this.gridRaycast.getRaycaster()
       this.beltDragInteraction.showPreview(cell, raycaster, {
         origin: this.dragOrigin,
@@ -312,21 +319,31 @@ export class GridInteraction {
         sourceSlotPosition: this.dragSourceSlotPosition,
         ignoreBeltIds: this.dragIgnoreBeltIds,
       })
-    } else {
-      const existing = this.factory.getMachineAt(cell.x, cell.z)
-      this.preview.setHighlightStyle(existing ? 0x4488ff : 0x00ff88, 0.3)
-
-      // Change cursor to 'grab' when hovering over a slot
-      if (this.factoryRenderer) {
-        const raycaster = this.gridRaycast.getRaycaster()
-        const hit = this.factoryRenderer.raycastInteraction(raycaster)
-        if (hit && (hit.type === 'input' || hit.type === 'output')) {
-          this.rendererDom.style.cursor = 'grab'
-        } else {
-          this.rendererDom.style.cursor = 'default'
-        }
-      }
+      return
     }
+
+    // Not dragging: update hover cursor based on what's under the pointer.
+    // Check renderer hits first so a machine body/slot is recognized even if
+    // the ground-plane raycast resolves to a different (or no) grid cell.
+    if (this.factoryRenderer) {
+      const raycaster = this.gridRaycast.getRaycaster()
+      const hit = this.factoryRenderer.raycastInteraction(raycaster)
+      if (hit && (hit.type === 'input' || hit.type === 'output')) {
+        this.rendererDom.style.cursor = 'grab'
+      } else if (hit && hit.type === 'machine') {
+        this.rendererDom.style.cursor = 'grab'
+      } else {
+        this.rendererDom.style.cursor = 'default'
+      }
+    } else {
+      this.rendererDom.style.cursor = 'default'
+    }
+
+    if (!cell) { this.preview.hideHighlight(); return }
+    const worldPos = this.gridToWorld(cell.x, cell.z)
+    this.preview.moveHighlight(worldPos)
+    const existing = this.factory.getMachineAt(cell.x, cell.z)
+    this.preview.setHighlightStyle(existing ? 0x4488ff : 0x00ff88, 0.3)
   }
 
   private handlePointerDown(event: PointerEvent): void {

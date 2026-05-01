@@ -52,13 +52,18 @@ export class GridPointerDownHandler {
   handle(event: PointerEvent): void {
     if (event.button !== 0) return
     this.updateMouseNDC(event)
+
+    // Check renderer hits first (machine body, slots) so a click on a tall
+    // machine starts a drag even when the ground-plane raycast misses or
+    // resolves to a different cell behind the machine.
+    if (this.tryStartDragFromRendererHit(event)) return
+
     const cell = this.raycastToGrid()
     if (!cell) {
       this.deselectAll()
       return
     }
 
-    if (this.tryStartDragFromRendererHit(event)) return
     if (this.tryStartDragFromMachineCell(event, cell)) return
     if (this.trySelectBelt(cell)) return
 
