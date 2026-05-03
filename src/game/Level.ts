@@ -1,9 +1,17 @@
-import type { MachineType } from './types.ts'
+import type { Direction, MachineType } from './types.ts'
 
 export interface LevelGoal {
   readonly type: 'produce_robots' | 'produce_parts' | 'quality_target' | 'time_limit'
   readonly target: number
   readonly itemType?: string
+}
+
+export interface LevelStartingMachine {
+  readonly x: number
+  readonly z: number
+  readonly type: MachineType
+  readonly rotation: Direction
+  readonly name?: string
 }
 
 export interface LevelDefinition {
@@ -15,6 +23,7 @@ export interface LevelDefinition {
   readonly unlockedBlocks: number
   readonly goals: LevelGoal[]
   readonly parScores: { speed: number; cost: number; quality: number }
+  readonly startingMachines?: ReadonlyArray<LevelStartingMachine>
 }
 
 const levels: LevelDefinition[] = [
@@ -29,6 +38,9 @@ const levels: LevelDefinition[] = [
       { type: 'produce_parts', target: 3, itemType: 'wheel_small' },
     ],
     parScores: { speed: 1, cost: 10, quality: 80 },
+    startingMachines: [
+      { x: 8, z: 5, type: 'factory_output', rotation: 'west' },
+    ],
   },
   {
     id: 'level_2',

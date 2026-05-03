@@ -11,7 +11,7 @@
  * Sampling is parameterized by arc length so item travel speed is uniform
  * through corners (no slowdown/speedup at the arc).
  */
-import { CORNER_STRAIGHT_LEN } from './BeltMeshRenderer'
+import { CORNER_STRAIGHT_LEN } from '../utils/BeltGeometry'
 
 const ARC_R = 0.5 - CORNER_STRAIGHT_LEN // 0.3
 const HALF_PI = Math.PI / 2

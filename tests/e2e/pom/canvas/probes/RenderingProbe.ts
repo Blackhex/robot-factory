@@ -377,4 +377,41 @@ export class RenderingProbe {
       }
     })
   }
+
+  /**
+   * Reads the id of the machine currently highlighted by the renderer.
+   * Returns `null` when no machine is selected (or when the renderer is not
+   * yet ready). Used by the POM to confirm that a click landed on the
+   * intended machine without depending on UI overlay timing.
+   */
+  async getHighlightedMachineId(): Promise<string | null> {
+    return this.page.evaluate(() => {
+      const getRenderer = (window as any).__getFactoryRenderer
+      const renderer = typeof getRenderer === 'function' ? getRenderer() : null
+      return renderer?.highlightedMachineId ?? null
+    })
+  }
+
+  /**
+   * Re-runs `SceneManager.resize` against the live canvas-container size.
+   *
+   * The application only calls `sceneManager.resize` from the global
+   * `window.resize` listener, which does NOT fire when the editor panel
+   * toggles open/closed (the canvas container's clientWidth changes via
+   * CSS reflow, not a window-resize event). When the renderer and canvas
+   * disagree on size, the camera aspect / raycaster NDC math is stale and
+   * pointer clicks can land one cell off, causing single-click selection to
+   * be mis-interpreted as a tiny drag-and-drop. Calling this from the POM
+   * after toggling the PXT editor restores deterministic raycast geometry.
+   */
+  async syncRendererToCanvasSize(): Promise<void> {
+    await this.page.evaluate(() => {
+      const sm = (window as any).__sceneManager
+      const container = document.querySelector('#canvas-container') as HTMLElement | null
+      if (!sm || !container) return
+      const w = container.clientWidth
+      const h = container.clientHeight
+      if (w > 0 && h > 0) sm.resize(w, h)
+    })
+  }
 }

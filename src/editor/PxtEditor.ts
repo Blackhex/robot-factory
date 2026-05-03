@@ -3,6 +3,8 @@ import type { SimulationCommand } from '../game/types'
 import { BlockInterpreter } from './BlockInterpreter'
 import { getToolboxForLevel } from './FactoryToolbox'
 import { buildDropdownOptions, resolveDropdownText, type DropdownItem } from './dropdownOptions'
+import { PxtFallbackEditor } from './PxtFallbackEditor'
+import toolboxOverridesCss from './pxt-toolbox-overrides.css?raw'
 
 /**
  * Manages the PXT (MakeCode) editor, embedded as an iframe.
@@ -21,8 +23,7 @@ import { buildDropdownOptions, resolveDropdownText, type DropdownItem } from './
 export class PxtEditor {
   private container: HTMLElement | null = null
   private iframe: HTMLIFrameElement | null = null
-  private fallbackEl: HTMLDivElement | null = null
-  private fallbackTextarea: HTMLTextAreaElement | null = null
+  private fallbackEditor: PxtFallbackEditor | null = null
   readonly interpreter = new BlockInterpreter()
   private currentLevel = 1
   private pxtReady = false
@@ -75,41 +76,7 @@ export class PxtEditor {
     window.addEventListener('message', this.messageHandler)
 
     // --- Fallback textarea editor ---
-    this.fallbackEl = document.createElement('div')
-    this.fallbackEl.className = 'pxt-editor-fallback'
-    this.fallbackEl.style.width = '100%'
-    this.fallbackEl.style.height = '100%'
-    this.fallbackEl.style.display = 'flex'
-    this.fallbackEl.style.flexDirection = 'column'
-
-    const label = document.createElement('div')
-    label.className = 'pxt-editor-fallback-label'
-    label.textContent = 'Factory Program (TypeScript)'
-    label.style.padding = '8px'
-    label.style.fontWeight = 'bold'
-    label.style.borderBottom = '1px solid #444'
-    this.fallbackEl.appendChild(label)
-
-    this.fallbackTextarea = document.createElement('textarea')
-    this.fallbackTextarea.className = 'pxt-editor-fallback-textarea'
-    this.fallbackTextarea.spellcheck = false
-    this.fallbackTextarea.placeholder =
-      '// Type factory commands here:\n' +
-      '// factory.startMachine("press_1")\n' +
-      '// factory.setRecipe("press_1", Recipe.WheelPressSmall)'
-    Object.assign(this.fallbackTextarea.style, {
-      flex: '1',
-      resize: 'none',
-      fontFamily: 'monospace',
-      fontSize: '14px',
-      padding: '8px',
-      border: 'none',
-      outline: 'none',
-      backgroundColor: '#1e1e1e',
-      color: '#d4d4d4',
-    })
-    this.fallbackEl.appendChild(this.fallbackTextarea)
-    container.appendChild(this.fallbackEl)
+    this.fallbackEditor = new PxtFallbackEditor(container)
 
     // If PXT hasn't replied within 3 s, keep the fallback visible
     setTimeout(() => {
@@ -165,8 +132,8 @@ export class PxtEditor {
 
     if (this.pxtReady && this.lastPxtSource.trim()) {
       source = this.lastPxtSource
-    } else if (this.fallbackTextarea) {
-      source = this.fallbackTextarea.value
+    } else if (this.fallbackEditor) {
+      source = this.fallbackEditor.getValue()
     }
 
     if (!source.trim()) return []
@@ -211,7 +178,7 @@ export class PxtEditor {
 
   /** Get the current workspace state for save/load. */
   getWorkspaceXml(): string {
-    const fallbackValue = this.fallbackTextarea?.value ?? ''
+    const fallbackValue = this.fallbackEditor?.getValue() ?? ''
     if (this.pxtReady) {
       // Prefer the live Blockly XML at save time; fall back to the cached
       // value captured from `workspacesave` (which PXT only sometimes echoes).
@@ -254,9 +221,7 @@ export class PxtEditor {
       this.pendingWorkspaceLoad = { ts, blocks: parsedEnvelope ? (blocks ?? '') : undefined }
       this.lastPxtSource = ts
       this.lastPxtBlocks = parsedEnvelope ? (blocks ?? '') : ''
-      if (this.fallbackTextarea) {
-        this.fallbackTextarea.value = ts
-      }
+      this.fallbackEditor?.setValue(ts)
       return
     }
 
@@ -309,9 +274,7 @@ export class PxtEditor {
       this.lastPxtBlocks = ''
     }
 
-    if (this.fallbackTextarea) {
-      this.fallbackTextarea.value = ts
-    }
+    this.fallbackEditor?.setValue(ts)
   }
 
   /**
@@ -349,11 +312,8 @@ export class PxtEditor {
       this.iframe.remove()
       this.iframe = null
     }
-    if (this.fallbackEl) {
-      this.fallbackEl.remove()
-      this.fallbackEl = null
-    }
-    this.fallbackTextarea = null
+    this.fallbackEditor?.dispose()
+    this.fallbackEditor = null
     this.container = null
   }
 
@@ -572,7 +532,7 @@ export class PxtEditor {
           // PXT editor is requesting workspace data — respond with matching id
           this.pxtReady = true
           if (this.iframe) this.iframe.style.display = ''
-          if (this.fallbackEl) this.fallbackEl.style.display = 'none'
+          this.fallbackEditor?.hide()
           this.injectToolboxStyles()
           // Respond with a default project containing an on-start
           // block. This is required: returning an empty
@@ -733,7 +693,9 @@ export class PxtEditor {
 
   /**
    * Inject CSS overrides into the PXT iframe to prevent MakeCode's
-   * mobile responsive rules from collapsing the toolbox at narrow widths.
+   * mobile responsive rules from collapsing the toolbox at narrow widths,
+   * and to apply the Robot Factory dark theme. CSS rules live in
+   * `./pxt-toolbox-overrides.css` and are imported as a raw string.
    */
   private injectToolboxStyles(): void {
     if (this.stylesInjected || !this.iframe) return
@@ -742,253 +704,7 @@ export class PxtEditor {
       doc = this.iframe.contentWindow!.document
     } catch { return }
     const style = doc.createElement('style')
-    style.textContent = `
-      @media only screen and (max-width: 767px) {
-        span.blocklyTreeLabel {
-          display: inline !important;
-          font-size: 1rem;
-        }
-        div.blocklyToolboxDiv, div.monacoToolboxDiv {
-          min-width: 150px;
-        }
-        div.blocklyTreeRow {
-          min-height: 40px;
-          border-left-width: 12px !important;
-        }
-        span.blocklyTreeIcon {
-          line-height: 40px;
-          min-height: 40px;
-        }
-        #root:not(.flyoutOnly) #blocklyTrashIcon {
-          width: 150px;
-        }
-      }
-
-      /* === Dark theme to match Robot Factory UI === */
-
-      /* Constrain PXT layout to iframe bounds */
-      html, body {
-        height: 100% !important;
-        width: 100% !important;
-        overflow: hidden !important;
-        position: relative !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-      #allcontent {
-        height: 100% !important;
-        max-height: 100% !important;
-        overflow: hidden !important;
-      }
-
-      /* Main editor background */
-      #root, #maineditor {
-        background: #0f1117 !important;
-      }
-      svg.blocklySvg {
-        background: #0f1117 !important;
-      }
-      .blocklyMainBackground {
-        fill: #0f1117 !important;
-      }
-
-      /* Hide PXT chrome we don't use */
-      #mainmenu, #editortools, #downloadArea, #filelist,
-      #editorSidebar, #simulator, .simView, #boardview,
-      .tutorial-container, #tutorialcard {
-        display: none !important;
-      }
-
-      /* Reclaim space from hidden menu bar, sidebar, and editor tools */
-      #maineditor {
-        top: 0 !important;
-        left: 0 !important;
-      }
-      #blocksArea, #monacoEditor, #assetEditor, #pxtJsonEditor, #serialEditor {
-        bottom: 0 !important;
-      }
-
-      /* Toolbox dark styling */
-      .blocklyToolboxDiv, .monacoToolboxDiv {
-        background: #1a1d27 !important;
-        border-right: 1px solid #2e3140 !important;
-        color: #e0e0e6 !important;
-        scrollbar-width: none !important;
-        -ms-overflow-style: none !important;
-      }
-      .blocklyToolboxDiv::-webkit-scrollbar,
-      .monacoToolboxDiv::-webkit-scrollbar {
-        width: 0 !important;
-        height: 0 !important;
-        display: none !important;
-      }
-
-      /* Toolbox row styling — match game toolbar buttons.
-         --cat-color is set per-row by JS from PXT's category color. */
-      div.blocklyTreeRow {
-        margin: 8px 6px !important;
-        padding: 0 10px !important;
-        border-radius: 8px !important;
-        border: 1px solid var(--cat-color, #2e3140) !important;
-        background-color: #1a1d27 !important;
-        color: var(--cat-color, #e0e0e6) !important;
-        transition: background-color 150ms ease !important;
-        height: 2.5rem !important;
-        min-height: 2.5rem !important;
-        max-height: 2.5rem !important;
-        line-height: 2.5rem !important;
-        cursor: pointer !important;
-        box-sizing: border-box !important;
-        display: flex !important;
-        align-items: center !important;
-      }
-
-      /* Non-selected row hover — subtle fill, keep text color */
-      div.blocklyTreeRow:not(.blocklyTreeSelected):hover {
-        background-color: #252836 !important;
-        color: var(--cat-color, #e0e0e6) !important;
-      }
-
-      /* Selected row — accent tinted background */
-      div.blocklyTreeRow.blocklyTreeSelected,
-      div.blocklyTreeRow.blocklyTreeSelected:hover {
-        background-color: rgba(79, 195, 247, 0.15) !important;
-        color: #fff !important;
-      }
-
-      /* Toolbox label text — inherit category color from row */
-      span.blocklyTreeLabel {
-        color: inherit !important;
-        font-family: 'Segoe UI', system-ui, Roboto, sans-serif !important;
-        font-weight: 500 !important;
-        font-size: 0.875rem !important;
-        display: inline !important;
-      }
-
-      /* Toolbox icon — inherit category color and match row height */
-      span.blocklyTreeIcon {
-        line-height: 2.5rem !important;
-        min-height: 2.5rem !important;
-        height: 2.5rem !important;
-        color: inherit !important;
-      }
-
-      /* Ensure label stays visible on hover — must match PXT's
-         specificity for the .blocklyTreeSelected:hover case,
-         which uses (0,0,3,2) to set display:none in <=767px. */
-      div.blocklyTreeRow:hover span.blocklyTreeLabel {
-        display: inline !important;
-        color: inherit !important;
-      }
-
-      div.blocklyTreeRow.blocklyTreeSelected span.blocklyTreeLabel,
-      div.blocklyTreeRow.blocklyTreeSelected:hover span.blocklyTreeLabel {
-        display: inline !important;
-        color: #fff !important;
-      }
-
-      /* Flyout background — higher specificity to beat invertedToolbox */
-      svg.blocklyFlyout path.blocklyFlyoutBackground {
-        fill: #0f1117 !important;
-        fill-opacity: 0.97 !important;
-      }
-
-      /* Flyout label text */
-      .blocklyFlyoutLabelText {
-        fill: #8b8fa3 !important;
-      }
-      .blocklyFlyoutButton .blocklyText {
-        fill: #e0e0e6 !important;
-      }
-      .blocklyFlyoutButtonBackground {
-        fill: #252836 !important;
-        stroke: #2e3140 !important;
-      }
-
-      /* Scrollbars */
-      .blocklyScrollbarHandle {
-        fill: #2e3140 !important;
-      }
-      .blocklyScrollbarBackground:hover + .blocklyScrollbarHandle,
-      .blocklyScrollbarHandle:hover {
-        fill: #4fc3f7 !important;
-      }
-
-      /* Grid pattern — subtle dark dots */
-      .blocklyGridLine {
-        stroke: #2e3140 !important;
-      }
-
-      /* Blockly workspace scrollbar track */
-      .blocklyScrollbarBackground {
-        fill: transparent !important;
-      }
-
-      /* Right-click context menu */
-      .blocklyWidgetDiv .blocklyMenu {
-        background: #1a1d27 !important;
-        border: 1px solid #2e3140 !important;
-        border-radius: 8px !important;
-        overflow: hidden;
-      }
-      .blocklyWidgetDiv .blocklyMenuItem {
-        color: #e0e0e6 !important;
-      }
-      .blocklyWidgetDiv .blocklyMenuItemHighlight {
-        background: #252836 !important;
-      }
-
-      /* Blockly trash icon */
-      #blocklyTrashIcon {
-        color: #2e3140 !important;
-      }
-
-      /* Search input dark styling — margin matches toolbox row margins */
-      #blocklySearchArea {
-        background: #1a1d27 !important;
-        margin: 8px 6px !important;
-        box-sizing: border-box !important;
-      }
-      #blocklySearchInput {
-        background: #1a1d27 !important;
-      }
-      #blocklySearchInputField {
-        background: #1a1d27 !important;
-        color: #e0e0e6 !important;
-        border: 1px solid #2e3140 !important;
-        border-radius: 4px !important;
-        padding-left: 10px !important;
-        padding-right: 10px !important;
-      }
-      #blocklySearchInputField::placeholder {
-        color: #8b8fa3 !important;
-      }
-      #blocklySearchInput i.icon {
-        color: #8b8fa3 !important;
-      }
-
-      /* Field dropdown styling */
-      .blocklyDropDownDiv {
-        border-color: #2e3140 !important;
-      }
-
-      /* Ensure block labels are visible on dark background.
-         Exclude editable fields (number/text inputs), which render on a
-         white input background and need dark text. */
-      .blocklyText {
-        fill: #fff !important;
-      }
-      .blocklyEditableText > .blocklyText,
-      .blocklyHtmlInput {
-        fill: #1a1d27 !important;
-        color: #1a1d27 !important;
-      }
-
-      /* Make the main workspace div use full space */
-      .injectionDiv {
-        background: transparent !important;
-      }
-    `
+    style.textContent = toolboxOverridesCss
     doc.head.appendChild(style)
     this.stylesInjected = true
   }
@@ -1087,12 +803,21 @@ export class PxtEditor {
       const ws = this.getBlocklyWorkspace()
       const topBlocks: any[] = ws?.getTopBlocks?.(false) ?? []
       if (ws && topBlocks.length > 0) {
-        if (ws.scrollX !== dx || ws.scrollY !== dy) {
-          ws.scrollX = dx
-          ws.scrollY = dy
+        // The (dx, dy) offset is relative to the workspace area
+        // (the region to the right of the toolbox, below any top
+        // chrome). Add the toolbox width (`absoluteLeft`) and any
+        // top padding (`absoluteTop`) so the resulting SVG translate
+        // places the on-start block to the RIGHT of the toolbox
+        // instead of behind it.
+        const m = ws.getMetrics?.() ?? { absoluteLeft: 0, absoluteTop: 0 }
+        const absX = (m.absoluteLeft ?? 0) + dx
+        const absY = (m.absoluteTop ?? 0) + dy
+        if (ws.scrollX !== absX || ws.scrollY !== absY) {
+          ws.scrollX = absX
+          ws.scrollY = absY
           ws.resizeContents?.()
           // Force an SVG matrix redraw so the change is visible.
-          ws.translate?.(dx, dy)
+          ws.translate?.(absX, absY)
           stableTicks = 0
         } else {
           stableTicks++

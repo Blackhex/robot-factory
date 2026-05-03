@@ -6,7 +6,8 @@ import type {
 } from './types.ts'
 import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
-import { getRecipeById } from './Recipe.ts'
+import { ItemDeliveryEngine } from './ItemDeliveryEngine.ts'
+import { SimulationCommandDispatcher } from './SimulationCommandDispatcher.ts'
 
 type SimEventHandler = (event: SimulationEvent) => void
 
@@ -45,8 +46,21 @@ export class Simulation {
   private primaryOutputBelts: Map<string, string> = new Map()
   private secondaryOutputBelts: Map<string, string> = new Map()
 
+  private readonly commandDispatcher: SimulationCommandDispatcher
+  private readonly deliveryEngine: ItemDeliveryEngine
+
   constructor(tickRate = DEFAULT_TICK_RATE) {
     this.tickRate = tickRate
+    this.commandDispatcher = new SimulationCommandDispatcher({
+      getMachine: (id) => this.machines.get(id),
+      getBelt: (id) => this.belts.get(id),
+      getBelts: () => this.belts,
+    })
+    this.deliveryEngine = new ItemDeliveryEngine({
+      getBelts: () => this.belts,
+      findMachineAt: (x, z) => this.findMachineAt(x, z),
+      findBeltStartingAt: (x, z) => this.findBeltStartingAt(x, z),
+    })
   }
 
   // --- Entity management ---
@@ -141,12 +155,7 @@ export class Simulation {
     return this._paused
   }
 
-  /**
-   * The fatal game-over state, if any. `null` while the simulation is
-   * running normally; populated the first time a belt tries to deliver an
-   * item to a machine that cannot consume it. Once set, `tick()` becomes
-   * a no-op until the simulation is reset.
-   */
+  /** Fatal game-over state, or `null` while the simulation runs normally. */
   get gameOver(): GameOverInfo | null {
     return this._gameOver
   }
@@ -158,7 +167,7 @@ export class Simulation {
     this.processCommands()
     this.updateMachines()
     this.advanceBelts()
-    this.deliverItems()
+    this.runDelivery()
     this.transferMachineOutputs()
     this.updateScoring()
     this.emit('tick', { tick: this.currentTick })
@@ -168,62 +177,26 @@ export class Simulation {
   private processCommands(): void {
     const commands = this.commandQueue.splice(0)
     for (const command of commands) {
-      this.executeCommand(command)
+      this.commandDispatcher.execute(command)
     }
   }
 
+  /** Shim — delegates to `SimulationCommandDispatcher`. */
   executeCommand(command: SimulationCommand): void {
-    switch (command.type) {
-      case 'SET_RECIPE': {
-        const machine = this.machines.get(command.machineId)
-        const recipe = getRecipeById(command.recipeId)
-        if (machine && recipe) {
-          machine.setRecipe(recipe)
-        }
-        break
-      }
-      case 'START_MACHINE': {
-        // Machine will auto-start processing on next tick if recipe + inputs ready
-        break
-      }
-      case 'STOP_MACHINE': {
-        const machine = this.machines.get(command.machineId)
-        if (machine) {
-          machine.currentRecipe = null
-        }
-        break
-      }
-      case 'SET_BELT_SPEED': {
-        const belt = this.belts.get(command.beltId)
-        if (belt) {
-          belt.speed = command.speed
-        }
-        // Multi-cell belts are registered as per-cell segments under ids of the
-        // form `${logicalId}_seg${N}` (see ConveyorBelt.fromBeltInfo). Apply the
-        // speed to every matching segment so the dropdown's logical id works.
-        const escaped = command.beltId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const segmentRegex = new RegExp(`^${escaped}_seg\\d+$`)
-        for (const [id, segment] of this.belts) {
-          if (segmentRegex.test(id)) {
-            segment.speed = command.speed
-          }
-        }
-        break
-      }
-      case 'SET_QUALITY_THRESHOLD': {
-        const machine = this.machines.get(command.machineId)
-        if (machine && machine.machineType === 'quality_checker') {
-          machine.qualityThreshold = command.threshold
-        }
-        break
-      }
-      case 'SET_SPLITTER_CONDITION': {
-        const machine = this.machines.get(command.machineId)
-        if (machine && machine.machineType === 'splitter') {
-          machine.splitterCondition = command.condition
-        }
-        break
-      }
+    this.commandDispatcher.execute(command)
+  }
+
+  private runDelivery(): void {
+    const result = this.deliveryEngine.deliver(this.currentTick, this._gameOver)
+    this.itemsDelivered += result.itemsDelivered
+    this.outputsDelivered += result.outputsDelivered
+    this.robotsProduced += result.robotsProduced
+    if (result.newGameOver !== null && this._gameOver === null) {
+      this._gameOver = result.newGameOver
+      this._paused = true
+    }
+    for (const event of result.events) {
+      this.emit(event.type, event.data)
     }
   }
 
@@ -250,6 +223,9 @@ export class Simulation {
       }
       if (machine.secondaryOutputSlot && machine.secondaryOutputSlot !== prevSecondary) {
         this.itemsProduced++
+        if (machine.machineType === 'quality_checker') {
+          this.defects++
+        }
         this.emit('item_produced', {
           machineId: machine.id,
           itemId: machine.secondaryOutputSlot.id,
@@ -292,77 +268,6 @@ export class Simulation {
     }
   }
 
-  private deliverItems(): void {
-    // Order-independent fixed-point delivery. Each pass attempts to
-    // deliver every ready item to its downstream machine or belt. A
-    // pass that frees at least one cell may unblock another delivery
-    // upstream, so we iterate until no progress is made. Bounded by
-    // belts.length + 1 — each progressing pass frees at least one cell,
-    // so convergence is guaranteed.
-    const belts = Array.from(this.belts.values())
-    let progress = true
-    let safety = belts.length + 1
-    while (progress && safety-- > 0) {
-      progress = false
-      for (const belt of belts) {
-        const readyItems = belt.getReadyItems()
-        for (const item of readyItems) {
-          // First, try to deliver to a machine at the belt's destination
-          const targetMachine = this.findMachineAt(belt.toX, belt.toZ)
-          if (targetMachine && targetMachine.canAcceptInput()) {
-            // Fatal mis-routing: machine cannot consume this item type at
-            // all (wrong recipe, no recipe, or zero-input recipe). Trip
-            // game-over once and leave the item parked at the belt end.
-            if (!targetMachine.canConsume(item.type)) {
-              if (this._gameOver === null) {
-                this._gameOver = {
-                  reason: 'unconsumable_input',
-                  machineId: targetMachine.id,
-                  itemId: item.id,
-                  itemType: item.type,
-                  tick: this.currentTick,
-                }
-                this._paused = true
-                this.emit('game_over', { ...this._gameOver })
-              }
-              continue
-            }
-            targetMachine.addInput(item)
-            belt.removeItem(item.id)
-            this.itemsDelivered++
-            this.emit('item_delivered', {
-              itemId: item.id,
-              beltId: belt.id,
-              machineId: targetMachine.id,
-            })
-            if (targetMachine.machineType === 'factory_output') {
-              this.outputsDelivered++
-              this.emit('output_delivered', {
-                itemId: item.id,
-                itemType: item.type,
-                machineId: targetMachine.id,
-              })
-            }
-            progress = true
-            continue
-          }
-
-          // No machine (or machine full) — try to transfer to a belt starting here
-          const nextBelt = this.findBeltStartingAt(belt.toX, belt.toZ)
-          if (nextBelt && nextBelt.id !== belt.id) {
-            // Plain normalized position overshoot — no arc-length conversion.
-            const overshoot = item.positionOnBelt - 1.0
-            if (nextBelt.acceptHandover(item, overshoot)) {
-              belt.removeItem(item.id)
-              progress = true
-            }
-          }
-          // If neither machine nor next belt, item stays (belt jam)
-        }
-      }
-    }
-  }
-
   /** Find a belt whose start position matches the given coordinates. */
   private findBeltStartingAt(x: number, z: number): ConveyorBelt | undefined {
     for (const belt of this.belts.values()) {
@@ -375,10 +280,8 @@ export class Simulation {
 
   private findMachineAt(x: number, z: number): Machine | undefined {
     for (const machine of this.machines.values()) {
-      if (this.machinePositions.get(machine.id)?.x === x &&
-          this.machinePositions.get(machine.id)?.z === z) {
-        return machine
-      }
+      const pos = this.machinePositions.get(machine.id)
+      if (pos?.x === x && pos?.z === z) return machine
     }
     return undefined
   }
@@ -443,12 +346,7 @@ export class Simulation {
 
   // --- Reset ---
 
-  /**
-   * Soft reset: clear all in-flight runtime state (items on belts, machine
-   * slots/timers, queued commands, stat counters) while preserving the factory
-   * layout — machines, belts, output-belt connections, machine positions,
-   * recipes, and event handler subscriptions all stay intact.
-   */
+  /** Soft reset: clear runtime state but preserve factory layout. */
   clearInFlight(): void {
     this.stop()
     for (const belt of this.belts.values()) {

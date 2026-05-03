@@ -38,6 +38,30 @@ export class ConveyorBelt {
   }
 
   /**
+   * Build a per-cell segment id from a logical belt id and a segment index.
+   * Centralizes the `${logicalId}_seg${N}` convention so callers don't
+   * reinvent it via template literals.
+   */
+  static segmentIdFor(logicalId: string, segmentIndex: number): string {
+    return `${logicalId}_seg${segmentIndex}`
+  }
+
+  /**
+   * Parse a per-cell segment id back into its logical id and segment index.
+   * Returns `null` for ids that do not match the `${logicalId}_seg${N}`
+   * convention (no `_seg` suffix, missing number, negative numbers, decimals).
+   * Uses a greedy capture so logical ids that themselves contain underscores
+   * are preserved (e.g. `weird_id_with_underscores_seg7`).
+   */
+  static parseSegmentId(
+    id: string,
+  ): { logicalId: string; segmentIndex: number } | null {
+    const match = id.match(/^(.+)_seg(\d+)$/)
+    if (!match) return null
+    return { logicalId: match[1], segmentIndex: parseInt(match[2], 10) }
+  }
+
+  /**
    * Build the per-cell `ConveyorBelt` segments for a `BeltInfo`. One
    * segment per `path[i] → path[i+1]` step, with the per-cell arc length
    * computed via `beltPathSegmentLengths` and ids `${belt.id}_seg${i}`.

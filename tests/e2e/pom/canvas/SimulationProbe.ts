@@ -180,6 +180,14 @@ export class SimulationProbe {
 
   async forceRendererUpdate(): Promise<void> { return this.rendering.forceRendererUpdate() }
 
+  async getHighlightedMachineId(): Promise<string | null> {
+    return this.rendering.getHighlightedMachineId()
+  }
+
+  async syncRendererToCanvasSize(): Promise<void> {
+    return this.rendering.syncRendererToCanvasSize()
+  }
+
   async gridCellToScreenPos(
     gx: number,
     gz: number,
@@ -208,6 +216,17 @@ export class SimulationProbe {
     slotIndex = 0,
   ): Promise<{ x: number; y: number } | null> {
     return this.projection.getMachineSlotScreenPos(x, z, kind, slotIndex)
+  }
+
+  async getAllMachineScreenPositions(): Promise<Array<{
+    id: string
+    type: string
+    gridX: number
+    gridZ: number
+    x: number
+    y: number
+  }>> {
+    return this.projection.getAllMachineScreenPositions()
   }
 
   async flushAnimationFrame(): Promise<void> { return this.timing.flushAnimationFrame() }

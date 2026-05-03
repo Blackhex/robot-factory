@@ -22,10 +22,10 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import * as THREE from 'three'
 import { ItemRenderer, type BeltRenderData } from '../../../src/rendering/ItemRenderer'
 import {
-  CORNER_STRAIGHT_LEN,
   CORNER_INNER_R,
   CORNER_OUTER_R,
 } from '../../../src/rendering/FactoryRenderer'
+import { CORNER_STRAIGHT_LEN } from '../../../src/utils/BeltGeometry'
 import type { ItemType } from '../../../src/game/types'
 
 const GRID_W = 20

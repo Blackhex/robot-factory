@@ -1,5 +1,5 @@
 import { planBeltInventoryMigration } from './BeltInventoryMigration'
-import type { ConveyorBelt } from './ConveyorBelt'
+import { ConveyorBelt } from './ConveyorBelt'
 import type { BeltInfo } from './types'
 import type { CapturedBeltItem, RemovedBeltInventory } from './BeltInventoryMigration'
 
@@ -32,7 +32,7 @@ export class BeltInventoryMigrationCoordinator {
   captureRemovedBeltInventory(belt: BeltInfo, getSegment: SegmentLookup): void {
     const removedInventory: CapturedBeltItem[] = []
     for (let i = 0; i < belt.path.length - 1; i++) {
-      const segment = getSegment(`${belt.id}_seg${i}`)
+      const segment = getSegment(ConveyorBelt.segmentIdFor(belt.id, i))
       if (!segment) continue
 
       // Under the discrete one-item-per-cell contract each segment holds at
@@ -90,18 +90,19 @@ export class BeltInventoryMigrationCoordinator {
     )
 
     for (const placement of plan.placements) {
-      const segment = sim.getBelt(`${placement.beltId}_seg${placement.newSegmentIndex}`)
+      const segmentId = ConveyorBelt.segmentIdFor(placement.beltId, placement.newSegmentIndex)
+      const segment = sim.getBelt(segmentId)
       if (!segment) {
         throw new Error(
           `BeltInventoryMigrationCoordinator: missing destination segment ` +
-          `${placement.beltId}_seg${placement.newSegmentIndex} for item ${placement.item.id}`,
+          `${segmentId} for item ${placement.item.id}`,
         )
       }
       const inserted = segment.insertItemAt(placement.item, placement.newPositionOnCell)
       if (!inserted) {
         throw new Error(
           `BeltInventoryMigrationCoordinator: insertItemAt returned false for ` +
-          `${placement.beltId}_seg${placement.newSegmentIndex} (item ${placement.item.id}) — ` +
+          `${segmentId} (item ${placement.item.id}) — ` +
           `planner produced a colliding placement`,
         )
       }

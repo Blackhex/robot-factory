@@ -1,7 +1,16 @@
-import { describe, it, expect } from 'vitest'
+/**
+ * @vitest-environment jsdom
+ */
+import { describe, it, expect, beforeEach } from 'vitest'
 import { Factory } from '../../../src/game/Factory'
-import { saveFactory, loadFactory } from '../../../src/utils/SaveLoad'
+import {
+  saveFactory,
+  loadFactory,
+  saveToLocalStorage,
+  loadFromLocalStorage,
+} from '../../../src/utils/SaveLoad'
 import type { FactorySave } from '../../../src/utils/SaveLoad'
+import { ALL_MACHINE_TYPES } from '../../../src/game/types'
 import { expectFactoryState } from '../helpers/factoryAssert'
 
 function createValidSave(overrides: Partial<FactorySave> = {}): FactorySave {
@@ -493,26 +502,6 @@ describe('SaveLoad', () => {
       expect(() => loadFactory(createValidSave())).not.toThrow()
     })
 
-    it('accepts all valid machine types', () => {
-      // GIVEN
-      const types = [
-        'part_fabricator',
-        'assembler',
-        'quality_checker',
-        'painter',
-        'recycler',
-        'splitter',
-      ]
-
-      // WHEN + THEN
-      for (const machineType of types) {
-        const save = createValidSave({
-          grid: [{ x: 0, z: 0, machineType, rotation: 'south' }],
-        })
-        expect(() => loadFactory(save), `type: ${machineType}`).not.toThrow()
-      }
-    })
-
     it('rejects null data', () => {
       // WHEN + THEN
       expect(() => loadFactory(null as unknown as FactorySave)).toThrow(
@@ -640,6 +629,82 @@ describe('SaveLoad', () => {
       expect(() =>
         loadFactory({ version: 2, grid: [], belts: [], pxtWorkspace: '', levelId: 123 } as unknown as FactorySave),
       ).toThrow('levelId must be a string')
+    })
+  })
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // MachineType ↔ validateSave parity (regression + anti-drift)
+  //
+  // Bug: src/utils/SaveLoad.ts VALID_MACHINE_TYPES omits 'factory_output',
+  // so any save containing a factory_output machine fails validateSave with
+  // `invalid machineType "factory_output"` → loadFromLocalStorage returns
+  // null silently and the player loses their factory on reload.
+  //
+  // These tests are EXPECTED TO FAIL until the production set is fixed.
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('MachineType parity with validateSave', () => {
+    beforeEach(() => {
+      localStorage.clear()
+    })
+
+    it('round-trips every MachineType through saveToLocalStorage / loadFromLocalStorage', () => {
+      // GIVEN — for each canonical MachineType, a 1-machine factory.
+      for (const machineType of ALL_MACHINE_TYPES) {
+        const factory = new Factory(5, 5)
+        const placed = factory.placeMachine(0, 0, machineType, 'south')
+        expect(placed, `precondition: place ${machineType} at (0,0)`).not.toBeNull()
+
+        const key = `regression-test-${machineType}`
+        const save = saveFactory(factory, '<xml/>', 'level-test')
+
+        // WHEN
+        saveToLocalStorage(key, save)
+        const loaded = loadFromLocalStorage(key)
+
+        // THEN — load must succeed for every canonical MachineType. Currently
+        // fails for 'factory_output' because VALID_MACHINE_TYPES omits it,
+        // causing validateSave to throw and loadFromLocalStorage to return null.
+        expect(loaded, `loadFromLocalStorage returned null for "${machineType}"`).not.toBeNull()
+        expect(loaded!.grid).toHaveLength(1)
+        expect(loaded!.grid[0].machineType).toBe(machineType)
+      }
+    })
+
+    it('validateSave accepts an inline save containing a factory_output machine (direct regression)', () => {
+      // GIVEN — the exact shape produced by saveFactory for a single
+      // factory_output machine. This is the minimal repro for the bug.
+      const save: FactorySave = {
+        version: 2,
+        grid: [{ x: 0, z: 0, machineType: 'factory_output', rotation: 'south' }],
+        belts: [],
+        pxtWorkspace: '<xml/>',
+      }
+
+      // WHEN + THEN — loadFactory invokes the same validateSave code path
+      // as loadFromLocalStorage. It must NOT throw 'invalid machineType'.
+      expect(() => loadFactory(save)).not.toThrow()
+    })
+
+    it('validateSave accepts every member of the MachineType union (anti-drift)', () => {
+      // GIVEN — ALL_MACHINE_TYPES is pinned to the MachineType union by the
+      // compile-time `_MachineTypeExhaustive` sentinel in src/game/types.ts,
+      // so adding/removing a union member without updating that constant
+      // breaks `tsc --noEmit`. The runtime assertion below pins parity with
+      // VALID_MACHINE_TYPES inside src/utils/SaveLoad.ts.
+      for (const machineType of ALL_MACHINE_TYPES) {
+        const save: FactorySave = {
+          version: 2,
+          grid: [{ x: 0, z: 0, machineType, rotation: 'south' }],
+          belts: [],
+          pxtWorkspace: '',
+        }
+
+        // WHEN + THEN
+        expect(
+          () => loadFactory(save),
+          `validateSave rejected MachineType "${machineType}"`,
+        ).not.toThrow()
+      }
     })
   })
 })

@@ -33,7 +33,7 @@ export class SceneManager {
     this.controls.minDistance = 5
     this.controls.maxDistance = 50
     this.controls.minPolarAngle = 0.2
-    this.controls.maxPolarAngle = Math.PI / 2 - 0.05
+    this.controls.maxPolarAngle = 1.2
     this.controls.target.set(0, 0, 0)
 
     this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6)

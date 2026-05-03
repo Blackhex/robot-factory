@@ -2,72 +2,98 @@ import type { SimulationCommand } from '../game/types'
 
 const MAX_OPERATIONS = 10_000
 
-// --- Enum-to-ID lookup arrays (index = enum numeric value) ---------------
+// --- Canonical enum tables (single source of truth) ----------------------
+//
+// Each table is the ONLY place to add/remove members. The maps and arrays
+// below are derived mechanically — adding a new member requires editing
+// only the corresponding TABLE.
 
-const MACHINE_IDS: string[] = [
-  'machine_1', 'machine_2', 'machine_3', 'machine_4',
-  'machine_5', 'machine_6', 'machine_7', 'machine_8',
-]
+const MACHINE_TABLE = [
+  { name: 'A', id: 'machine_1' },
+  { name: 'B', id: 'machine_2' },
+  { name: 'C', id: 'machine_3' },
+  { name: 'D', id: 'machine_4' },
+  { name: 'E', id: 'machine_5' },
+  { name: 'F', id: 'machine_6' },
+  { name: 'G', id: 'machine_7' },
+  { name: 'H', id: 'machine_8' },
+] as const
 
-const RECIPE_IDS: string[] = [
-  'wheel_press_small', 'wheel_press_medium', 'wheel_press_large',
-  'sensor_fab_proximity', 'sensor_fab_camera', 'sensor_fab_lidar',
-  'battery_assembly_standard', 'battery_assembly_high',
-  'chassis_stamper_light', 'chassis_stamper_heavy',
-  'circuit_printer_basic', 'circuit_printer_advanced',
-  'assemble_drivetrain_basic', 'assemble_drivetrain_advanced',
-  'assemble_sensor_array_basic', 'assemble_sensor_array_advanced',
-  'assemble_power_unit_standard', 'assemble_power_unit_high',
-  'assemble_robot_explorer', 'assemble_robot_worker', 'assemble_robot_guardian',
-]
+const RECIPE_TABLE = [
+  { name: 'WheelPressSmall', id: 'wheel_press_small' },
+  { name: 'WheelPressMedium', id: 'wheel_press_medium' },
+  { name: 'WheelPressLarge', id: 'wheel_press_large' },
+  { name: 'SensorFabProximity', id: 'sensor_fab_proximity' },
+  { name: 'SensorFabCamera', id: 'sensor_fab_camera' },
+  { name: 'SensorFabLidar', id: 'sensor_fab_lidar' },
+  { name: 'BatteryAssemblyStandard', id: 'battery_assembly_standard' },
+  { name: 'BatteryAssemblyHigh', id: 'battery_assembly_high' },
+  { name: 'ChassisStamperLight', id: 'chassis_stamper_light' },
+  { name: 'ChassisStamperHeavy', id: 'chassis_stamper_heavy' },
+  { name: 'CircuitPrinterBasic', id: 'circuit_printer_basic' },
+  { name: 'CircuitPrinterAdvanced', id: 'circuit_printer_advanced' },
+  { name: 'AssembleDrivetrainBasic', id: 'assemble_drivetrain_basic' },
+  { name: 'AssembleDrivetrainAdvanced', id: 'assemble_drivetrain_advanced' },
+  { name: 'AssembleSensorArrayBasic', id: 'assemble_sensor_array_basic' },
+  { name: 'AssembleSensorArrayAdvanced', id: 'assemble_sensor_array_advanced' },
+  { name: 'AssemblePowerUnitStandard', id: 'assemble_power_unit_standard' },
+  { name: 'AssemblePowerUnitHigh', id: 'assemble_power_unit_high' },
+  { name: 'AssembleRobotExplorer', id: 'assemble_robot_explorer' },
+  { name: 'AssembleRobotWorker', id: 'assemble_robot_worker' },
+  { name: 'AssembleRobotGuardian', id: 'assemble_robot_guardian' },
+] as const
 
-const BELT_IDS: string[] = [
-  'belt_1', 'belt_2', 'belt_3', 'belt_4',
-  'belt_5', 'belt_6', 'belt_7', 'belt_8',
-]
+const BELT_TABLE = [
+  { name: 'Belt1', id: 'belt_1' },
+  { name: 'Belt2', id: 'belt_2' },
+  { name: 'Belt3', id: 'belt_3' },
+  { name: 'Belt4', id: 'belt_4' },
+  { name: 'Belt5', id: 'belt_5' },
+  { name: 'Belt6', id: 'belt_6' },
+  { name: 'Belt7', id: 'belt_7' },
+  { name: 'Belt8', id: 'belt_8' },
+] as const
 
-// --- Enum name-to-number maps (for string args from fallback textarea) ---
+const PART_TYPE_TABLE = [
+  'WheelSmall', 'WheelMedium', 'WheelLarge',
+  'SensorProximity', 'SensorCamera', 'SensorLidar',
+  'BatteryStandard', 'BatteryHighCapacity',
+  'ChassisLight', 'ChassisHeavy',
+  'CircuitBasic', 'CircuitAdvanced',
+  'DrivetrainBasic', 'DrivetrainAdvanced',
+  'SensorArrayBasic', 'SensorArrayAdvanced',
+  'PowerUnitStandard', 'PowerUnitHigh',
+  'RawMaterial',
+  'RobotExplorer', 'RobotWorker', 'RobotGuardian',
+] as const
 
-const MACHINE_NAME_MAP: Record<string, number> = {
-  A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, G: 6, H: 7,
-}
+// --- Derived ID arrays (index = enum numeric value) ----------------------
 
-const PART_TYPE_NAME_MAP: Record<string, number> = {
-  WheelSmall: 0, WheelMedium: 1, WheelLarge: 2,
-  SensorProximity: 3, SensorCamera: 4, SensorLidar: 5,
-  BatteryStandard: 6, BatteryHighCapacity: 7,
-  ChassisLight: 8, ChassisHeavy: 9,
-  CircuitBasic: 10, CircuitAdvanced: 11,
-  DrivetrainBasic: 12, DrivetrainAdvanced: 13,
-  SensorArrayBasic: 14, SensorArrayAdvanced: 15,
-  PowerUnitStandard: 16, PowerUnitHigh: 17,
-  RawMaterial: 18,
-  RobotExplorer: 19, RobotWorker: 20, RobotGuardian: 21,
-}
+const MACHINE_IDS: string[] = MACHINE_TABLE.map(e => e.id)
+const RECIPE_IDS: string[] = RECIPE_TABLE.map(e => e.id)
+const BELT_IDS: string[] = BELT_TABLE.map(e => e.id)
 
-const RECIPE_NAME_MAP: Record<string, number> = {
-  WheelPressSmall: 0, WheelPressMedium: 1, WheelPressLarge: 2,
-  SensorFabProximity: 3, SensorFabCamera: 4, SensorFabLidar: 5,
-  BatteryAssemblyStandard: 6, BatteryAssemblyHigh: 7,
-  ChassisStamperLight: 8, ChassisStamperHeavy: 9,
-  CircuitPrinterBasic: 10, CircuitPrinterAdvanced: 11,
-  AssembleDrivetrainBasic: 12, AssembleDrivetrainAdvanced: 13,
-  AssembleSensorArrayBasic: 14, AssembleSensorArrayAdvanced: 15,
-  AssemblePowerUnitStandard: 16, AssemblePowerUnitHigh: 17,
-  AssembleRobotExplorer: 18, AssembleRobotWorker: 19, AssembleRobotGuardian: 20,
-}
+// --- Derived name-to-number maps (for string args from fallback textarea) -
 
-const BELT_NAME_MAP: Record<string, number> = {
-  Belt1: 0, Belt2: 1, Belt3: 2, Belt4: 3,
-  Belt5: 4, Belt6: 5, Belt7: 6, Belt8: 7,
-}
+const MACHINE_NAME_MAP: Record<string, number> = Object.fromEntries(
+  MACHINE_TABLE.map((e, i) => [e.name, i]),
+)
+const RECIPE_NAME_MAP: Record<string, number> = Object.fromEntries(
+  RECIPE_TABLE.map((e, i) => [e.name, i]),
+)
+const BELT_NAME_MAP: Record<string, number> = Object.fromEntries(
+  BELT_TABLE.map((e, i) => [e.name, i]),
+)
+const PART_TYPE_NAME_MAP: Record<string, number> = Object.fromEntries(
+  PART_TYPE_TABLE.map((n, i) => [n, i]),
+)
 
 // --- Enum objects provided to executed code (for fallback textarea) -------
 
-const MachineEnum: Record<string, number> = { A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, G: 6, H: 7 }
-const PartTypeEnum: Record<string, number> = { ...PART_TYPE_NAME_MAP }
-const RecipeEnum: Record<string, number> = { ...RECIPE_NAME_MAP }
-const BeltEnum: Record<string, number> = { ...BELT_NAME_MAP }
+const MachineEnum: Record<string, number> = MACHINE_NAME_MAP
+const RecipeEnum: Record<string, number> = RECIPE_NAME_MAP
+const BeltEnum: Record<string, number> = BELT_NAME_MAP
+const PartTypeEnum: Record<string, number> = PART_TYPE_NAME_MAP
 const FactoryConditionEnum: Record<string, number> = { BeltHasItems: 0, MachineIdle: 1, ItemsRemaining: 2 }
 
 // --- Resolvers: handle number (enum value), string enum name, or passthrough ---
@@ -188,49 +214,22 @@ export class BlockInterpreter {
    * Legacy `factory.*` namespace — provides backward-compatible methods
    * that accept string arguments with quotes (e.g. `factory.startMachine("press_1")`).
    * Also exposes enum objects (e.g. `factory.PartType.SensorCamera`).
+   *
+   * Composed by spreading the underlying namespace objects. All members
+   * of those namespaces are arrow-function class fields, so `this` is
+   * lexically bound at construction time and survives the spread.
    */
   private readonly factoryNs = {
+    ...this.machinesNs,
+    ...this.beltsNs,
+    ...this.loopsNs,
+    ...this.logicNs,
+    ...this.eventsNs,
     PartType: PartTypeEnum,
     Machine: MachineEnum,
     Recipe: RecipeEnum,
     Belt: BeltEnum,
     FactoryCondition: FactoryConditionEnum,
-    setRecipe: (machine: unknown, recipe: unknown) => {
-      this.machinesNs.setRecipe(machine, recipe)
-    },
-    startMachine: (machine: unknown) => {
-      this.machinesNs.startMachine(machine)
-    },
-    stopMachine: (machine: unknown) => {
-      this.machinesNs.stopMachine(machine)
-    },
-    setBeltSpeed: (belt: unknown, speed: unknown) => {
-      this.beltsNs.setBeltSpeed(belt, speed)
-    },
-    repeatTimes: (count: unknown, body: () => void) => {
-      this.loopsNs.repeatTimes(count, body)
-    },
-    whileCondition: (condition: unknown, body: () => void) => {
-      this.loopsNs.whileCondition(condition, body)
-    },
-    ifQuality: (threshold: unknown, body: () => void) => {
-      this.logicNs.ifQuality(threshold, body)
-    },
-    ifItemType: (itemType: unknown, body: () => void) => {
-      this.logicNs.ifItemType(itemType, body)
-    },
-    onOrderReceived: (body: () => void) => {
-      this.eventsNs.onOrderReceived(body)
-    },
-    onBeltJam: (body: () => void) => {
-      this.eventsNs.onBeltJam(body)
-    },
-    onMachineIdle: (machine: unknown, body: () => void) => {
-      this.eventsNs.onMachineIdle(machine, body)
-    },
-    setQualityThreshold: (machine: unknown, threshold: unknown) => {
-      this.machinesNs.setQualityThreshold(machine, threshold)
-    },
   }
 
   // --- Public API --------------------------------------------------------

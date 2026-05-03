@@ -21,11 +21,19 @@ export class LevelSelect {
     title.dataset.i18nKey = 'level_select.title'
     card.appendChild(title)
 
+    // Scrollable inner region — only the level grid scrolls when the card
+    // overflows. The back button stays pinned in the card's flex footer so
+    // it remains reachable without scrolling at the smallest supported
+    // viewport (1024×768).
+    const scroll = document.createElement('div')
+    scroll.className = 'ui-level-select-scroll'
     this.grid = document.createElement('div')
     this.grid.className = 'ui-level-select-grid'
-    card.appendChild(this.grid)
+    scroll.appendChild(this.grid)
+    card.appendChild(scroll)
 
-    // Back button
+    // Back button — last child of the card, sibling of the scroll region so
+    // it never moves with the scroll position.
     const backBtn = document.createElement('button')
     backBtn.className = 'ui-level-select-back'
     backBtn.textContent = i18next.t('level_select.back')
@@ -89,7 +97,7 @@ export class LevelSelect {
       const starsRow = document.createElement('div')
       starsRow.className = 'ui-level-card-stars'
       if (unlocked) {
-        starsRow.innerHTML = this.renderStars(stars, 9)
+        starsRow.innerHTML = this.renderStars(stars, 3)
       } else {
         const lockIcon = document.createElement('span')
         lockIcon.className = 'ui-level-card-lock'
@@ -109,7 +117,7 @@ export class LevelSelect {
   private renderStars(earned: number, max: number): string {
     let html = ''
     for (let i = 0; i < max; i++) {
-      html += i < earned
+      html += earned >= (i + 1) * 3
         ? '<span class="ui-star ui-star--filled">★</span>'
         : '<span class="ui-star ui-star--empty">☆</span>'
     }

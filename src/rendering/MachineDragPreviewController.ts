@@ -1,7 +1,7 @@
 import type * as THREE from 'three'
 import type { Factory } from '../game/Factory'
 import type { GridPosition } from '../game/types'
-import { MACHINE_COLORS } from './FactoryRenderer'
+import { MACHINE_COLORS } from './RenderingAssets'
 import type { GridInteractionPreview } from './GridInteractionPreview'
 
 export class MachineDragPreviewController {

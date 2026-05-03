@@ -334,6 +334,16 @@ test.describe('machine dropdown — empty state', () => {
         .poll(async () => probe.getMachineCount(), { timeout: 5000 })
         .toBe(1)
 
+      // The dblclick projection→cell raycast is approximate, so the placement
+      // can land on a cell adjacent to (5, 10) under heavy parallel load.
+      // The factual "where the machine is" comes from the simulation, not
+      // from the requested coord — read it back so steps 8–13 follow the
+      // real machine.
+      const placedMachines = await probe.getMachines()
+      expect(placedMachines, 'exactly one machine should be placed').toHaveLength(1)
+      const placedMachine = placedMachines[0]
+      const placedCoord = { x: placedMachine.x, z: placedMachine.z }
+
       const placedName = await probe.getFirstMachineDisplayName()
       expect(placedName, 'placed machine should expose a non-empty display name').toBeTruthy()
 
@@ -365,7 +375,7 @@ test.describe('machine dropdown — empty state', () => {
 
       // 11. Remove the machine.
       await pxt.closeIfOpen()
-      await grid.clickCell({ x: 5, z: 10 })
+      await grid.clickMachineUntilSelected(placedCoord)
       await machinePanel.expectVisible()
       await machinePanel.pressDelete()
       await expect
@@ -579,5 +589,58 @@ test.describe('Save / Reload Round-Trip', () => {
       `block field values must survive reload: before=${JSON.stringify(before.fieldValues)} ` +
         `after=${JSON.stringify(after.fieldValues)}`,
     ).toEqual(before.fieldValues)
+  })
+})
+
+test.describe('on-start block visibility', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  test.beforeEach(async ({ mainMenu, levelSelect, toolbar, tutorial, editorPanel, pxt }) => {
+    await enterBuildPhase(mainMenu, levelSelect, toolbar, tutorial)
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
+    await editorPanel.expectIframeVisible()
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForBlocklyWorkspaceVisible()
+    await pxt.waitForToolboxInteractive()
+    await pxt.waitForOnStartBlockRendered()
+  })
+
+  test('on-start block is fully visible (not occluded by toolbox)', async ({ pxt }) => {
+    const toolboxRect = await pxt.getToolboxRect()
+    const blockRect = await pxt.getOnStartBlockRect()
+    // Allow up to 2 px tolerance for sub-pixel rounding.
+    expect(
+      blockRect.left,
+      `on-start block must sit entirely to the right of the toolbox column. ` +
+        `toolbox=${JSON.stringify(toolboxRect)} block=${JSON.stringify(blockRect)}`,
+    ).toBeGreaterThanOrEqual(toolboxRect.right - 2)
+  })
+
+  test('toolbox renders at the left edge of the iframe', async ({ pxt }) => {
+    const toolboxRect = await pxt.getToolboxRect()
+    expect(
+      toolboxRect.left,
+      `toolbox must be flush with the left edge of the iframe — got left=${toolboxRect.left}`,
+    ).toBe(0)
+    expect(
+      toolboxRect.width,
+      `toolbox must have non-trivial width — got width=${toolboxRect.width}`,
+    ).toBeGreaterThanOrEqual(100)
+  })
+
+  test('on-start block stays within the visible workspace area', async ({ pxt }) => {
+    const blockRect = await pxt.getOnStartBlockRect()
+    const viewport = await pxt.getIframeViewportSize()
+    expect(
+      blockRect.right,
+      `on-start block must not be pushed off the right edge of the iframe viewport. ` +
+        `block.right=${blockRect.right} viewport.width=${viewport.width}`,
+    ).toBeLessThanOrEqual(viewport.width)
+    expect(
+      blockRect.bottom,
+      `on-start block must not be pushed off the bottom edge of the iframe viewport. ` +
+        `block.bottom=${blockRect.bottom} viewport.height=${viewport.height}`,
+    ).toBeLessThanOrEqual(viewport.height)
   })
 })

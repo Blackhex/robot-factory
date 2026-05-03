@@ -14,6 +14,7 @@ export type GameState =
   | 'build_phase'
   | 'play_phase'
   | 'score_screen'
+  | 'level_failed'
   | 'sandbox'
 
 type GameManagerEventType = 'stateChanged' | 'levelStarted' | 'simulationDone' | 'scoreReady'
@@ -78,8 +79,21 @@ export class GameManager {
     this._currentLevel = level
     this._factory = new Factory(level.gridSize.width, level.gridSize.height)
     this._simulation = new Simulation()
+    for (const entry of level.startingMachines ?? []) {
+      this._factory.placeMachine(entry.x, entry.z, entry.type, entry.rotation)
+    }
     this.setState('build_phase')
     this.emit('levelStarted', { levelId })
+  }
+
+  /**
+   * Restart the current level by re-running {@link startLevel} with its id.
+   * No-op when there is no active level. Pure game-layer: does not play
+   * audio or touch the DOM (that is the composition root's job).
+   */
+  retryCurrentLevel(): void {
+    const level = this._currentLevel
+    if (level) this.startLevel(level.id)
   }
 
   startSimulation(): void {
@@ -102,12 +116,24 @@ export class GameManager {
   showScore(): void {
     if (!this._simulation || !this._currentLevel) return
 
-    this._lastScore = calculateScore(this._simulation, this._currentLevel)
-    const bestStars = this._progress.get(this._currentLevel.id) ?? 0
-    if (this._lastScore.totalStars > bestStars) {
-      this._progress.set(this._currentLevel.id, this._lastScore.totalStars)
+    // CONTRACT (B1): Campaign runs that fail to meet the level's required
+    // output count transition to a dedicated `level_failed` state. Failed
+    // runs do NOT persist stars and do NOT unlock the next level.
+    const baseScore = calculateScore(this._simulation, this._currentLevel)
+    const requiredCount = computeRequiredOutputs(this._currentLevel)
+    const succeeded = this._simulation.outputsDelivered >= requiredCount
+    const outcome: 'success' | 'failed' = succeeded ? 'success' : 'failed'
+    this._lastScore = { ...baseScore, outcome }
+
+    if (succeeded) {
+      const bestStars = this._progress.get(this._currentLevel.id) ?? 0
+      if (this._lastScore.totalStars > bestStars) {
+        this._progress.set(this._currentLevel.id, this._lastScore.totalStars)
+      }
+      this.setState('score_screen')
+    } else {
+      this.setState('level_failed')
     }
-    this.setState('score_screen')
     this.emit('scoreReady', { score: this._lastScore })
   }
 
@@ -134,7 +160,7 @@ export class GameManager {
       for (const segment of ConveyorBelt.fromBeltInfo(info)) {
         simulation.addBelt(segment)
       }
-      simulation.setMachineOutputBelt(info.sourceMachine.id, `${info.id}_seg0`)
+      simulation.setMachineOutputBelt(info.sourceMachine.id, ConveyorBelt.segmentIdFor(info.id, 0))
     }
 
     // Wire factory edits → sim sync. After this, mid-run belt edits
@@ -230,4 +256,20 @@ export class GameManager {
     this._currentLevel = null
     this._lastScore = null
   }
+}
+
+/**
+ * Sum the production targets across a level's `produce_robots` and
+ * `produce_parts` goals to derive the minimum `outputsDelivered` required
+ * for a successful campaign run. Levels with no production goals return 0
+ * (treated as success on any delivery, including zero).
+ */
+function computeRequiredOutputs(level: LevelDefinition): number {
+  let required = 0
+  for (const goal of level.goals) {
+    if (goal.type === 'produce_robots' || goal.type === 'produce_parts') {
+      required += goal.target
+    }
+  }
+  return required
 }

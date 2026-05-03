@@ -79,6 +79,72 @@ export class FactoryGridPage {
     await this.page.waitForTimeout(200)
   }
 
+  /**
+   * Click the machine at `coord` and wait until the renderer reports it as
+   * the highlighted (i.e. selected) machine. Re-issues the click on flake —
+   * for example, when canvas-resize after closing an overlay leaves the
+   * pointer raycast briefly out of sync, or when a single click is
+   * mis-interpreted as a drag and the machine ends up on an adjacent cell.
+   * The machine is tracked by id between attempts so a relocation does not
+   * abort the wait. Throws if the machine cannot be selected after several
+   * attempts.
+   */
+  async clickMachineUntilSelected(
+    coord: GridCoord,
+    opts: { attempts?: number; perAttemptTimeoutMs?: number } = {},
+  ): Promise<void> {
+    const attempts = opts.attempts ?? 5
+    const perAttemptTimeoutMs = opts.perAttemptTimeoutMs ?? 1500
+
+    const initialMachines = await this.probe.getMachines()
+    const initial = initialMachines.find((m) => m.x === coord.x && m.z === coord.z)
+    if (!initial) {
+      throw new Error(
+        `clickMachineUntilSelected: no machine exists at (${coord.x}, ${coord.z})`,
+      )
+    }
+    const targetId = initial.id
+
+    let lastError: unknown = null
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      // Ensure the renderer's camera/raycaster geometry matches the live
+      // canvas size before each attempt. Toggling the PXT editor reflows
+      // the canvas via CSS but does not fire `window.resize`, leaving the
+      // renderer briefly stale and causing pointer clicks to land one cell
+      // off (which the GridInteraction interprets as a 1-cell drag instead
+      // of a select). Forcing the sync here guarantees deterministic
+      // raycast geometry on every attempt.
+      await this.probe.syncRendererToCanvasSize()
+
+      const currentMachines = await this.probe.getMachines()
+      const current = currentMachines.find((m) => m.id === targetId)
+      if (!current) {
+        throw new Error(
+          `clickMachineUntilSelected: machine id=${targetId} no longer exists in the factory`,
+        )
+      }
+      const currentCoord = { x: current.x, z: current.z }
+      const pos = await this.projectMachineBodyToCanvasPoint(currentCoord)
+      await this.canvasLocator.click({ position: { x: pos.x, y: pos.y } })
+      try {
+        await expect
+          .poll(
+            () => this.probe.getHighlightedMachineId(),
+            { timeout: perAttemptTimeoutMs, intervals: [50, 100, 200] },
+          )
+          .toBe(targetId)
+        return
+      } catch (err) {
+        lastError = err
+      }
+    }
+    throw new Error(
+      `clickMachineUntilSelected: machine id=${targetId} (initial coord (${coord.x}, ${coord.z})) ` +
+        `was not highlighted after ${attempts} click attempts. ` +
+        `Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+    )
+  }
+
   async dblClickCell(coord: GridCoord): Promise<void> {
     const pos = await this.probe.projectGridWorldToScreen(coord.x, coord.z)
     await this.canvasLocator.dblclick({ position: { x: pos.x, y: pos.y } })

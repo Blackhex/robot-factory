@@ -1,16 +1,9 @@
-import type { Direction, MachineType, SlotPosition } from '../game/types.ts'
+import { ALL_MACHINE_TYPES, type Direction, type MachineType, type SlotPosition } from '../game/types.ts'
 import { Factory } from '../game/Factory.ts'
 
 const SAVE_VERSION = 2
 
-const VALID_MACHINE_TYPES: ReadonlySet<string> = new Set<MachineType>([
-  'part_fabricator',
-  'assembler',
-  'quality_checker',
-  'painter',
-  'recycler',
-  'splitter',
-])
+const VALID_MACHINE_TYPES: ReadonlySet<string> = new Set<MachineType>(ALL_MACHINE_TYPES)
 
 const VALID_DIRECTIONS: ReadonlySet<string> = new Set<Direction>(['north', 'south', 'east', 'west'])
 const VALID_SLOTS: ReadonlySet<string> = new Set<SlotPosition>(['front', 'back', 'left', 'right'])

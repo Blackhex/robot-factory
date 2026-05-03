@@ -1,4 +1,4 @@
-﻿import { i18next, switchLanguage } from '../i18n/i18n'
+﻿import { i18next } from '../i18n/i18n'
 
 interface ButtonSpec {
   key: string
@@ -6,10 +6,12 @@ interface ButtonSpec {
   onClick: () => void
 }
 
+export type ToolbarSimulationState = 'idle' | 'running' | 'paused' | 'stopped'
+
 export class Toolbar {
   private container: HTMLDivElement
-  private langButton: HTMLButtonElement
   private pauseBtn: HTMLButtonElement
+  private sandboxBadge: HTMLSpanElement
   private buttons = new Map<string, HTMLButtonElement>()
   private handleLangChange = () => this.updateLabels()
 
@@ -21,10 +23,18 @@ export class Toolbar {
   onSave: () => void = () => {}
   onLoad: () => void = () => {}
   onExport: () => void = () => {}
+  onBackToMenu: () => void = () => {}
+  onResetView: () => void = () => {}
 
   constructor(parent: HTMLElement) {
     this.container = document.createElement('div')
     this.container.className = 'ui-toolbar'
+
+    this.makeButton(this.container, {
+      key: 'toolbar.back_to_menu',
+      className: 'ui-toolbar-btn--back-to-menu',
+      onClick: () => this.onBackToMenu(),
+    })
 
     this.makeButton(this.container, {
       key: 'actions.open_editor',
@@ -81,11 +91,18 @@ export class Toolbar {
 
     this.container.appendChild(fileGroup)
 
-    this.langButton = document.createElement('button')
-    this.langButton.className = 'ui-toolbar-btn ui-lang-btn'
-    this.langButton.textContent = i18next.language === 'en' ? 'CS' : 'EN'
-    this.langButton.addEventListener('click', () => this.toggleLanguage())
-    this.container.appendChild(this.langButton)
+    this.makeButton(this.container, {
+      key: 'toolbar.reset_view',
+      className: 'ui-toolbar-btn--reset-view',
+      onClick: () => this.onResetView(),
+    })
+
+    this.sandboxBadge = document.createElement('span')
+    this.sandboxBadge.className = 'ui-toolbar-sandbox-badge'
+    this.sandboxBadge.dataset.i18nKey = 'toolbar.sandbox_badge'
+    this.sandboxBadge.textContent = i18next.t('toolbar.sandbox_badge')
+    this.sandboxBadge.style.display = 'none'
+    this.container.appendChild(this.sandboxBadge)
 
     parent.appendChild(this.container)
 
@@ -103,15 +120,12 @@ export class Toolbar {
     return btn
   }
 
-  private async toggleLanguage(): Promise<void> {
-    const next = i18next.language === 'en' ? 'cs' : 'en'
-    await switchLanguage(next)
-  }
-
   private updateLabels(): void {
-    this.langButton.textContent = i18next.language === 'en' ? 'CS' : 'EN'
     for (const btn of this.buttons.values()) {
       btn.textContent = i18next.t(btn.dataset.i18nKey!)
+    }
+    if (this.sandboxBadge.dataset.i18nKey) {
+      this.sandboxBadge.textContent = i18next.t(this.sandboxBadge.dataset.i18nKey)
     }
   }
 
@@ -120,6 +134,49 @@ export class Toolbar {
     this.pauseBtn.dataset.i18nKey = key
     this.pauseBtn.textContent = i18next.t(key)
     this.pauseBtn.classList.toggle('is-paused', paused)
+  }
+
+  setSandboxMode(enabled: boolean): void {
+    if (enabled) {
+      this.sandboxBadge.textContent = i18next.t('toolbar.sandbox_badge')
+      this.sandboxBadge.style.display = 'inline-block'
+    } else {
+      this.sandboxBadge.style.display = 'none'
+    }
+  }
+
+  setSimulationState(state: ToolbarSimulationState): void {
+    const start = this.buttons.get('actions.start')!
+    const pause = this.pauseBtn
+    const restart = this.buttons.get('actions.restart')!
+
+    const apply = (btn: HTMLButtonElement, enabled: boolean) => {
+      btn.disabled = !enabled
+      btn.classList.toggle('is-disabled', !enabled)
+    }
+
+    switch (state) {
+      case 'idle':
+        apply(start, true)
+        apply(pause, false)
+        apply(restart, false)
+        break
+      case 'running':
+        apply(start, false)
+        apply(pause, true)
+        apply(restart, true)
+        break
+      case 'paused':
+        apply(start, false)
+        apply(pause, true)
+        apply(restart, true)
+        break
+      case 'stopped':
+        apply(start, false)
+        apply(pause, false)
+        apply(restart, true)
+        break
+    }
   }
 
   show(): void {

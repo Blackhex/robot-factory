@@ -19,6 +19,10 @@ export class ScoreScreenPage {
     await expect(this.root).toBeVisible({ timeout })
   }
 
+  async expectHidden(timeout = 5000): Promise<void> {
+    await expect(this.root).toBeHidden({ timeout })
+  }
+
   async expectTotalVisible(): Promise<void> {
     await expect(this.total).toBeVisible()
   }

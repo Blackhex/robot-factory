@@ -3,7 +3,7 @@ import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js
 import type { BeltInfo, Factory, MachineInfo } from '../game/Factory'
 import type { GridPosition, SlotPosition } from '../game/types'
 import type { SceneManager } from './SceneManager'
-import { MACHINE_COLORS } from './FactoryRenderer'
+import { MACHINE_COLORS } from './RenderingAssets'
 import type { FactoryRenderer } from './FactoryRenderer'
 import { BeltDragInteraction } from './BeltDragInteraction'
 import type { BeltPathPlan, BeltSlotType } from './BeltPlacementPlanner'

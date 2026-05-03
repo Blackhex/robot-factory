@@ -5,13 +5,12 @@ import type { SceneManager } from './SceneManager'
 import { FactoryInteractionRaycaster, type MachineInteractionHit } from './FactoryInteractionRaycaster'
 import { BeltMeshRenderer } from './BeltMeshRenderer'
 import { MachineMeshRenderer, type MachineMeshGroup } from './MachineMeshRenderer'
+import { GRID_COLORS } from './RenderingAssets'
 
-export { MACHINE_COLORS } from './RenderingAssets'
 export {
   BELT_WIDTH,
   CORNER_OUTER_R,
   CORNER_INNER_R,
-  CORNER_STRAIGHT_LEN,
   createCornerBeltGeometry,
   getCornerOffset,
   getCornerRotation,
@@ -86,7 +85,7 @@ export class FactoryRenderer {
     const { width, height } = this.factory
     const floorGeometry = new THREE.PlaneGeometry(width, height)
     const floorMaterial = new THREE.MeshStandardMaterial({
-      color: 0x2a2a3e,
+      color: GRID_COLORS.floor,
       roughness: 0.9,
     })
     const floor = new THREE.Mesh(floorGeometry, floorMaterial)
@@ -95,13 +94,18 @@ export class FactoryRenderer {
     floor.receiveShadow = true
     this.gridGroup.add(floor)
 
-    const gridHelper = new THREE.GridHelper(
-      Math.max(width, height),
-      Math.max(width, height),
-      0x444466,
-      0x333355,
+    const size = Math.max(width, height)
+    const minorGrid = new THREE.GridHelper(size, size, GRID_COLORS.minor, GRID_COLORS.minor)
+    this.gridGroup.add(minorGrid)
+
+    const majorGrid = new THREE.GridHelper(
+      size,
+      Math.ceil(size / 5),
+      GRID_COLORS.major,
+      GRID_COLORS.major,
     )
-    this.gridGroup.add(gridHelper)
+    majorGrid.position.y = 0.001
+    this.gridGroup.add(majorGrid)
   }
 
   updateMachines(): void {

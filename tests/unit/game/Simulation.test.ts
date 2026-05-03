@@ -697,6 +697,136 @@ describe('Simulation', () => {
     })
   })
 
+  describe('robotsProduced tracking', () => {
+    // Spec: `Simulation.robotsProduced` must increment by 1 each time a
+    // robot-class item (ItemType starting with `robot_*`) is delivered to
+    // a `factory_output` machine. Non-robot deliveries must NOT bump the
+    // counter — only `outputsDelivered` (the existing all-items counter).
+
+    it('should increment robotsProduced when a robot reaches factory_output', () => {
+      // GIVEN — factory_output at the end of a 1-cell belt
+      const output = new Machine('out1', 'factory_output')
+      sim.addMachine(output)
+      sim.setMachinePosition('out1', 1, 0)
+      const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
+      sim.addBelt(belt)
+      belt.addItem(createItem('robot_worker'))
+
+      // WHEN — 11 ticks for belt to deliver (10 × 0.1 ≈ 0.999..., 11th caps to 1.0)
+      tickN(sim, 11)
+
+      // THEN — robotsProduced bumped, outputsDelivered also bumped (existing behavior)
+      expect(sim.robotsProduced).toBe(1)
+      expect(sim.outputsDelivered).toBe(1)
+    })
+
+    it('should NOT increment robotsProduced for non-robot items at factory_output', () => {
+      // GIVEN — same setup, but the delivered item is a part, not a robot
+      const output = new Machine('out1', 'factory_output')
+      sim.addMachine(output)
+      sim.setMachinePosition('out1', 1, 0)
+      const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
+      sim.addBelt(belt)
+      belt.addItem(createItem('wheel_small'))
+
+      // WHEN
+      tickN(sim, 11)
+
+      // THEN — outputsDelivered still bumps (it counts ALL items), but robotsProduced does not
+      expect(sim.outputsDelivered).toBe(1)
+      expect(sim.robotsProduced).toBe(0)
+    })
+
+    it('should increment robotsProduced once per delivered robot (not per tick)', () => {
+      // GIVEN — factory_output at the end of a belt
+      const output = new Machine('out1', 'factory_output')
+      sim.addMachine(output)
+      sim.setMachinePosition('out1', 1, 0)
+      const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
+      sim.addBelt(belt)
+
+      // WHEN — push 3 robots through sequentially (single-cell belt only holds one at a time)
+      belt.addItem(createItem('robot_worker'))
+      tickN(sim, 11)
+      belt.addItem(createItem('robot_explorer'))
+      tickN(sim, 11)
+      belt.addItem(createItem('robot_guardian'))
+      tickN(sim, 11)
+
+      // THEN — exactly 3 robots counted, regardless of how many ticks elapsed
+      expect(sim.robotsProduced).toBe(3)
+      expect(sim.outputsDelivered).toBe(3)
+    })
+  })
+
+  describe('defects tracking', () => {
+    // Spec: `Simulation.defects` must increment by 1 each time a
+    // `quality_checker` machine routes an item to its `secondaryOutputSlot`
+    // (the reject branch fired when `item.quality < machine.qualityThreshold`).
+    // Splitter secondary outputs must NOT count as defects — only quality_checker.
+
+    it('should increment defects when quality_checker routes an item to secondary output', () => {
+      // GIVEN — quality_checker with threshold 50 and a low-quality item already in the input slot.
+      // We seed via `addInput` so the test is independent of belt delivery timing.
+      const qc = new Machine('qc1', 'quality_checker')
+      qc.qualityThreshold = 50
+      qc.addInput(createItem('wheel_small', 30)) // quality < threshold → secondary
+      sim.addMachine(qc)
+
+      // WHEN — quality_checker takes 1 tick to start + 1 tick to route
+      sim.tick() // idle → processing (timer=1)
+      sim.tick() // timer=0, route to secondary
+
+      // THEN — item ended up on secondary slot AND defects bumped exactly once
+      expect(qc.secondaryOutputSlot).not.toBeNull()
+      expect(qc.outputSlot).toBeNull()
+      expect(sim.defects).toBe(1)
+    })
+
+    it('should NOT increment defects when quality_checker routes to primary (passing) output', () => {
+      // GIVEN — same setup but item quality is above threshold → routes to primary
+      const qc = new Machine('qc1', 'quality_checker')
+      qc.qualityThreshold = 50
+      qc.addInput(createItem('wheel_small', 80)) // quality >= threshold → primary
+      sim.addMachine(qc)
+
+      // WHEN
+      sim.tick()
+      sim.tick()
+
+      // THEN — primary slot populated, defects untouched
+      expect(qc.outputSlot).not.toBeNull()
+      expect(qc.secondaryOutputSlot).toBeNull()
+      expect(sim.defects).toBe(0)
+    })
+
+    it('should increment defects once per rejected item (not per tick the item sits in secondary slot)', () => {
+      // GIVEN — quality_checker with threshold 50
+      const qc = new Machine('qc1', 'quality_checker')
+      qc.qualityThreshold = 50
+      sim.addMachine(qc)
+
+      // WHEN — push a low-quality item, route it, drain the secondary slot, then repeat.
+      // Manually draining stands in for a connected secondary belt; the prevSecondary
+      // bookkeeping in updateMachines is what guarantees "once per new item".
+      qc.addInput(createItem('wheel_small', 30))
+      sim.tick() // idle → processing
+      sim.tick() // route to secondary → defects should be 1 here
+      qc.takeSecondaryOutput() // drain so the next item can be routed
+
+      qc.addInput(createItem('wheel_small', 30))
+      sim.tick() // idle → processing
+      sim.tick() // route to secondary → defects should be 2 here
+
+      // Extra ticks while the item sits in the secondary slot must NOT re-bump defects.
+      sim.tick()
+      sim.tick()
+
+      // THEN — exactly 2 rejections, one per rejected item
+      expect(sim.defects).toBe(2)
+    })
+  })
+
   describe('clearInFlight()', () => {
     it('should remove all items from every belt', () => {
       // GIVEN

@@ -19043,6 +19043,72 @@ describe('Factory', () => {
         ],
       })
     })
+
+    // ─── auto-name regeneration on type change (UX-5) ───────────────
+
+    it('should regenerate the auto-name when the current name is the default auto-name for the old type', () => {
+      // GIVEN — a freshly-placed machine has the default auto-name for its type.
+      factory.placeMachine(3, 3, 'part_fabricator', 'south')
+      expect(factory.getMachineAt(3, 3)!.name).toBe('Part Fabricator 1')
+
+      // WHEN — the user picks a new type from the dropdown.
+      const result = factory.updateMachineType(3, 3, 'factory_output')
+
+      // THEN — type changes AND the name is regenerated for the new type
+      // (no `factory_output` machines existed before, so counter starts at 1).
+      expect(result).toBe(true)
+      const machine = factory.getMachineAt(3, 3)!
+      expect(machine.type).toBe('factory_output')
+      expect(machine.name).toBe('Factory Output 1')
+    })
+
+    it('should preserve a user-customized name across a type change', () => {
+      // GIVEN — the user renamed the machine to something custom.
+      factory.placeMachine(3, 3, 'part_fabricator', 'south')
+      expect(factory.renameMachine(3, 3, 'BobTheMachine')).toBe(true)
+      expect(factory.getMachineAt(3, 3)!.name).toBe('BobTheMachine')
+
+      // WHEN — the user changes the machine's type.
+      factory.updateMachineType(3, 3, 'factory_output')
+
+      // THEN — type changes but the custom name is preserved.
+      const machine = factory.getMachineAt(3, 3)!
+      expect(machine.type).toBe('factory_output')
+      expect(machine.name).toBe('BobTheMachine')
+    })
+
+    it('should advance the per-type counter when regenerating the auto-name', () => {
+      // GIVEN — three part_fabricators (count = 1, 2, 3) and one factory_output (count = 1).
+      factory.placeMachine(1, 1, 'part_fabricator', 'south')
+      factory.placeMachine(2, 1, 'part_fabricator', 'south')
+      factory.placeMachine(3, 1, 'part_fabricator', 'south')
+      factory.placeMachine(5, 1, 'factory_output', 'south')
+      expect(factory.getMachineAt(1, 1)!.name).toBe('Part Fabricator 1')
+      expect(factory.getMachineAt(2, 1)!.name).toBe('Part Fabricator 2')
+      expect(factory.getMachineAt(3, 1)!.name).toBe('Part Fabricator 3')
+      expect(factory.getMachineAt(5, 1)!.name).toBe('Factory Output 1')
+
+      // WHEN — change one of the fabricators' type to factory_output.
+      factory.updateMachineType(2, 1, 'factory_output')
+
+      // THEN — the next auto-name for factory_output is "Factory Output 2".
+      expect(factory.getMachineAt(2, 1)!.name).toBe('Factory Output 2')
+    })
+
+    it('should still update type and slots when regenerating the name (regression guard)', () => {
+      // GIVEN
+      factory.placeMachine(3, 3, 'part_fabricator', 'south')
+
+      // WHEN
+      factory.updateMachineType(3, 3, 'splitter')
+
+      // THEN — type and slots match the new type (existing behavior preserved).
+      const machine = factory.getMachineAt(3, 3)!
+      const expectedSlots = getSlotPositions('splitter')
+      expect(machine.type).toBe('splitter')
+      expect(machine.slots.inputs).toEqual(expectedSlots.inputs)
+      expect(machine.slots.outputs).toEqual(expectedSlots.outputs)
+    })
   })
 
   describe('slot-blocking placement constraint', () => {

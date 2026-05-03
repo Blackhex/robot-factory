@@ -1,0 +1,145 @@
+import type { GameOverInfo, SimulationEventType } from './types.ts'
+import { isRobotItemType } from './types.ts'
+import { Machine } from './Machine.ts'
+import { ConveyorBelt } from './ConveyorBelt.ts'
+
+/**
+ * Dependency object accepted by `ItemDeliveryEngine`. The engine reads
+ * from these accessors but does not own the underlying collections —
+ * that ownership stays in `Simulation`.
+ */
+export interface ItemDeliveryEngineDeps {
+  getBelts(): ReadonlyMap<string, ConveyorBelt>
+  findMachineAt(x: number, z: number): Machine | undefined
+  findBeltStartingAt(x: number, z: number): ConveyorBelt | undefined
+}
+
+/**
+ * A single event the engine asks `Simulation` to emit. The engine does
+ * not call into the simulation's emitter directly so that ordering and
+ * the `currentTick` stamp on every event remain the responsibility of
+ * `Simulation` (and so the engine stays cheap to test).
+ */
+export interface DeliveryEvent {
+  type: SimulationEventType
+  data: Record<string, unknown>
+}
+
+export interface DeliveryResult {
+  itemsDelivered: number
+  outputsDelivered: number
+  robotsProduced: number
+  newGameOver: GameOverInfo | null
+  events: DeliveryEvent[]
+}
+
+/**
+ * Order-independent fixed-point delivery loop, extracted from
+ * `Simulation.deliverItems` as part of the B-10 god-file split.
+ *
+ * For every belt with ready items, attempts delivery to either:
+ *   1. a machine at the belt's destination cell, or
+ *   2. another belt starting at the same cell (handover).
+ *
+ * A pass that frees at least one cell may unblock another delivery
+ * upstream, so we iterate until no progress is made. Bounded by
+ * `belts.length + 1` — each progressing pass frees at least one cell,
+ * so convergence is guaranteed.
+ *
+ * The first attempt to deliver to a machine that cannot consume the
+ * item type trips a fatal `unconsumable_input` game-over (echoed back
+ * to `Simulation` via `newGameOver`).
+ */
+export class ItemDeliveryEngine {
+  private readonly deps: ItemDeliveryEngineDeps
+
+  constructor(deps: ItemDeliveryEngineDeps) {
+    this.deps = deps
+  }
+
+  deliver(currentTick: number, existingGameOver: GameOverInfo | null): DeliveryResult {
+    const result: DeliveryResult = {
+      itemsDelivered: 0,
+      outputsDelivered: 0,
+      robotsProduced: 0,
+      newGameOver: existingGameOver,
+      events: [],
+    }
+
+    const belts = Array.from(this.deps.getBelts().values())
+    let progress = true
+    let safety = belts.length + 1
+    while (progress && safety-- > 0) {
+      progress = false
+      for (const belt of belts) {
+        const readyItems = belt.getReadyItems()
+        for (const item of readyItems) {
+          // First, try to deliver to a machine at the belt's destination
+          const targetMachine = this.deps.findMachineAt(belt.toX, belt.toZ)
+          if (targetMachine && targetMachine.canAcceptInput()) {
+            // Fatal mis-routing: machine cannot consume this item type at
+            // all (wrong recipe, no recipe, or zero-input recipe). Trip
+            // game-over once and leave the item parked at the belt end.
+            if (!targetMachine.canConsume(item.type)) {
+              if (result.newGameOver === null) {
+                result.newGameOver = {
+                  reason: 'unconsumable_input',
+                  machineId: targetMachine.id,
+                  itemId: item.id,
+                  itemType: item.type,
+                  tick: currentTick,
+                }
+                result.events.push({
+                  type: 'game_over',
+                  data: { ...result.newGameOver },
+                })
+              }
+              continue
+            }
+            targetMachine.addInput(item)
+            belt.removeItem(item.id)
+            result.itemsDelivered++
+            result.events.push({
+              type: 'item_delivered',
+              data: {
+                itemId: item.id,
+                beltId: belt.id,
+                machineId: targetMachine.id,
+              },
+            })
+            if (targetMachine.machineType === 'factory_output') {
+              result.outputsDelivered++
+              if (isRobotItemType(item.type)) {
+                result.robotsProduced++
+              }
+              result.events.push({
+                type: 'output_delivered',
+                data: {
+                  itemId: item.id,
+                  itemType: item.type,
+                  machineId: targetMachine.id,
+                },
+              })
+            }
+            progress = true
+            continue
+          }
+
+          // No machine (or machine full) — try to transfer to a belt starting here
+          const nextBelt = this.deps.findBeltStartingAt(belt.toX, belt.toZ)
+          if (nextBelt && nextBelt.id !== belt.id) {
+            // Plain normalized position overshoot — no arc-length conversion.
+            const overshoot = item.positionOnBelt - 1.0
+            if (nextBelt.acceptHandover(item, overshoot)) {
+              belt.removeItem(item.id)
+              progress = true
+            }
+          }
+          // If neither machine nor next belt, item stays (belt jam)
+        }
+      }
+    }
+
+    return result
+  }
+}

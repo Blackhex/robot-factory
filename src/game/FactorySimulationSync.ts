@@ -62,7 +62,7 @@ export class FactorySimulationSync {
 
     this.beltInventoryMigration.captureRemovedBeltInventory(belt, (segmentId) => this.sim?.getBelt(segmentId))
     for (let i = 0; i < belt.path.length - 1; i++) {
-      const segmentId = `${belt.id}_seg${i}`
+      const segmentId = ConveyorBelt.segmentIdFor(belt.id, i)
       if (this.sim.getBelt(segmentId)) {
         this.sim.removeBelt(segmentId)
       }
@@ -77,7 +77,7 @@ export class FactorySimulationSync {
         this.sim.addBelt(segment)
       }
     }
-    this.sim.setMachineOutputBelt(belt.sourceMachine.id, `${belt.id}_seg0`)
+    this.sim.setMachineOutputBelt(belt.sourceMachine.id, ConveyorBelt.segmentIdFor(belt.id, 0))
     this.beltInventoryMigration.markBeltAdded()
   }
 

@@ -19,6 +19,14 @@ const PROGRAM_BASIC =
   'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
   'machines.startMachine(Machine.A)'
 
+// Level 1 starts with a pre-placed factory_output (the Shipper) declared by
+// `LevelDefinition.startingMachines`. Because the Shipper is added to the
+// factory before the player places anything, it occupies dropdown slot
+// `Machine.A` — the first user-placed fabricator becomes `Machine.B`.
+const PROGRAM_BASIC_LEVEL_1 =
+  'machines.setRecipe(Machine.B, Recipe.WheelPressSmall)\n' +
+  'machines.startMachine(Machine.B)'
+
 // Same as PROGRAM_BASIC, but also configures Machine.B with a recipe that
 // consumes wheel_small. Used in chains where Machine.B is an intermediate
 // recipe-driven machine (e.g. assembler) that would otherwise trigger the
@@ -141,9 +149,12 @@ test.describe('Level 1 — First Part', () => {
     await tutorial.expectCounter('4 / 6')
 
     // ===================== STEP 8: Connect belt =====
+    // Level 1 starts with a pre-placed factory_output (the Shipper) declared
+    // by `LevelDefinition.startingMachines`, so we must explicitly target the
+    // user-placed machine at (5, 5) rather than picking the first match.
     const machines = await probe.getMachines()
-    const fabricator = machines.find((m) => m.type === 'part_fabricator')
-    const output = machines.find((m) => m.type === 'factory_output')
+    const fabricator = machines.find((m) => m.type === 'part_fabricator' && m.x === 3 && m.z === 5)
+    const output = machines.find((m) => m.type === 'factory_output' && m.x === 5 && m.z === 5)
     expect(fabricator).toBeTruthy()
     expect(output).toBeTruthy()
     const beltPlaced = await probe.placeBeltViaTestApi(
@@ -164,8 +175,8 @@ test.describe('Level 1 — First Part', () => {
     await tutorial.expectCounter('6 / 6')
 
     // ===================== STEP 12: Write program in fallback textarea ======
-    await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC)
-    await editorPanel.expectFallbackValue(PROGRAM_BASIC)
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC_LEVEL_1)
+    await editorPanel.expectFallbackValue(PROGRAM_BASIC_LEVEL_1)
 
     // Close editor
     await toolbar.clickEditor()
@@ -284,8 +295,11 @@ test.describe('Level 2 — Assembly Line', () => {
 
     await hud.expectVisible()
 
-    // ===================== STEP 10: Wait for items delivered > 0 ===========
-    await hud.expectItemsDeliveredGreaterThan(0, 20000)
+    // ===================== STEP 10: Wait for items delivered ≥ 3 ===========
+    // Level 2 requires 3 robot_explorer outputs. Restarting before the goal
+    // is met routes to the Level Failed screen (B1 contract), so we wait
+    // for the full target before stopping.
+    await hud.expectItemsDeliveredAtLeast(3, 60000)
 
     await hud.expectTimeAdvancing(10000)
 
@@ -493,8 +507,10 @@ test.describe('Level 4 — Quality Matters', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    // ===================== STEP 9: Wait for items delivered > 0 =============
-    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    // ===================== STEP 9: Wait for items delivered ≥ goal ==========
+    // Level 4 requires 5 robot_explorer outputs. Restarting before the goal
+    // is met routes to Level Failed (B1 contract).
+    await hud.expectItemsDeliveredAtLeast(5, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     // ===================== STEP 10: Stop simulation → score screen ==========
@@ -573,8 +589,10 @@ test.describe('Level 5 — Smart Routing', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    // ===================== STEP 10: Wait for items delivered > 0 ============
-    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    // ===================== STEP 10: Wait for items delivered ≥ goal =========
+    // Level 5 requires 6 outputs total (3 explorer + 3 worker robots).
+    // Restarting before the goal is met routes to Level Failed (B1 contract).
+    await hud.expectItemsDeliveredAtLeast(6, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     // ===================== STEP 11: Stop simulation → score screen ==========
@@ -649,7 +667,10 @@ test.describe('Level 6 — Custom Robots', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    // Level 6 requires 6 outputs total (2 explorer + 2 worker + 2 guardian
+    // robots). Restarting before the goal is met routes to Level Failed
+    // (B1 contract).
+    await hud.expectItemsDeliveredAtLeast(6, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()
@@ -726,7 +747,11 @@ test.describe('Level 7 — Rush Order!', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    // Level 7 requires 10 robot_worker outputs. Restarting before the goal
+    // is met routes to Level Failed (B1 contract). PROGRAM_BASIC produces
+    // wheel_small but `outputsDelivered` (the GameManager fail check input)
+    // counts every delivered item, so wait for the raw threshold.
+    await hud.expectItemsDeliveredAtLeast(10, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()
@@ -796,7 +821,10 @@ test.describe('Level 8 — Optimize Everything', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    // Level 8 requires 10 robot_explorer outputs. Restarting before the goal
+    // is met routes to Level Failed (B1 contract). `outputsDelivered` counts
+    // every delivered item regardless of recipe.
+    await hud.expectItemsDeliveredAtLeast(10, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()
@@ -1022,7 +1050,11 @@ test.describe('Level 10 — Factory Tycoon', () => {
 
     await hud.expectVisible()
 
-    await hud.expectItemsDeliveredGreaterThan(0, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    // Level 10 requires 15 robot outputs total (5 explorer + 5 worker +
+    // 5 guardian). Restarting before the goal is met routes to Level
+    // Failed (B1 contract). `outputsDelivered` counts every delivered
+    // item regardless of recipe.
+    await hud.expectItemsDeliveredAtLeast(15, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()

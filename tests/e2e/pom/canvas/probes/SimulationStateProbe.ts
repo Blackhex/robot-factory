@@ -166,12 +166,33 @@ export class SimulationStateProbe {
         for (let i = 0; i < path.length - 1; i++) {
           const a = path[i]
           const b = path[i + 1]
-          segments.push({
-            ax: a.x - halfW + 0.5,
-            az: a.z - halfH + 0.5,
-            bx: b.x - halfW + 0.5,
-            bz: b.z - halfH + 0.5,
-          })
+          let ax = a.x - halfW + 0.5
+          let az = a.z - halfH + 0.5
+          const bx = b.x - halfW + 0.5
+          const bz = b.z - halfH + 0.5
+          // The renderer's chain-start straight cell extends its path
+          // backward from the source machine cell center by half a cell
+          // (entry-edge midpoint → exit-edge midpoint) to enable smooth
+          // handover from a phantom "upstream" cell. For the FIRST
+          // segment of a belt path, items at low positionOnBelt
+          // therefore render UPSTREAM of `a` (the source machine cell
+          // center) by up to half a cell. To keep the on-belt-path
+          // check consistent with what the renderer actually draws,
+          // extend this segment's `a` endpoint backward by half a cell
+          // along the segment's direction. Without this extension,
+          // freshly emitted items at positionOnBelt ≈ 0 right after a
+          // mid-sim machine rotate (or move) read as ghost items even
+          // though they sit on the renderer's actual rendered path.
+          if (i === 0) {
+            const dx = bx - ax
+            const dz = bz - az
+            const len = Math.hypot(dx, dz)
+            if (len > 0) {
+              ax -= (dx / len) * 0.5
+              az -= (dz / len) * 0.5
+            }
+          }
+          segments.push({ ax, az, bx, bz })
         }
       }
       return segments

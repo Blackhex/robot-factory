@@ -1,10 +1,7 @@
 import i18next from 'i18next'
+import type { TutorialStep } from '../game/Tutorials'
 
-export interface TutorialStep {
-  messageKey: string
-  highlightSelector?: string
-  position: 'top' | 'bottom' | 'left' | 'right'
-}
+export type { TutorialStep }
 
 export class TutorialOverlay {
   private container: HTMLDivElement
@@ -18,6 +15,7 @@ export class TutorialOverlay {
   private stepCounter: HTMLSpanElement
   private steps: TutorialStep[] = []
   private currentIndex = 0
+  private resizeRaf: number | null = null
 
   onComplete: () => void = () => {}
 
@@ -76,6 +74,7 @@ export class TutorialOverlay {
     this.container.style.display = 'none'
 
     i18next.on('languageChanged', this.updateLabels)
+    window.addEventListener('resize', this.handleResize)
   }
 
   loadTutorial(steps: TutorialStep[]): void {
@@ -143,6 +142,16 @@ export class TutorialOverlay {
     )
     this.tooltip.classList.add(`ui-tutorial-tooltip--${step.position}`)
 
+    // Compute a safe top boundary that prevents the tooltip from sitting under
+    // a visible top-mounted toolbar (e.g. `.ui-toolbar`). Falls back to the
+    // standard viewport margin when no toolbar is present.
+    const margin = 8
+    const toolbar = document.querySelector('.ui-toolbar') as HTMLElement | null
+    const toolbarRect = toolbar?.getBoundingClientRect()
+    const safeTopBoundary = (toolbarRect && toolbarRect.height > 0)
+      ? toolbarRect.bottom + margin
+      : margin
+
     if (step.highlightSelector) {
       const target = document.querySelector(step.highlightSelector)
       if (target) {
@@ -170,14 +179,38 @@ export class TutorialOverlay {
         const tw = this.tooltip.offsetWidth || 300
         const th = this.tooltip.offsetHeight || 150
         const gap = 16
-        const margin = 8
+
+        // Auto-flip when the requested vertical placement would collide with
+        // the safe top boundary or run off the bottom of the viewport.
+        let effectivePosition: TutorialStep['position'] = step.position
+        if (step.position === 'top') {
+          const wouldBeTop = rect.top - gap - th
+          if (wouldBeTop < safeTopBoundary) {
+            effectivePosition = 'bottom'
+          }
+        } else if (step.position === 'bottom') {
+          const wouldBeTop = rect.bottom + gap
+          const wouldBeBottom = wouldBeTop + th
+          if (
+            wouldBeBottom > window.innerHeight - margin &&
+            rect.top - gap - th >= safeTopBoundary
+          ) {
+            effectivePosition = 'top'
+          }
+        }
+
+        // Re-apply the placement class to reflect the (possibly flipped) position
+        if (effectivePosition !== step.position) {
+          this.tooltip.classList.remove(`ui-tutorial-tooltip--${step.position}`)
+          this.tooltip.classList.add(`ui-tutorial-tooltip--${effectivePosition}`)
+        }
 
         let top = 0
         // Always horizontally viewport-centered to avoid being hidden behind
         // side panels (e.g. the editor) regardless of target X or screen width.
         let left = (window.innerWidth - tw) / 2
 
-        switch (step.position) {
+        switch (effectivePosition) {
           case 'bottom':
             top = rect.bottom + gap
             break
@@ -190,13 +223,19 @@ export class TutorialOverlay {
             break
         }
 
-        // Clamp to viewport
-        top = Math.max(margin, Math.min(top, window.innerHeight - th - margin))
+        // Clamp to viewport, respecting the safe top boundary so the tooltip
+        // never overlaps a top-mounted toolbar.
+        top = Math.max(safeTopBoundary, Math.min(top, window.innerHeight - th - margin))
         left = Math.max(margin, Math.min(left, window.innerWidth - tw - margin))
 
         this.tooltip.style.top = `${top}px`
         this.tooltip.style.left = `${left}px`
         this.tooltip.style.transform = ''
+
+        // Anchor the arrow's center to the target's center for top/bottom
+        // placements so the visual indicator points at the highlighted UI
+        // element even when the tooltip itself stays viewport-centered.
+        this.anchorArrowToTarget(rect, left, effectivePosition)
       } else {
         this.backdrop.style.pointerEvents = ''
         this.centerTooltip()
@@ -208,10 +247,43 @@ export class TutorialOverlay {
     }
   }
 
+  /**
+   * Anchor the tooltip arrow horizontally so its center aligns with the
+   * target element's center. The arrow is `position: absolute` inside the
+   * tooltip with `margin-left: -6px`, so setting `style.left` to the desired
+   * arrow-center offset (relative to the tooltip's left edge) places its
+   * visual center at that offset. For `left`/`right` placements the arrow is
+   * on the side and horizontal alignment is not meaningful — clear any
+   * previous inline override and let the stylesheet take over.
+   */
+  private anchorArrowToTarget(
+    targetRect: DOMRect,
+    tooltipLeft: number,
+    position: TutorialStep['position'],
+  ): void {
+    this.tooltipArrow.style.display = ''
+    if (position !== 'top' && position !== 'bottom') {
+      this.tooltipArrow.style.left = ''
+      this.tooltipArrow.style.top = ''
+      return
+    }
+    const targetCenterX = targetRect.left + targetRect.width / 2
+    const arrowOffset = targetCenterX - tooltipLeft
+    this.tooltipArrow.style.left = `${arrowOffset}px`
+    // Vertical placement (top/bottom edge of the tooltip) is left to the
+    // stylesheet — we only override the horizontal position.
+    this.tooltipArrow.style.top = ''
+  }
+
   private centerTooltip(): void {
     this.tooltip.style.top = '50%'
     this.tooltip.style.left = '50%'
     this.tooltip.style.transform = 'translate(-50%, -50%)'
+    // No anchored target → hide the visual arrow so it doesn't falsely
+    // imply the centered tooltip is pointing at any specific UI element.
+    this.tooltipArrow.style.display = 'none'
+    this.tooltipArrow.style.left = ''
+    this.tooltipArrow.style.top = ''
   }
 
   private updateLabels = (): void => {
@@ -220,6 +292,24 @@ export class TutorialOverlay {
     if (this.steps.length > 0 && this.currentIndex < this.steps.length) {
       this.showCurrentStep()
     }
+  }
+
+  /**
+   * Reposition tooltip + arrow on viewport resize. Coalesce multiple resize
+   * events into a single `requestAnimationFrame` callback so we don't thrash
+   * layout while the user is dragging the window edge.
+   */
+  private handleResize = (): void => {
+    if (this.container.style.display === 'none') return
+    if (this.steps.length === 0) return
+    if (this.currentIndex >= this.steps.length) return
+    if (this.resizeRaf !== null) return
+    this.resizeRaf = requestAnimationFrame(() => {
+      this.resizeRaf = null
+      if (this.container.style.display === 'none') return
+      const step = this.steps[this.currentIndex]
+      if (step) this.positionTooltip(step)
+    })
   }
 
   show(): void {
@@ -232,6 +322,11 @@ export class TutorialOverlay {
 
   dispose(): void {
     i18next.off('languageChanged', this.updateLabels)
+    window.removeEventListener('resize', this.handleResize)
+    if (this.resizeRaf !== null) {
+      cancelAnimationFrame(this.resizeRaf)
+      this.resizeRaf = null
+    }
     this.container.remove()
   }
 }

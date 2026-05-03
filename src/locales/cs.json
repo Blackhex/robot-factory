@@ -3,7 +3,10 @@
   "toolbar": {
     "save": "Uložit",
     "load": "Načíst",
-    "export": "Export"
+    "export": "Exportovat",
+    "back_to_menu": "Nabídka",
+    "sandbox_badge": "Pískoviště",
+    "reset_view": "Pohled"
   },
   "machines": {
     "part_fabricator": "Vyráběč",
@@ -83,7 +86,14 @@
     "items_remaining": "zbývají položky"
   },
   "items": {
-    "current_item": "aktuální položka"
+    "current_item": "aktuální položka",
+    "wheel_small": "Malé kolo",
+    "sensor_proximity": "Senzor přiblížení",
+    "frame_basic": "Základní rám",
+    "motor_standard": "Standardní motor",
+    "robot_explorer": "Robot Průzkumník",
+    "robot_worker": "Robot Dělník",
+    "robot_guardian": "Robot Strážce"
   },
   "belts": {
     "belt_1": "Pás 1",
@@ -159,6 +169,14 @@
     "time": "Čas",
     "quality": "Kvalita"
   },
+  "level_brief": {
+    "goal": {
+      "produce_robots": "Vyrob {{count}} ks: {{item}}",
+      "produce_parts": "Postav {{count}} ks: {{item}}",
+      "quality_target": "Kvalita {{percent}} % nebo vyšší",
+      "time_limit": "Do {{seconds}} sekund"
+    }
+  },
   "level_select": {
     "title": "Výběr úrovně",
     "locked": "🔒 Zamčeno",
@@ -168,6 +186,12 @@
     "next_level": "Další úroveň",
     "retry": "Znovu",
     "back_to_menu": "Zpět do menu"
+  },
+  "level_failed": {
+    "title": "Úroveň nesplněna",
+    "message": "Nesplnil jsi cíl úrovně. Zkus to znovu!",
+    "retry": "Zkusit znovu",
+    "back_to_select": "Zpět na výběr úrovně"
   },
   "game_over": {
     "title": "Konec hry",
@@ -183,13 +207,19 @@
     "target": "Cíl",
     "delete": "Smazat pás"
   },
+  "pxt": {
+    "fallback": {
+      "label": "Tovární program (TypeScript)",
+      "placeholder": "// Sem napiš příkazy pro továrnu:\n// factory.startMachine(\"press_1\")\n// factory.setRecipe(\"press_1\", Recipe.WheelPressSmall)"
+    }
+  },
   "tutorial": {
     "back": "Zpět",
     "skip": "Přeskočit",
     "next": "Další",
     "finish": "Hotovo",
     "level1_step1": "Vítej! Dvojklikem na mřížku umísti svůj první stroj — Vyráběč.",
-    "level1_step2": "Dvojklikem na jiné políčko umísti Odesílač. Klikni na ni a změň její typ na Odesílač.",
+    "level1_step2": "Odesílač už je na mřížce — tam musí dorazit hotové díly. Najdi ho!",
     "level1_step3": "Propoj je pásem — přetáhni z výstupního slotu Vyráběče na vstupní slot Odesílače.",
     "level1_step4": "Otevři Editor a napiš svůj program. Klikni na ikonu kódu nebo stiskni E.",
     "level1_step5": "Použij blok 'nastavit recept' k nastavení výroby stroje. Přetáhni ho z kategorie Machines.",

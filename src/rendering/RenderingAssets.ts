@@ -8,8 +8,14 @@ export const MACHINE_COLORS: Record<MachineType, number> = {
   painter: 0xcc44cc,
   recycler: 0xff8844,
   splitter: 0x44cccc,
-  factory_output: 0x66bb6a,
+  factory_output: 0xfbbf24,
 }
+
+export const GRID_COLORS = {
+  floor: 0x2a2a3e,
+  minor: 0x4a5066,
+  major: 0x6a7088,
+} as const
 
 export const MACHINE_ICONS: Record<MachineType, string> = {
   part_fabricator: '\u2699',  // ⚙ gear

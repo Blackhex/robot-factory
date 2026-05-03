@@ -1,0 +1,107 @@
+/*
+ * CSS overrides injected into the PXT (MakeCode) iframe to:
+ *   1. Prevent MakeCode's mobile responsive rules from collapsing the
+ *      toolbox at narrow widths.
+ *   2. Apply the Robot Factory dark theme to the embedded editor.
+ *
+ * Loaded by PxtEditor.injectToolboxStyles() via Vite's `?raw` query.
+ */
+
+@media only screen and (max-width: 767px) {
+  span.blocklyTreeLabel { display: inline !important; font-size: 1rem; }
+  div.blocklyToolboxDiv, div.monacoToolboxDiv { min-width: 150px; }
+  div.blocklyTreeRow { min-height: 40px; border-left-width: 12px !important; }
+  span.blocklyTreeIcon { line-height: 40px; min-height: 40px; }
+  #root:not(.flyoutOnly) #blocklyTrashIcon { width: 150px; }
+}
+
+/* === Dark theme to match Robot Factory UI === */
+
+/* Constrain PXT layout to iframe bounds */
+html, body { height: 100% !important; width: 100% !important; overflow: hidden !important; position: relative !important; margin: 0 !important; padding: 0 !important; }
+#allcontent { height: 100% !important; max-height: 100% !important; overflow: hidden !important; }
+
+/* Main editor background */
+#root, #maineditor { background: #0f1117 !important; }
+svg.blocklySvg { background: #0f1117 !important; }
+.blocklyMainBackground { fill: #0f1117 !important; }
+
+/* Hide PXT chrome we don't use */
+#mainmenu, #editortools, #downloadArea, #filelist,
+#editorSidebar, #simulator, .simView, #boardview,
+.tutorial-container, #tutorialcard { display: none !important; }
+
+/* Reclaim space from hidden menu bar, sidebar, and editor tools */
+#maineditor { top: 0 !important; left: 0 !important; }
+#blocksArea, #monacoEditor, #assetEditor, #pxtJsonEditor, #serialEditor { bottom: 0 !important; }
+
+/* Toolbox dark styling */
+.blocklyToolboxDiv, .monacoToolboxDiv { background: #1a1d27 !important; border-right: 1px solid #2e3140 !important; color: #e0e0e6 !important; scrollbar-width: none !important; -ms-overflow-style: none !important; }
+.blocklyToolboxDiv::-webkit-scrollbar,
+.monacoToolboxDiv::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+
+/* Toolbox row styling — match game toolbar buttons. --cat-color is set per-row by JS from PXT's category color. */
+div.blocklyTreeRow { margin: 8px 6px !important; padding: 0 10px !important; border-radius: 8px !important; border: 1px solid var(--cat-color, #2e3140) !important; background-color: #1a1d27 !important; color: var(--cat-color, #e0e0e6) !important; transition: background-color 150ms ease !important; height: 2.5rem !important; min-height: 2.5rem !important; max-height: 2.5rem !important; line-height: 2.5rem !important; cursor: pointer !important; box-sizing: border-box !important; display: flex !important; align-items: center !important; }
+
+/* Non-selected row hover — subtle fill, keep text color */
+div.blocklyTreeRow:not(.blocklyTreeSelected):hover { background-color: #252836 !important; color: var(--cat-color, #e0e0e6) !important; }
+
+/* Selected row — accent tinted background */
+div.blocklyTreeRow.blocklyTreeSelected,
+div.blocklyTreeRow.blocklyTreeSelected:hover { background-color: rgba(79, 195, 247, 0.15) !important; color: #fff !important; }
+
+/* Toolbox label text — inherit category color from row */
+span.blocklyTreeLabel { color: inherit !important; font-family: 'Segoe UI', system-ui, Roboto, sans-serif !important; font-weight: 500 !important; font-size: 0.875rem !important; display: inline !important; }
+
+/* Toolbox icon — inherit category color and match row height */
+span.blocklyTreeIcon { line-height: 2.5rem !important; min-height: 2.5rem !important; height: 2.5rem !important; color: inherit !important; }
+
+/* Ensure label stays visible on hover — must match PXT's specificity for the .blocklyTreeSelected:hover case, which uses (0,0,3,2) to set display:none in <=767px. */
+div.blocklyTreeRow:hover span.blocklyTreeLabel { display: inline !important; color: inherit !important; }
+div.blocklyTreeRow.blocklyTreeSelected span.blocklyTreeLabel,
+div.blocklyTreeRow.blocklyTreeSelected:hover span.blocklyTreeLabel { display: inline !important; color: #fff !important; }
+
+/* Flyout background — higher specificity to beat invertedToolbox */
+svg.blocklyFlyout path.blocklyFlyoutBackground { fill: #0f1117 !important; fill-opacity: 0.97 !important; }
+
+/* Flyout label text */
+.blocklyFlyoutLabelText { fill: #8b8fa3 !important; }
+.blocklyFlyoutButton .blocklyText { fill: #e0e0e6 !important; }
+.blocklyFlyoutButtonBackground { fill: #252836 !important; stroke: #2e3140 !important; }
+
+/* Scrollbars */
+.blocklyScrollbarHandle { fill: #2e3140 !important; }
+.blocklyScrollbarBackground:hover + .blocklyScrollbarHandle,
+.blocklyScrollbarHandle:hover { fill: #4fc3f7 !important; }
+
+/* Grid pattern — subtle dark dots */
+.blocklyGridLine { stroke: #2e3140 !important; }
+
+/* Blockly workspace scrollbar track */
+.blocklyScrollbarBackground { fill: transparent !important; }
+
+/* Right-click context menu */
+.blocklyWidgetDiv .blocklyMenu { background: #1a1d27 !important; border: 1px solid #2e3140 !important; border-radius: 8px !important; overflow: hidden; }
+.blocklyWidgetDiv .blocklyMenuItem { color: #e0e0e6 !important; }
+.blocklyWidgetDiv .blocklyMenuItemHighlight { background: #252836 !important; }
+
+/* Blockly trash icon */
+#blocklyTrashIcon { color: #2e3140 !important; }
+
+/* Search input dark styling — margin matches toolbox row margins */
+#blocklySearchArea { background: #1a1d27 !important; margin: 8px 6px !important; box-sizing: border-box !important; }
+#blocklySearchInput { background: #1a1d27 !important; }
+#blocklySearchInputField { background: #1a1d27 !important; color: #e0e0e6 !important; border: 1px solid #2e3140 !important; border-radius: 4px !important; padding-left: 10px !important; padding-right: 10px !important; }
+#blocklySearchInputField::placeholder { color: #8b8fa3 !important; }
+#blocklySearchInput i.icon { color: #8b8fa3 !important; }
+
+/* Field dropdown styling */
+.blocklyDropDownDiv { border-color: #2e3140 !important; }
+
+/* Ensure block labels are visible on dark background. Exclude editable fields (number/text inputs), which render on a white input background and need dark text. */
+.blocklyText { fill: #fff !important; }
+.blocklyEditableText > .blocklyText,
+.blocklyHtmlInput { fill: #1a1d27 !important; color: #1a1d27 !important; }
+
+/* Make the main workspace div use full space */
+.injectionDiv { background: transparent !important; }

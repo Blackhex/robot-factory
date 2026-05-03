@@ -248,8 +248,11 @@ describe('Architecture', () => {
   describe('src/rendering/ only imports types from game', () => {
     it('game imports use "import type" only (except pure utility functions)', () => {
       // GIVEN
-      // Pure utility functions from game/ that rendering/ is allowed to value-import
-      const allowedValueImports = ['slotPositionToOffset', 'slotPositionToOffset,', 'pickBestSlotOffset', 'pickBestSlotOffset,', 'getSlotPositions', 'getSlotPositions,', 'directionToDegrees', 'directionToDegrees,', 'rotateDirectionCW', 'rotateDirectionCW,']
+      // Pure utility functions from game/ that rendering/ is allowed to value-import.
+      // `ConveyorBelt` is allowed because rendering only uses its static helpers
+      // (`parseSegmentId`, `segmentIdFor`) — pure, stateless utilities — never
+      // its constructor or instance methods.
+      const allowedValueImports = ['slotPositionToOffset', 'slotPositionToOffset,', 'pickBestSlotOffset', 'pickBestSlotOffset,', 'getSlotPositions', 'getSlotPositions,', 'directionToDegrees', 'directionToDegrees,', 'rotateDirectionCW', 'rotateDirectionCW,', 'ConveyorBelt', 'ConveyorBelt,']
 
       // WHEN + THEN
       for (const file of tsFilesIn(renderingDir)) {

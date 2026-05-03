@@ -129,4 +129,45 @@ export class ProjectionProbe {
       { x, z, kind, slotIndex },
     )
   }
+
+  /**
+   * Project every machine in the active factory to canvas screen coordinates.
+   * Returns one entry per machine (id, type, grid coord, screen x/y in CSS
+   * pixels relative to the page).
+   */
+  async getAllMachineScreenPositions(): Promise<Array<{
+    id: string
+    type: string
+    gridX: number
+    gridZ: number
+    x: number
+    y: number
+  }>> {
+    return this.page.evaluate(() => {
+      const sm = (window as any).__sceneManager
+      const gm = (window as any).__gameManager
+      if (!sm || !gm?.factory) return []
+      const camera = sm.getCamera()
+      const factory = gm.factory
+      const canvas = document.querySelector('#canvas-container canvas') as HTMLCanvasElement
+      if (!canvas) return []
+      const rect = canvas.getBoundingClientRect()
+      camera.updateMatrixWorld()
+      return factory.getMachines().map((m: any) => {
+        const worldX = m.x - factory.width / 2 + 0.5
+        const worldZ = m.z - factory.height / 2 + 0.5
+        const v = camera.position.clone()
+        v.set(worldX, 0.45, worldZ)
+        v.project(camera)
+        return {
+          id: m.id,
+          type: m.type,
+          gridX: m.x,
+          gridZ: m.z,
+          x: Math.round(((v.x + 1) / 2) * rect.width + rect.left),
+          y: Math.round(((1 - v.y) / 2) * rect.height + rect.top),
+        }
+      })
+    })
+  }
 }

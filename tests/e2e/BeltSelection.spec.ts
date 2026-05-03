@@ -152,14 +152,15 @@ test.describe('Belt Selection — selection, deselection, deletion', () => {
  * Screenshot scenario (April 2026 user report):
  *   - Top Fabricator (TF) east at (10, 3); Bottom Fabricator (BF) east at (10, 15).
  *   - Pre-existing belt connecting TF.front (east) to BF.back (west).
- *   - Middle Fabricator (MF) at (5, 5) with rotation 'west' — UNCONNECTED.
- *     Its green output slot therefore lives on the WEST face.
- *   - Drop-target machine D at (8, 5) rotation 'west' — its orange input
- *     ('back') faces east at cell (9, 5), and the cells between MF and D are
- *     free, so a belt MF→D is geometrically possible after MF rotates east.
- *   - User drags MF's green west-side output mesh onto D's body.
+ *   - Middle Fabricator (MF) at (5, 5) with rotation 'south' — UNCONNECTED.
+ *     Its green output slot therefore lives on the SOUTH face (camera-visible).
+ *   - Drop-target machine D at (8, 5) rotation 'east' — its orange input
+ *     ('back') faces west at cell (7, 5), so once MF auto-rotates east, the
+ *     resulting belt is a single segment MF.front → D.back.
+ *   - User drags MF's green south-side output mesh onto D's body.
  *
- * Expected: MF auto-rotates (no longer 'west') and a new belt with
+ * Expected: MF auto-rotates from 'south' to 'east' (the unique strictly
+ * shortest direction toward D's input), and a new belt with
  * sourceSlot='front' is created from MF to D.
  */
 test.describe('Belt drawing — drag from output slot auto-rotates source machine', () => {
@@ -170,7 +171,7 @@ test.describe('Belt drawing — drag from output slot auto-rotates source machin
     await toolbar.waitForCameraSettle()
   })
 
-  test('dragging MF.output (west-facing) onto D rotates MF and draws a belt', async ({
+  test('dragging MF.output (south-facing) onto D rotates MF and draws a belt', async ({
     probe, grid,
   }) => {
     // Place TF, BF, MF, D directly via the factory (no UI dependency for setup).
@@ -182,18 +183,21 @@ test.describe('Belt drawing — drag from output slot auto-rotates source machin
     // Rotate TF/BF to east (default placement is 'south').
     expect(await probe.setMachineRotationDirect(10, 3, 'east')).toBe(true)
     expect(await probe.setMachineRotationDirect(10, 15, 'west')).toBe(true)
-    // MF must end up 'west' (output on the west side).
-    expect(await probe.setMachineRotationDirect(5, 5, 'west')).toBe(true)
-    // D rotation 'west' so its input ('back') faces east — free at (9, 5).
-    expect(await probe.setMachineRotationDirect(8, 5, 'west')).toBe(true)
+    // MF starts 'south' (default) — output on the south face, which is
+    // camera-visible from the fixed isometric camera at (15, 15, 15).
+    expect(await probe.setMachineRotationDirect(5, 5, 'south')).toBe(true)
+    // D rotation 'east' so its input ('back') faces west — free at (7, 5).
+    // This makes the east-facing MF→D belt strictly shortest, forcing
+    // auto-rotation away from the equally-feasible south path.
+    expect(await probe.setMachineRotationDirect(8, 5, 'east')).toBe(true)
 
     // Pre-existing belt TF → BF (matches the screenshot).
     expect(await probe.placeBeltChainBetween(10, 3, 10, 15)).toBe(true)
     await probe.forceRendererUpdate()
     await probe.settle(300)
 
-    // Sanity: MF is currently 'west' and unconnected.
-    expect(await probe.getMachineRotation(5, 5)).toBe('west')
+    // Sanity: MF is currently 'south' and unconnected.
+    expect(await probe.getMachineRotation(5, 5)).toBe('south')
     const beltsBefore = await probe.getBeltsDetailed()
     const mfBeltsBefore = beltsBefore.filter(
       (b) =>
@@ -204,13 +208,17 @@ test.describe('Belt drawing — drag from output slot auto-rotates source machin
     const beltCountBefore = beltsBefore.length
 
     // The actual user action under test: pointer-event drag from MF's GREEN
-    // output slot mesh (currently on the west face) onto D's body at (8, 5).
+    // output slot mesh (currently on the south face) onto D's body at (8, 5).
     await grid.dragFromMachineSlotToMachine({ x: 5, z: 5 }, 'output', { x: 8, z: 5 })
     await probe.settle(300)
 
     // Expected outcome.
     const rotationAfter = await probe.getMachineRotation(5, 5)
-    expect(rotationAfter).not.toBe('west')
+    expect(rotationAfter).not.toBe('south')
+    // Positive assertion: D's input lies west at (7,5), so the unique
+    // shortest path from MF's output is straight east — auto-rotate must
+    // land on 'east'.
+    expect(rotationAfter).toBe('east')
 
     const beltsAfter = await probe.getBeltsDetailed()
     expect(beltsAfter.length).toBe(beltCountBefore + 1)

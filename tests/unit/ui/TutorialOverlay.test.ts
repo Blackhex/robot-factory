@@ -550,3 +550,223 @@ describe('TutorialOverlay — z-index / stacking', () => {
     expect(editorZ).toBeLessThan(tooltipZ)
   })
 })
+
+// =============================================================================
+// Toolbar collision avoidance & auto-flip — when `position: 'top'` would
+// place the tooltip over the visible top toolbar, the overlay must:
+//   1. Keep the tooltip below the toolbar (no overlap).
+//   2. Keep the tooltip within the viewport.
+//   3. Auto-flip the placement class from `--top` to `--bottom` when the
+//      requested 'top' cannot fit above the highlight target.
+//   4. Leave 'bottom' placement alone when there IS room below the target.
+//
+// Pins the safe-clamp / auto-flip contract for the level 1 step 1 scenario
+// where `highlightSelector: '#canvas-container'` (full canvas) with
+// `position: 'top'` currently clamps to viewport y=8 — directly OVER the
+// toolbar (which sits at y=0..50).
+// =============================================================================
+describe('TutorialOverlay — toolbar collision avoidance & auto-flip', () => {
+  let parent: HTMLDivElement
+  let overlay: TutorialOverlay
+
+  // Realistic production viewport
+  const VIEWPORT_W = 1280
+  const VIEWPORT_H = 800
+  const TOOLBAR_H = 50
+
+  // Production code falls back to 300×150 when offsetWidth/Height is 0 (jsdom)
+  const TOOLTIP_W = 300
+  const TOOLTIP_H = 150
+
+  let originalInnerWidth: PropertyDescriptor | undefined
+  let originalInnerHeight: PropertyDescriptor | undefined
+
+  function setViewport(width: number, height: number): void {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: height })
+  }
+
+  function makeRect(top: number, left: number, width: number, height: number): DOMRect {
+    return {
+      x: left, y: top,
+      top, left,
+      right: left + width, bottom: top + height,
+      width, height,
+      toJSON() { return this },
+    } as DOMRect
+  }
+
+  /** Attach a fixed bounding rect to an element (jsdom returns 0×0 by default). */
+  function stubRect(el: HTMLElement, top: number, left: number, width: number, height: number): void {
+    const rect = makeRect(top, left, width, height)
+    el.getBoundingClientRect = () => rect
+  }
+
+  /** Override the tooltip's getBoundingClientRect to derive from its inline style + fallback dims. */
+  function stubTooltipRect(tooltip: HTMLElement): void {
+    tooltip.getBoundingClientRect = () => {
+      const top = parseFloat(tooltip.style.top || '0') || 0
+      const left = parseFloat(tooltip.style.left || '0') || 0
+      const width = tooltip.offsetWidth || TOOLTIP_W
+      const height = tooltip.offsetHeight || TOOLTIP_H
+      return makeRect(top, left, width, height)
+    }
+  }
+
+  beforeEach(() => {
+    originalInnerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth')
+    originalInnerHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight')
+    setViewport(VIEWPORT_W, VIEWPORT_H)
+
+    parent = document.createElement('div')
+    document.body.appendChild(parent)
+    overlay = new TutorialOverlay(parent)
+  })
+
+  afterEach(() => {
+    overlay.dispose()
+    document.querySelectorAll('.ui-toolbar, #canvas-container, .ui-toolbar-btn--editor')
+      .forEach(el => el.remove())
+    parent.remove()
+    if (originalInnerWidth) Object.defineProperty(window, 'innerWidth', originalInnerWidth)
+    if (originalInnerHeight) Object.defineProperty(window, 'innerHeight', originalInnerHeight)
+  })
+
+  function getTooltip(): HTMLDivElement {
+    return parent.querySelector('.ui-tutorial-tooltip') as HTMLDivElement
+  }
+
+  /** Build the level 1 step 1 DOM: toolbar at top, canvas-container below. */
+  function buildLevel1DOM(): { toolbar: HTMLDivElement; canvas: HTMLDivElement } {
+    const toolbar = document.createElement('div')
+    toolbar.className = 'ui-toolbar'
+    document.body.appendChild(toolbar)
+    stubRect(toolbar, 0, 0, VIEWPORT_W, TOOLBAR_H)
+
+    const canvas = document.createElement('div')
+    canvas.id = 'canvas-container'
+    document.body.appendChild(canvas)
+    stubRect(canvas, TOOLBAR_H, 0, VIEWPORT_W, VIEWPORT_H - TOOLBAR_H)
+
+    return { toolbar, canvas }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 1. Tooltip must not overlap the toolbar
+  // ---------------------------------------------------------------------------
+  it('tooltip does not overlap the toolbar at level 1 step 1 (position "top" on full canvas)', () => {
+    // GIVEN: level 1 step 1 DOM — toolbar at y=0..50, canvas at y=50..800.
+    const { toolbar } = buildLevel1DOM()
+
+    overlay.loadTutorial([
+      {
+        messageKey: 'tutorial.level1_step1',
+        highlightSelector: '#canvas-container',
+        position: 'top',
+      },
+    ])
+
+    // WHEN
+    overlay.start()
+
+    const tooltip = getTooltip()
+    stubTooltipRect(tooltip)
+
+    const tooltipRect = tooltip.getBoundingClientRect()
+    const toolbarRect = toolbar.getBoundingClientRect()
+
+    // THEN: the tooltip must sit at or below the toolbar's bottom edge —
+    // no overlap (margin tolerance 0).
+    expect(tooltipRect.top).toBeGreaterThanOrEqual(toolbarRect.bottom)
+  })
+
+  // ---------------------------------------------------------------------------
+  // 2. Tooltip must stay within viewport bounds
+  // ---------------------------------------------------------------------------
+  it('tooltip stays within viewport bounds at level 1 step 1', () => {
+    // GIVEN
+    buildLevel1DOM()
+
+    overlay.loadTutorial([
+      {
+        messageKey: 'tutorial.level1_step1',
+        highlightSelector: '#canvas-container',
+        position: 'top',
+      },
+    ])
+
+    // WHEN
+    overlay.start()
+
+    const tooltip = getTooltip()
+    stubTooltipRect(tooltip)
+    const r = tooltip.getBoundingClientRect()
+
+    // THEN: every edge of the tooltip is inside the viewport rectangle.
+    expect(r.top).toBeGreaterThanOrEqual(0)
+    expect(r.left).toBeGreaterThanOrEqual(0)
+    expect(r.right).toBeLessThanOrEqual(window.innerWidth)
+    expect(r.bottom).toBeLessThanOrEqual(window.innerHeight)
+  })
+
+  // ---------------------------------------------------------------------------
+  // 3. Auto-flip "top" → "bottom" when toolbar collision is unavoidable
+  // ---------------------------------------------------------------------------
+  it('auto-flips from "top" to "bottom" placement when toolbar leaves no room above target', () => {
+    // GIVEN: level 1 step 1 DOM. The space above #canvas-container is the
+    // toolbar (y=0..50). A 150px tooltip cannot fit between the toolbar's
+    // bottom (50) and the canvas's top (50) — there is literally 0 px of
+    // clear space. The overlay must therefore flip from 'top' to 'bottom'.
+    buildLevel1DOM()
+
+    overlay.loadTutorial([
+      {
+        messageKey: 'tutorial.level1_step1',
+        highlightSelector: '#canvas-container',
+        position: 'top',
+      },
+    ])
+
+    // WHEN
+    overlay.start()
+
+    // THEN
+    const tooltip = getTooltip()
+    expect(tooltip.classList.contains('ui-tutorial-tooltip--bottom')).toBe(true)
+    expect(tooltip.classList.contains('ui-tutorial-tooltip--top')).toBe(false)
+  })
+
+  // ---------------------------------------------------------------------------
+  // 4. Bottom placement with sufficient room below — no flip occurs
+  // ---------------------------------------------------------------------------
+  it('does NOT flip when "bottom" is requested and there is room below the target', () => {
+    // GIVEN: a small toolbar button near the top with the entire viewport
+    // below it free of obstacles.
+    const btn = document.createElement('div')
+    btn.className = 'ui-toolbar-btn--editor'
+    document.body.appendChild(btn)
+    stubRect(btn, 5, 100, 80, 30)
+
+    overlay.loadTutorial([
+      {
+        messageKey: 'tutorial.step1',
+        highlightSelector: '.ui-toolbar-btn--editor',
+        position: 'bottom',
+      },
+    ])
+
+    // WHEN
+    overlay.start()
+
+    // THEN: requested 'bottom' placement is preserved.
+    const tooltip = getTooltip()
+    stubTooltipRect(tooltip)
+
+    expect(tooltip.classList.contains('ui-tutorial-tooltip--bottom')).toBe(true)
+    expect(tooltip.classList.contains('ui-tutorial-tooltip--top')).toBe(false)
+
+    // AND: tooltip is positioned at or below the target's bottom edge.
+    const r = tooltip.getBoundingClientRect()
+    expect(r.top).toBeGreaterThanOrEqual(5 + 30)
+  })
+})

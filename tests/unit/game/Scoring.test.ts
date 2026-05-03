@@ -190,8 +190,11 @@ describe('Scoring', () => {
       )
     })
 
-    it('minimum totalStars is 3 (1+1+1)', () => {
-      // GIVEN
+    it('minimum totalStars is 3 when at least one output was delivered', () => {
+      // CONTRACT (B1): The 1★-per-axis floor only applies when the player
+      // delivered at least one output. Sims with zero outputs are scored as 0★
+      // (see the 'zero outputs delivered (no work done)' suite below).
+      // GIVEN — robotsProduced: 1 satisfies the precondition
       const sim = mockSimulation({
         currentTick: 60000,
         robotsProduced: 1,
@@ -220,7 +223,10 @@ describe('Scoring', () => {
   })
 
   describe('edge cases', () => {
-    it('should give 1 star across the board when zero robots produced', () => {
+    it('should give 0 stars across the board when zero robots produced', () => {
+      // CONTRACT (B1): A run that produced nothing must NOT receive the legacy
+      // 1★ participation floor. 0 outputs → 0 stars per axis, totalStars === 0.
+      // This is the gate that drives the Level-Failed screen for campaign runs.
       // GIVEN
       const sim = mockSimulation({ currentTick: 600, robotsProduced: 0, defects: 0 })
 
@@ -228,10 +234,10 @@ describe('Scoring', () => {
       const result = calculateScore(sim, baseLevel)
 
       // THEN
-      expect(result.speed.stars).toBe(1)
-      expect(result.cost.stars).toBe(1)
-      expect(result.quality.stars).toBe(1)
-      expect(result.totalStars).toBe(3)
+      expect(result.speed.stars).toBe(0)
+      expect(result.cost.stars).toBe(0)
+      expect(result.quality.stars).toBe(0)
+      expect(result.totalStars).toBe(0)
     })
 
     it('should compute speed as 0 when zero ticks elapsed', () => {
@@ -269,6 +275,10 @@ describe('Scoring', () => {
     })
 
     it('should handle Infinity cost gracefully when zero robots produced', () => {
+      // CONTRACT (B1): When zero outputs were delivered the cost ratio would
+      // mathematically be Infinity. The score function must instead emit the
+      // pinned sentinel value `0` (a finite number) and 0 cost stars — never
+      // Infinity, never NaN, never the legacy 1★ floor.
       // GIVEN
       const sim = mockSimulation({ robotsProduced: 0, itemsProduced: 50, totalIdleTicks: 100, currentTick: 600 })
 
@@ -276,7 +286,9 @@ describe('Scoring', () => {
       const result = calculateScore(sim, baseLevel)
 
       // THEN
-      expect(result.cost.stars).toBe(1)
+      expect(result.cost.stars).toBe(0)
+      expect(result.cost.value).toBe(0)
+      expect(Number.isFinite(result.cost.value)).toBe(true)
     })
 
     it('should include idle ticks in cost calculation', () => {
@@ -289,6 +301,99 @@ describe('Scoring', () => {
       // THEN
       expect(result.cost.value).toBe(15)
       expect(result.cost.stars).toBe(2)
+    })
+  })
+
+  describe('zero outputs delivered (no work done)', () => {
+    // CONTRACT: When the player produces nothing (no robots, no outputs delivered),
+    // the score must reflect that no work was done — 0 stars per axis, totalStars 0,
+    // and a finite cost (never Infinity / NaN). A "no work" run must NOT receive the
+    // 1-star participation floor — that would let players unlock the next level by
+    // simply pressing Start then Stop.
+
+    it('returns 0 stars per axis when no outputs were delivered', () => {
+      // GIVEN — sim ran but produced nothing
+      const sim = mockSimulation({
+        currentTick: 600,
+        robotsProduced: 0,
+        itemsProduced: 0,
+        defects: 0,
+        totalIdleTicks: 600,
+      })
+
+      // WHEN
+      const result = calculateScore(sim, baseLevel)
+
+      // THEN
+      expect(result.speed.stars).toBe(0)
+      expect(result.cost.stars).toBe(0)
+      expect(result.quality.stars).toBe(0)
+    })
+
+    it('returns totalStars === 0 when no outputs were delivered', () => {
+      // GIVEN
+      const sim = mockSimulation({
+        currentTick: 600,
+        robotsProduced: 0,
+        itemsProduced: 0,
+        defects: 0,
+        totalIdleTicks: 600,
+      })
+
+      // WHEN
+      const result = calculateScore(sim, baseLevel)
+
+      // THEN
+      expect(result.totalStars).toBe(0)
+    })
+
+    it('cost is finite (not Infinity) when no outputs were delivered', () => {
+      // GIVEN
+      const sim = mockSimulation({
+        currentTick: 600,
+        robotsProduced: 0,
+        itemsProduced: 0,
+        totalIdleTicks: 600,
+      })
+
+      // WHEN
+      const result = calculateScore(sim, baseLevel)
+
+      // THEN
+      expect(Number.isFinite(result.cost.value)).toBe(true)
+    })
+
+    it('cost is not NaN when no outputs were delivered', () => {
+      // GIVEN
+      const sim = mockSimulation({
+        currentTick: 600,
+        robotsProduced: 0,
+        itemsProduced: 0,
+        totalIdleTicks: 600,
+      })
+
+      // WHEN
+      const result = calculateScore(sim, baseLevel)
+
+      // THEN
+      expect(Number.isNaN(result.cost.value)).toBe(false)
+    })
+
+    it('returns 0 stars when sim ran for many ticks but produced nothing (give-up path)', () => {
+      // GIVEN — long idle run with materials consumed but no robot output
+      const sim = mockSimulation({
+        currentTick: 6000,
+        robotsProduced: 0,
+        itemsProduced: 25,
+        defects: 0,
+        totalIdleTicks: 5000,
+      })
+
+      // WHEN
+      const result = calculateScore(sim, baseLevel)
+
+      // THEN
+      expect(result.totalStars).toBe(0)
     })
   })
 

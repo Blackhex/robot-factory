@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { describe, it, expect } from 'vitest'
 import {
   getAllLevels,
@@ -274,6 +276,107 @@ describe('Level', () => {
       // WHEN + THEN
       expect(level.availableMachines).toContain('splitter')
       expect(level.unlockedBlocks).toBeGreaterThanOrEqual(4)
+    })
+  })
+
+  describe('startingMachines (pre-placed machines)', () => {
+    it('LevelDefinition source declares a startingMachines field', () => {
+      // GIVEN
+      // Coarse static check: the production source must mention the field name.
+      // This guards against accidental removal/rename of the optional field
+      // declared on `LevelDefinition`.
+      const levelTsPath = fileURLToPath(
+        new URL('../../../src/game/Level.ts', import.meta.url),
+      )
+      const source = readFileSync(levelTsPath, 'utf8')
+
+      // WHEN + THEN
+      expect(source).toContain('startingMachines')
+    })
+
+    it('LevelDefinition accepts a startingMachines literal at compile time', () => {
+      // GIVEN
+      // Compile-time pinning: this object literal must satisfy
+      // `LevelDefinition`. If the optional `startingMachines` field is removed
+      // from the interface, `tsc --noEmit` (and Vitest's transformer) will
+      // fail this test file with an "object literal may only specify known
+      // properties" error on the `startingMachines` key below.
+      type _StartingMachinesPinned = import('../../../src/game/Level.ts').LevelDefinition
+
+      const _pinned: _StartingMachinesPinned = {
+        id: 'pinning_test',
+        nameKey: 'pinning_test.name',
+        descriptionKey: 'pinning_test.description',
+        gridSize: { width: 10, height: 10 },
+        availableMachines: ['factory_output'],
+        unlockedBlocks: 1,
+        goals: [],
+        parScores: { speed: 1, cost: 1, quality: 1 },
+        startingMachines: [
+          {
+            x: 0,
+            z: 0,
+            type: 'factory_output',
+            rotation: 'west',
+          },
+        ],
+      }
+
+      // WHEN + THEN
+      expect(_pinned.startingMachines).toBeDefined()
+      expect(_pinned.startingMachines).toHaveLength(1)
+    })
+
+    it('level 1 has exactly one starting machine of type factory_output', () => {
+      // GIVEN
+      const level = getLevelByNumber(1)!
+
+      // WHEN
+      const starting = level.startingMachines
+
+      // THEN
+      expect(starting).toBeDefined()
+      expect(starting!.length).toBe(1)
+      expect(starting![0].type).toBe('factory_output')
+    })
+
+    it('level 1 starting machine sits inside the level grid', () => {
+      // GIVEN
+      const level = getLevelByNumber(1)!
+      const starting = level.startingMachines
+
+      // WHEN + THEN
+      expect(starting).toBeDefined()
+      const entry = starting![0]
+      expect(entry.x).toBeGreaterThanOrEqual(0)
+      expect(entry.x).toBeLessThan(level.gridSize.width)
+      expect(entry.z).toBeGreaterThanOrEqual(0)
+      expect(entry.z).toBeLessThan(level.gridSize.height)
+    })
+
+    it('level 1 starting machine has a valid Direction rotation', () => {
+      // GIVEN
+      const level = getLevelByNumber(1)!
+      const starting = level.startingMachines!
+
+      // WHEN
+      const validDirections = ['north', 'south', 'east', 'west']
+
+      // THEN
+      expect(validDirections).toContain(starting[0].rotation)
+    })
+
+    it('levels 2 through 10 have no startingMachines', () => {
+      // WHEN + THEN
+      for (let i = 2; i <= 10; i++) {
+        const level = getLevelByNumber(i)!
+        const starting = level.startingMachines
+        const isEmpty = starting === undefined || starting.length === 0
+        expect(
+          isEmpty,
+          `level ${i} should have no startingMachines (got ${JSON.stringify(starting)})`,
+        ).toBe(true)
+      }
     })
   })
 })

@@ -6,14 +6,15 @@ import { CORNER_STRAIGHT_LEN } from '../utils/BeltGeometry'
  * The belt is 0.35 wide, centered on the cell centerline.
  * Corner cells use a straight-to-arc-to-straight layout.
  *
- * `CORNER_STRAIGHT_LEN` is re-exported from `src/utils/BeltGeometry.ts`
- * (the single source of truth — the simulation cannot import from
- * `src/rendering/`, but the renderer is allowed to depend on utils).
+ * `CORNER_STRAIGHT_LEN` is the single source of truth in
+ * `src/utils/BeltGeometry.ts` — the simulation cannot import from
+ * `src/rendering/`, but the renderer is allowed to depend on utils.
+ * Consumers must import it from `../utils/BeltGeometry` directly; this
+ * file does not re-export it.
  */
 export const BELT_WIDTH = 0.35
 export const CORNER_OUTER_R = 0.5 + BELT_WIDTH / 2
 export const CORNER_INNER_R = 0.5 - BELT_WIDTH / 2
-export { CORNER_STRAIGHT_LEN }
 
 /**
  * Create corner belt geometry with straight entry/exit segments and a curved arc in the middle.

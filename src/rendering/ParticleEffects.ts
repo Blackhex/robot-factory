@@ -143,6 +143,10 @@ export class ParticleEffects {
     )
   }
 
+  emitSparksAt(x: number, y: number, z: number): void {
+    this.emitSparks(new THREE.Vector3(x, y, z))
+  }
+
   emitSmoke(position: THREE.Vector3): void {
     this.smoke.emit(
       position,

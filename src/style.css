@@ -110,13 +110,6 @@ canvas {
   color: var(--rf-accent);
 }
 
-.ui-lang-btn {
-  margin-left: auto;
-  font-weight: 700;
-  letter-spacing: 1px;
-  min-width: 48px;
-}
-
 .ui-toolbar-btn--editor {
   background: var(--rf-accent);
   color: var(--rf-bg);
@@ -154,6 +147,35 @@ canvas {
 
 .ui-toolbar-btn--restart:hover {
   background: rgba(239, 83, 80, 0.15);
+}
+
+.ui-toolbar-btn.is-disabled,
+.ui-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+
+.ui-toolbar-btn.is-disabled:hover,
+.ui-toolbar-btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.ui-toolbar-btn--back-to-menu {
+  font-weight: 600;
+}
+
+.ui-toolbar-sandbox-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  user-select: none;
 }
 
 /* ─── Main Menu Overlay ─── */
@@ -652,6 +674,66 @@ canvas {
   font-variant-numeric: tabular-nums;
 }
 
+/* ─── Level Brief (build phase) ─── */
+
+.ui-level-brief {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px;
+  max-width: 360px;
+  min-width: 240px;
+  background: rgba(26, 29, 39, 0.9);
+  border: 1px solid var(--rf-border);
+  border-radius: var(--rf-radius-lg);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.ui-level-brief-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--rf-accent);
+  text-align: center;
+}
+
+.ui-level-brief-description {
+  font-size: 13px;
+  color: var(--rf-text);
+  line-height: 1.35;
+  text-align: center;
+}
+
+.ui-level-brief-goals {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--rf-border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ui-level-brief-goal {
+  font-size: 13px;
+  color: var(--rf-text-muted);
+  padding-left: 14px;
+  position: relative;
+}
+
+.ui-level-brief-goal::before {
+  content: '•';
+  position: absolute;
+  left: 4px;
+  color: var(--rf-accent);
+  font-weight: 700;
+}
+
 /* ─── Level Select ─── */
 
 .ui-level-select {
@@ -674,7 +756,6 @@ canvas {
   max-width: 900px;
   width: 90%;
   max-height: 90vh;
-  overflow-y: auto;
   background: var(--rf-surface);
   border: 1px solid var(--rf-border);
   border-radius: var(--rf-radius-lg);
@@ -686,9 +767,16 @@ canvas {
   color: var(--rf-accent);
 }
 
+.ui-level-select-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-y: auto;
+}
+
 .ui-level-select-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 16px;
   width: 100%;
 }
@@ -717,8 +805,14 @@ canvas {
 }
 
 .ui-level-card--locked {
-  opacity: 0.45;
   cursor: not-allowed;
+  background: rgba(15, 17, 23, 0.45);
+}
+
+.ui-level-card--locked .ui-level-card-name,
+.ui-level-card--locked .ui-level-card-desc,
+.ui-level-card--locked .ui-level-card-lock {
+  color: var(--rf-text-muted);
 }
 
 .ui-level-card-number {
@@ -773,6 +867,7 @@ canvas {
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
+  flex: 0 0 auto;
   transition: background var(--rf-transition), border-color var(--rf-transition);
 }
 
@@ -1352,3 +1447,180 @@ canvas {
   min-height: 32px;
   min-width: 48px;
 }
+
+/* ─── Global Language Toggle (UX blocker B2) ─────────────────────────────
+ * Mounted globally on `#ui-overlay` so the language switcher is reachable
+ * on every screen including the Main Menu and Level Select where the
+ * toolbar is hidden. z-index sits above all overlays (toolbar=10,
+ * level-select=100, score-screen=110, tutorial=200) so the button is
+ * always clickable.
+ */
+
+.ui-lang-btn-container {
+  position: fixed;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1000;
+  display: flex;
+  pointer-events: auto;
+}
+
+.ui-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  height: 2rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--rf-border);
+  border-radius: var(--rf-radius);
+  background: var(--rf-surface);
+  color: var(--rf-text);
+  font-family: var(--rf-font);
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition:
+    background var(--rf-transition),
+    border-color var(--rf-transition);
+  user-select: none;
+}
+
+.ui-lang-btn:hover {
+  background: var(--rf-surface-hover);
+  border-color: var(--rf-accent);
+}
+
+/* ─── Level Failed Screen (UX blocker B1) ────────────────────────────────
+ * Mutually exclusive with `.ui-score-screen`: shown for campaign runs
+ * that ended without meeting the level objective. Same z-index tier as
+ * the score screen so they cover the same surface area when active.
+ */
+
+.ui-level-failed-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 17, 23, 0.9);
+  backdrop-filter: blur(8px);
+}
+
+.ui-level-failed-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 36px 44px;
+  min-width: 320px;
+  max-width: 460px;
+  background: var(--rf-surface);
+  border: 1px solid var(--rf-danger);
+  border-radius: var(--rf-radius-lg);
+  box-shadow: 0 0 24px rgba(239, 83, 80, 0.18);
+  text-align: center;
+}
+
+.ui-level-failed-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--rf-danger);
+  letter-spacing: 0.5px;
+}
+
+.ui-level-failed-level-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--rf-text-muted);
+}
+
+.ui-level-failed-message {
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--rf-text);
+}
+
+.ui-level-failed-buttons {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.ui-level-failed-btn {
+  flex: 1;
+  min-height: 40px;
+  padding: 8px 16px;
+  border: 1px solid var(--rf-border);
+  border-radius: var(--rf-radius);
+  background: var(--rf-surface);
+  color: var(--rf-text);
+  font-family: var(--rf-font);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--rf-transition),
+    border-color var(--rf-transition),
+    transform var(--rf-transition);
+  user-select: none;
+}
+
+.ui-level-failed-btn:hover {
+  background: var(--rf-surface-hover);
+  border-color: var(--rf-accent);
+  transform: translateY(-1px);
+}
+
+.ui-level-failed-btn--primary {
+  background: var(--rf-danger);
+  color: #fff;
+  border-color: var(--rf-danger);
+}
+
+.ui-level-failed-btn--primary:hover {
+  background: #f06360;
+  border-color: #f06360;
+}
+
+/* ─── Accessible focus ring (UX#8) ───────────────────────────────────────
+ * Applied across interactive UI controls so keyboard navigation is
+ * visible. Browser default outlines are suppressed by other styles, so
+ * this re-adds them via :focus-visible to avoid the focus ring on mouse
+ * clicks.
+ */
+
+.ui-toolbar-btn:focus-visible,
+.ui-main-menu-btn:focus-visible,
+.ui-level-card:focus-visible,
+.ui-level-select-back:focus-visible,
+.ui-score-btn:focus-visible,
+.ui-level-failed-btn:focus-visible,
+.ui-lang-btn:focus-visible,
+.ui-tutorial-btn:focus-visible {
+  outline: 2px solid var(--rf-accent);
+  outline-offset: 2px;
+}
+
+/* ─── Responsive reflow with editor open (UX blocker B3) ─────────────────
+ * At narrow viewports (≤1280px) the editor panel takes up ~500px on the
+ * right. Dock the level brief to the LEFT half so it stays in the visible
+ * canvas region instead of sliding under the editor. Wide viewports keep
+ * the original centred layout.
+ */
+
+@media (max-width: 1280px) {
+  body.editor-open .ui-level-brief {
+    left: 0.75rem;
+    right: auto;
+    transform: none;
+    /* Cap to the canvas region the editor leaves uncovered (editor width
+     * = max(500px, 40vw)). Subtract a small gutter so the brief never
+     * touches the editor's left edge. */
+    max-width: calc(100vw - max(500px, 40%) - 1.5rem);
+  }
+}
+

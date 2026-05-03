@@ -7,12 +7,12 @@ import {
   getCornerRotation,
 } from './BeltGeometry'
 import { createBeltArrowTexture, createBeltDirectionMaterial } from './RenderingAssets'
+import { PerBeltMaterialPool } from './PerBeltMaterialPool'
 
 export {
   BELT_WIDTH,
   CORNER_OUTER_R,
   CORNER_INNER_R,
-  CORNER_STRAIGHT_LEN,
   createCornerBeltGeometry,
   getCornerOffset,
   getCornerRotation,
@@ -49,14 +49,11 @@ export class BeltMeshRenderer {
   private readonly beltArrowTexture: THREE.CanvasTexture
   private readonly beltDirectionMaterials: Map<BeltDirection, THREE.MeshStandardMaterial> = new Map()
   private readonly beltHighlightMaterials: Map<BeltDirection, THREE.MeshStandardMaterial> = new Map()
-  // Per-(beltLogicalId, direction) cloned materials used by the cell meshes.
-  // Each clone owns its own cloned chevron texture, so per-belt UV offsets
-  // advance independently. The highlight clone SHARES its `map` with the
-  // chevron clone of the same belt+dir, so a single map.offset.x update
-  // advances both views (chevron + highlight) consistently.
-  // Key: `${beltLogicalId}|${direction}`
-  private readonly chevronMaterialsByBelt: Map<string, THREE.MeshStandardMaterial> = new Map()
-  private readonly chevronHighlightByBelt: Map<string, THREE.MeshStandardMaterial> = new Map()
+  // Per-(beltLogicalId, direction) cloned chevron + highlight materials.
+  // Each chevron clone owns its own cloned texture so UV offsets advance
+  // independently per belt; the highlight clone SHARES that map so a single
+  // offset update advances both views consistently.
+  private readonly materialPool: PerBeltMaterialPool
   private readonly cornerSideMaterial: THREE.MeshStandardMaterial
   private readonly cornerSideHighlightMaterial: THREE.MeshStandardMaterial
   private cornerBeltGeometryFwd: THREE.BufferGeometry | null = null
@@ -102,6 +99,8 @@ export class BeltMeshRenderer {
       emissiveIntensity: 0.6,
       roughness: 0.3,
     })
+
+    this.materialPool = new PerBeltMaterialPool(this.beltDirectionMaterials, this.beltHighlightMaterials)
   }
 
   update(): void {
@@ -110,13 +109,12 @@ export class BeltMeshRenderer {
     }
     this.beltMeshes.clear()
     this.cellBeltIds.clear()
-    // Only dispose per-belt clones whose logical belt id is no longer in the
-    // current Factory snapshot. Existing belts keep their cached clones (and
-    // stable material UUIDs) across rebuilds — required so highlight → clear
-    // cycles do not swap out the chevron material identity. Removed belts'
-    // clones are released here to avoid GPU memory leakage.
+    // Existing belts keep their cached per-belt clones (stable material UUIDs);
+    // only release clones for belts no longer in the Factory snapshot.
     const currentBeltIds = new Set<string>(this.factory.getBelts().map(b => b.id))
-    this.disposePerBeltMaterialsForRemovedBelts(currentBeltIds)
+    for (const beltId of this.materialPool.beltIds()) {
+      if (!currentBeltIds.has(beltId)) this.materialPool.disposeBelt(beltId)
+    }
 
     this.renderCellBelts()
 
@@ -150,23 +148,12 @@ export class BeltMeshRenderer {
   }
 
   /**
-   * Advance the chevron texture scroll by `dt` real seconds.
-   *
-   * Contract: when `paused === true` (simulation paused or not running),
-   * this is a no-op — the chevron offset is not updated regardless of `dt`.
-   * Items on belts do not advance while paused, so the chevrons must not
-   * advance either, otherwise the visual cue contradicts the sim state.
-   *
-   * Per-belt cloned chevron materials (one per `(beltLogicalId, direction)`
-   * key) advance independently at `belt.speed * BELT_SCROLL_SPEED * dt` UV
-   * units per real second, so SET_BELT_SPEED is reflected on screen and
-   * two belts of different speeds scroll at different visual rates.
-   * `BELT_SCROLL_SPEED` acts as a global rescale factor applied to every
-   * belt regardless of whether `getSpeed` is provided.
-   *
-   * The shared `beltDirectionMaterials` are only used as clone templates
-   * for `getOrCreatePerBeltMaterials` — no cell mesh references them in
-   * production, so they are NOT ticked here.
+   * Advance the chevron texture scroll by `dt` real seconds. No-op when
+   * `paused === true` so chevrons stay frozen with items. Per-belt cloned
+   * chevron materials advance independently at
+   * `belt.speed * BELT_SCROLL_SPEED * dt` UV/sec. Highlight clones share
+   * their `map` with the chevron clone of the same (beltId, dir), so a
+   * single update advances both views.
    */
   tickChevronScroll(
     dt: number,
@@ -174,11 +161,7 @@ export class BeltMeshRenderer {
     getSpeed?: (beltLogicalId: string) => number,
   ): void {
     if (paused) return
-    // Tick the per-belt clones at their per-belt rate. The highlight clones
-    // share their `map` reference with the chevron clones of the same
-    // (beltId, dir), so updating the chevron map here also advances the
-    // highlight view consistently — no separate iteration needed.
-    for (const [key, mat] of this.chevronMaterialsByBelt) {
+    for (const [key, mat] of this.materialPool.chevronEntries()) {
       const map = mat.map
       if (!map) continue
       const sepIdx = key.lastIndexOf('|')
@@ -195,7 +178,7 @@ export class BeltMeshRenderer {
     this.beltMeshes.clear()
     this.cellBeltIds.clear()
 
-    this.disposePerBeltMaterials()
+    this.materialPool.disposeAll()
 
     this.beltGeometry.dispose()
     for (const mat of this.beltDirectionMaterials.values()) {
@@ -220,101 +203,18 @@ export class BeltMeshRenderer {
     }
   }
 
-  /**
-   * Release all per-(beltLogicalId, direction) cloned materials and their
-   * cloned chevron textures. Called on `dispose()` (renderer teardown).
-   * The chevron clone OWNS its map; the highlight clone SHARES that same
-   * map reference, so the texture must be disposed only once (via the
-   * chevron clone) to avoid double-free.
-   */
-  private disposePerBeltMaterials(): void {
-    for (const mat of this.chevronMaterialsByBelt.values()) {
-      if (mat.map) mat.map.dispose()
-      mat.dispose()
-    }
-    this.chevronMaterialsByBelt.clear()
-    for (const mat of this.chevronHighlightByBelt.values()) {
-      // Map is shared with the chevron clone — already disposed above.
-      mat.dispose()
-    }
-    this.chevronHighlightByBelt.clear()
-  }
-
-  /**
-   * Release per-(beltLogicalId, direction) cloned materials whose
-   * `beltLogicalId` is NOT in `currentBeltIds`. Existing belts keep their
-   * cached clones (and stable material UUIDs) across rebuilds. The chevron
-   * clone OWNS its map; the highlight clone SHARES that same map reference,
-   * so the texture is disposed only once (via the chevron clone).
-   */
-  private disposePerBeltMaterialsForRemovedBelts(
-    currentBeltIds: ReadonlySet<string>,
-  ): void {
-    for (const [key, mat] of this.chevronMaterialsByBelt) {
-      const sepIdx = key.lastIndexOf('|')
-      const beltId = sepIdx >= 0 ? key.slice(0, sepIdx) : key
-      if (currentBeltIds.has(beltId)) continue
-      if (mat.map) mat.map.dispose()
-      mat.dispose()
-      this.chevronMaterialsByBelt.delete(key)
-    }
-    for (const [key, mat] of this.chevronHighlightByBelt) {
-      const sepIdx = key.lastIndexOf('|')
-      const beltId = sepIdx >= 0 ? key.slice(0, sepIdx) : key
-      if (currentBeltIds.has(beltId)) continue
-      // Map is shared with the chevron clone — already disposed above.
-      mat.dispose()
-      this.chevronHighlightByBelt.delete(key)
-    }
-  }
-
-  /**
-   * Lazily create — or return the existing — per-(beltLogicalId, direction)
-   * cloned chevron + highlight materials. The chevron clone owns its own
-   * cloned texture map (so per-belt UV offsets advance independently); the
-   * highlight clone shares that same map reference (so highlight chevrons
-   * scroll at the same per-belt rate without a second tick step).
-   */
-  private getOrCreatePerBeltMaterials(
-    beltId: string,
-    dir: BeltDirection,
-  ): { chevron: THREE.MeshStandardMaterial; highlight: THREE.MeshStandardMaterial } {
-    const key = `${beltId}|${dir}`
-    let chevron = this.chevronMaterialsByBelt.get(key)
-    if (!chevron) {
-      const baseMat =
-        this.beltDirectionMaterials.get(dir) ?? this.beltDirectionMaterials.get('east')!
-      chevron = baseMat.clone()
-      if (baseMat.map) {
-        chevron.map = baseMat.map.clone()
-        chevron.map.needsUpdate = true
-      }
-      this.chevronMaterialsByBelt.set(key, chevron)
-    }
-    let highlight = this.chevronHighlightByBelt.get(key)
-    if (!highlight) {
-      const baseHl =
-        this.beltHighlightMaterials.get(dir) ?? this.beltHighlightMaterials.get('east')!
-      highlight = baseHl.clone()
-      // Share the per-belt chevron's cloned map so highlight scrolls in lock-step.
-      highlight.map = chevron.map
-      this.chevronHighlightByBelt.set(key, highlight)
-    }
-    return { chevron, highlight }
-  }
-
   private restoreBeltMaterial(mesh: THREE.Mesh): void {
     const isCorner = mesh.geometry !== this.beltGeometry
     const beltLogicalId = (mesh.userData.beltLogicalId as string | null | undefined) ?? null
     if (isCorner) {
       const dirMat = beltLogicalId
-        ? this.getOrCreatePerBeltMaterials(beltLogicalId, 'east').chevron
+        ? this.materialPool.getChevron(beltLogicalId, 'east')
         : this.beltDirectionMaterials.get('east')!
       mesh.material = [dirMat, this.cornerSideMaterial]
     } else {
       const dir = (mesh.userData.flowDir as BeltDirection) ?? 'east'
       const dirMat = beltLogicalId
-        ? this.getOrCreatePerBeltMaterials(beltLogicalId, dir).chevron
+        ? this.materialPool.getChevron(beltLogicalId, dir)
         : (this.beltDirectionMaterials.get(dir) ?? this.beltDirectionMaterials.get('east')!)
       mesh.material = [dirMat, this.cornerSideMaterial]
     }
@@ -325,7 +225,7 @@ export class BeltMeshRenderer {
     const dir = isCorner ? 'east' : ((mesh.userData.flowDir as BeltDirection) ?? 'east')
     const beltLogicalId = (mesh.userData.beltLogicalId as string | null | undefined) ?? null
     const hlMat = beltLogicalId
-      ? this.getOrCreatePerBeltMaterials(beltLogicalId, dir).highlight
+      ? this.materialPool.getHighlight(beltLogicalId, dir)
       : (this.beltHighlightMaterials.get(dir) ?? this.beltHighlightMaterials.get('east')!)
     mesh.material = isCorner ? [hlMat, this.cornerSideHighlightMaterial] : hlMat
   }
@@ -378,7 +278,7 @@ export class BeltMeshRenderer {
           const dir = this.getCellFlowDirection(x, z, info)
           const beltLogicalId = info.flowBelt?.id ?? null
           const material = beltLogicalId
-            ? this.getOrCreatePerBeltMaterials(beltLogicalId, dir).chevron
+            ? this.materialPool.getChevron(beltLogicalId, dir)
             : (this.beltDirectionMaterials.get(dir) ?? this.beltDirectionMaterials.get('east')!)
           const mesh = new THREE.Mesh(this.beltGeometry, [material, this.cornerSideMaterial])
           mesh.userData.flowDir = dir
@@ -420,7 +320,7 @@ export class BeltMeshRenderer {
           const cornerGeo = useReverseUV ? this.cornerBeltGeometryRev! : this.cornerBeltGeometryFwd!
           const beltLogicalId = info.flowBelt?.id ?? null
           const beltMat = beltLogicalId
-            ? this.getOrCreatePerBeltMaterials(beltLogicalId, 'east').chevron
+            ? this.materialPool.getChevron(beltLogicalId, 'east')
             : this.beltDirectionMaterials.get('east')!
           const mesh = new THREE.Mesh(cornerGeo, [beltMat, this.cornerSideMaterial])
           mesh.userData.beltLogicalId = beltLogicalId
@@ -437,7 +337,7 @@ export class BeltMeshRenderer {
         const dir = this.getCellFlowDirection(x, z, info)
         const beltLogicalId = info.flowBelt?.id ?? null
         const material = beltLogicalId
-          ? this.getOrCreatePerBeltMaterials(beltLogicalId, dir).chevron
+          ? this.materialPool.getChevron(beltLogicalId, dir)
           : (this.beltDirectionMaterials.get(dir) ?? this.beltDirectionMaterials.get('east')!)
         const mesh = new THREE.Mesh(this.beltGeometry, [material, this.cornerSideMaterial])
         mesh.userData.flowDir = dir

@@ -11,6 +11,7 @@ export class MainMenuPage extends BasePage {
   private readonly startBtn: Locator
   private readonly sandboxBtn: Locator
   private readonly anyMenuBtn: Locator
+  private readonly langBtn: Locator
 
   constructor(page: Page) {
     super(page)
@@ -20,6 +21,45 @@ export class MainMenuPage extends BasePage {
     this.anyMenuBtn = page.locator('.ui-main-menu-btn')
     // Sandbox is the last main-menu button by convention.
     this.sandboxBtn = this.anyMenuBtn.last()
+    // Language toggle is shared chrome — the canonical selector lives on the
+    // toolbar but the same control is expected to be reachable from the main
+    // menu and level select screens (UX requirement B2).
+    this.langBtn = page.locator('.ui-lang-btn')
+  }
+
+  /**
+   * Assert the language toggle is rendered, has a non-zero bounding box, and
+   * is in the viewport on the main menu screen.
+   */
+  async expectLanguageToggleVisible(): Promise<void> {
+    await expect(this.langBtn).toBeVisible()
+    const box = await this.langBtn.boundingBox()
+    expect(box, 'language toggle has a bounding box').not.toBeNull()
+    expect(box!.width, 'language toggle width').toBeGreaterThan(0)
+    expect(box!.height, 'language toggle height').toBeGreaterThan(0)
+    const viewport = this.page.viewportSize()!
+    expect(box!.x, 'language toggle x in viewport').toBeGreaterThanOrEqual(0)
+    expect(box!.y, 'language toggle y in viewport').toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width, 'language toggle right edge in viewport')
+      .toBeLessThanOrEqual(viewport.width)
+    expect(box!.y + box!.height, 'language toggle bottom edge in viewport')
+      .toBeLessThanOrEqual(viewport.height)
+  }
+
+  /** Click the language toggle (asserts visible first). */
+  async clickLanguageToggle(): Promise<void> {
+    await expect(this.langBtn).toBeVisible()
+    await this.langBtn.click()
+  }
+
+  /** Read the current `<html lang>` attribute. */
+  async getHtmlLang(): Promise<string> {
+    return this.page.evaluate(() => document.documentElement.lang || '')
+  }
+
+  /** Assert the `<html lang>` attribute equals the given value. */
+  async expectHtmlLang(lang: string): Promise<void> {
+    await expect.poll(() => this.getHtmlLang()).toBe(lang)
   }
 
   /** Navigate to `/` and wait for the canvas to be ready. */

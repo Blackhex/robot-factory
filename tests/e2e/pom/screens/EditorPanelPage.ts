@@ -92,4 +92,26 @@ export class EditorPanelPage {
   async expectFallbackValue(code: string): Promise<void> {
     await expect(this.fallbackTextarea).toHaveValue(code)
   }
+
+  /**
+   * Assert the editor container's bounding box does NOT intersect the given
+   * rect. Used for responsive-layout overlap checks (UX requirement B3).
+   */
+  async expectDoesNotOverlapRect(
+    other: { x: number; y: number; width: number; height: number },
+    label = 'rect',
+  ): Promise<void> {
+    await this.expectOpen()
+    const box = await this.container.boundingBox()
+    expect(box, 'editor container has a bounding box').not.toBeNull()
+    const a = box!
+    const b = other
+    const overlapsX = a.x < b.x + b.width && b.x < a.x + a.width
+    const overlapsY = a.y < b.y + b.height && b.y < a.y + a.height
+    const overlaps = overlapsX && overlapsY
+    expect(
+      overlaps,
+      `editor container ${JSON.stringify(a)} must not overlap ${label} ${JSON.stringify(b)}`,
+    ).toBe(false)
+  }
 }

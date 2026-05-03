@@ -1,15 +1,6 @@
 import { i18next } from '../i18n/i18n'
-import type { MachineType } from '../game/types'
+import { PLACEABLE_MACHINE_TYPES, type MachineType } from '../game/types'
 import type { MachineInfo } from '../game/Factory'
-
-const MACHINE_TYPES: MachineType[] = [
-  'part_fabricator',
-  'assembler',
-  'quality_checker',
-  'painter',
-  'recycler',
-  'splitter',
-]
 
 /**
  * Floating panel that shows properties of a selected machine.
@@ -21,7 +12,7 @@ export class MachinePanel {
   private infoEl: HTMLSpanElement
   private typeSelect: HTMLSelectElement
   private currentMachine: MachineInfo | null = null
-  private availableTypes: MachineType[] = MACHINE_TYPES
+  private availableTypes: readonly MachineType[] = PLACEABLE_MACHINE_TYPES
   private handleLangChange = () => this.updateLabels()
 
   onTypeChange: (machine: MachineInfo, newType: MachineType) => void = () => {}
@@ -142,7 +133,7 @@ export class MachinePanel {
     this.container.remove()
   }
 
-  setAvailableMachineTypes(types: MachineType[]): void {
+  setAvailableMachineTypes(types: readonly MachineType[]): void {
     this.availableTypes = types
     this.populateTypeOptions()
   }

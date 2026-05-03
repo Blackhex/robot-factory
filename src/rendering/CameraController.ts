@@ -10,6 +10,26 @@ interface CameraTransition {
   duration: number
 }
 
+/**
+ * Optional viewport hint passed to {@link CameraController.zoomToFit}.
+ *
+ * When the canvas is partially obscured by an overlay (e.g. the PXT editor
+ * panel docked to the right at narrow viewports), pass the canvas width and
+ * the unobscured ("visible") sub-region width. The camera will then both
+ * zoom out so the grid still fits horizontally inside `visibleWidth`, and
+ * shift the target along the camera's screen-right axis so the grid centre
+ * projects to the centre of the visible region instead of to the centre of
+ * the full canvas.
+ *
+ * Both values are in CSS pixels relative to the canvas element. If
+ * `visibleWidth >= canvasWidth` (or either is non-positive) the call
+ * degrades to the legacy behaviour (centre-fit on the full canvas).
+ */
+export interface FitViewport {
+  canvasWidth: number
+  visibleWidth: number
+}
+
 interface ShakeState {
   intensity: number
   elapsed: number
@@ -64,19 +84,74 @@ export class CameraController {
     }
   }
 
-  zoomToFit(width: number, height: number, duration = 0.8): void {
+  zoomToFit(
+    width: number,
+    height: number,
+    viewportOrDuration?: FitViewport | number,
+    durationArg = 0.8,
+  ): void {
+    let viewport: FitViewport | undefined
+    let duration: number
+    if (typeof viewportOrDuration === 'number') {
+      viewport = undefined
+      duration = viewportOrDuration
+    } else {
+      viewport = viewportOrDuration
+      duration = durationArg
+    }
+
     const fov = this.camera.fov * (Math.PI / 180)
-    const maxDim = Math.max(width, height)
-    const distance = maxDim / (2 * Math.tan(fov / 2)) * 1.2
+    const halfFovTan = Math.tan(fov / 2)
+
+    // When the editor (or any overlay) covers part of the canvas, expand
+    // the effective fit horizontally so the grid still fits inside the
+    // unobscured region. `horizontalScale = canvasWidth / visibleWidth`
+    // (clamped to >= 1).
+    const useViewport =
+      viewport !== undefined &&
+      viewport.canvasWidth > 0 &&
+      viewport.visibleWidth > 0 &&
+      viewport.visibleWidth < viewport.canvasWidth
+    const horizontalScale = useViewport
+      ? viewport!.canvasWidth / viewport!.visibleWidth
+      : 1
+
+    const effectiveWidth = width * horizontalScale
+    const maxDim = Math.max(effectiveWidth, height)
+    const distance = (maxDim / (2 * halfFovTan)) * 1.2
 
     const center = new THREE.Vector3(0, 0, 0)
     const endPosition = new THREE.Vector3(distance * 0.7, distance * 0.7, distance * 0.7)
+    const endTarget = center.clone()
+
+    if (useViewport) {
+      // Shift target + position along the camera's screen-right axis so
+      // the grid centre (world origin) projects to canvas-X =
+      // visibleWidth / 2 instead of canvasWidth / 2.
+      const aspect = this.camera.aspect
+      // Camera-target distance for an isometric position scaled by 0.7 on
+      // each axis: |(0.7d, 0.7d, 0.7d)| = 0.7 * d * sqrt(3).
+      const camTargetDist = distance * 0.7 * Math.sqrt(3)
+      const worldPerPixel =
+        (2 * camTargetDist * halfFovTan * aspect) / viewport!.canvasWidth
+      const pixelShift = (viewport!.canvasWidth - viewport!.visibleWidth) / 2
+
+      // Camera right axis (world space) = normalize(forward × worldUp).
+      const forward = new THREE.Vector3().subVectors(endTarget, endPosition)
+      const camRight = new THREE.Vector3()
+        .crossVectors(forward, new THREE.Vector3(0, 1, 0))
+        .normalize()
+
+      const worldShift = pixelShift * worldPerPixel
+      endPosition.addScaledVector(camRight, worldShift)
+      endTarget.addScaledVector(camRight, worldShift)
+    }
 
     this.transition = {
       startPosition: this.camera.position.clone(),
       endPosition,
       startTarget: this.controls.target.clone(),
-      endTarget: center,
+      endTarget,
       elapsed: 0,
       duration,
     }

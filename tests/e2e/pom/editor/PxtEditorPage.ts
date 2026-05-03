@@ -480,4 +480,106 @@ export class PxtEditorPage {
     const id = await this.createStartMachineBlock()
     return [id]
   }
+
+  // ---- Layout / on-start visibility ---------------------------------------
+
+  /**
+   * Wait until the default `on start` (or first top-level) block has been
+   * rendered onto the main workspace SVG with a non-zero bounding box.
+   */
+  async waitForOnStartBlockRendered(timeoutMs = 15_000): Promise<void> {
+    await expect(async () => {
+      const iframeEl = await this.iframeLocator.elementHandle()
+      if (!iframeEl) throw new Error('PXT iframe not attached')
+      const ready = await this.page.evaluate((el) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) return false
+        const ws = win.Blockly.mainWorkspace
+        const top: any[] = ws?.getTopBlocks?.(true) ?? []
+        if (top.length === 0) return false
+        const svg = top[0].getSvgRoot?.()
+        if (!svg) return false
+        const r = svg.getBoundingClientRect()
+        return r.width > 0 && r.height > 0
+      }, iframeEl)
+      expect(ready).toBe(true)
+    }).toPass({ timeout: timeoutMs, intervals: [500] })
+  }
+
+  /**
+   * Bounding rect of `.blocklyToolboxDiv` inside the PXT iframe, in
+   * iframe-viewport coordinates.
+   */
+  async getToolboxRect(): Promise<{
+    left: number
+    top: number
+    right: number
+    bottom: number
+    width: number
+    height: number
+  }> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((el) => {
+      const doc = (el as HTMLIFrameElement).contentDocument
+      if (!doc) throw new Error('PXT iframe contentDocument unavailable')
+      const tb = doc.querySelector('.blocklyToolboxDiv') as HTMLElement | null
+      if (!tb) throw new Error('.blocklyToolboxDiv not found in PXT iframe')
+      const r = tb.getBoundingClientRect()
+      return {
+        left: r.left,
+        top: r.top,
+        right: r.right,
+        bottom: r.bottom,
+        width: r.width,
+        height: r.height,
+      }
+    }, iframeEl!)
+  }
+
+  /**
+   * Bounding rect of the first/`on start` block on the main workspace,
+   * in iframe-viewport coordinates.
+   */
+  async getOnStartBlockRect(): Promise<{
+    left: number
+    top: number
+    right: number
+    bottom: number
+    width: number
+    height: number
+  }> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      if (!win || !win.Blockly) throw new Error('Blockly not available on PXT iframe window')
+      const ws = win.Blockly.mainWorkspace
+      const top: any[] = ws?.getTopBlocks?.(true) ?? []
+      if (top.length === 0) throw new Error('No top-level blocks on main workspace')
+      const onStart = top.find((b: any) => b?.type === 'pxt-on-start') ?? top[0]
+      const svg: SVGElement | null = onStart.getSvgRoot?.() ?? null
+      if (!svg) throw new Error('on-start block SVG root not available')
+      const r = svg.getBoundingClientRect()
+      return {
+        left: r.left,
+        top: r.top,
+        right: r.right,
+        bottom: r.bottom,
+        width: r.width,
+        height: r.height,
+      }
+    }, iframeEl!)
+  }
+
+  /** Inner viewport size of the PXT iframe (window.innerWidth/innerHeight). */
+  async getIframeViewportSize(): Promise<{ width: number; height: number }> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow
+      if (!win) throw new Error('PXT iframe contentWindow unavailable')
+      return { width: win.innerWidth, height: win.innerHeight }
+    }, iframeEl!)
+  }
 }

@@ -3,7 +3,10 @@
   "toolbar": {
     "save": "Save",
     "load": "Load",
-    "export": "Export"
+    "export": "Export",
+    "back_to_menu": "Menu",
+    "sandbox_badge": "Sandbox",
+    "reset_view": "View"
   },
   "machines": {
     "part_fabricator": "Fabricator",
@@ -83,7 +86,14 @@
     "items_remaining": "items remaining"
   },
   "items": {
-    "current_item": "current item"
+    "current_item": "current item",
+    "wheel_small": "Small Wheel",
+    "sensor_proximity": "Proximity Sensor",
+    "frame_basic": "Basic Frame",
+    "motor_standard": "Standard Motor",
+    "robot_explorer": "Explorer Robot",
+    "robot_worker": "Worker Robot",
+    "robot_guardian": "Guardian Robot"
   },
   "belts": {
     "belt_1": "Belt 1",
@@ -159,6 +169,14 @@
     "time": "Time",
     "quality": "Quality"
   },
+  "level_brief": {
+    "goal": {
+      "produce_robots": "Produce {{count}} {{item}}",
+      "produce_parts": "Make {{count}} {{item}}",
+      "quality_target": "Quality {{percent}}% or higher",
+      "time_limit": "Within {{seconds}} seconds"
+    }
+  },
   "level_select": {
     "title": "Select Level",
     "locked": "🔒 Locked",
@@ -168,6 +186,12 @@
     "next_level": "Next Level",
     "retry": "Retry",
     "back_to_menu": "Back to Menu"
+  },
+  "level_failed": {
+    "title": "Level Failed",
+    "message": "You didn't meet the level objective. Try again!",
+    "retry": "Try Again",
+    "back_to_select": "Back to Level Select"
   },
   "game_over": {
     "title": "Game Over",
@@ -183,13 +207,19 @@
     "target": "Target",
     "delete": "Delete Belt"
   },
+  "pxt": {
+    "fallback": {
+      "label": "Factory Code (TypeScript)",
+      "placeholder": "// Write factory commands here:\n// factory.startMachine(\"press_1\")\n// factory.setRecipe(\"press_1\", Recipe.WheelPressSmall)"
+    }
+  },
   "tutorial": {
     "back": "Back",
     "skip": "Skip",
     "next": "Next",
     "finish": "Finish",
     "level1_step1": "Welcome! Double-click on the grid to place your first machine — a Fabricator.",
-    "level1_step2": "Double-click another cell to place a Shipper. Click it and change its type to Shipper.",
+    "level1_step2": "The Shipper is already on the grid — that's where finished parts must go. Find it!",
     "level1_step3": "Connect them with a belt — drag from the Fabricator's output slot to the Shipper's input slot.",
     "level1_step4": "Open the Editor to write your program. Click the code button or press E.",
     "level1_step5": "Use the 'set recipe' block to choose what your machine produces. Drag it from the Machines category.",

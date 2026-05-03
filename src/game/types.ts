@@ -21,6 +21,54 @@ export type MachineType =
   | 'splitter'
   | 'factory_output'
 
+/**
+ * Single source of truth for all `MachineType` values. Other modules
+ * (e.g., the SaveLoad validator) should derive their allow-lists from
+ * this constant rather than re-listing the union members.
+ */
+export const ALL_MACHINE_TYPES = [
+  'part_fabricator',
+  'assembler',
+  'quality_checker',
+  'painter',
+  'recycler',
+  'splitter',
+  'factory_output',
+] as const satisfies readonly MachineType[]
+
+// Compile-time exhaustiveness sentinel: if a new variant is added to the
+// `MachineType` union without also being appended to `ALL_MACHINE_TYPES`,
+// `_MachineTypeExhaustive` resolves to `never` and the assignment below
+// fails to type-check, breaking `tsc --noEmit`.
+type _MachineTypeExhaustive =
+  Exclude<MachineType, (typeof ALL_MACHINE_TYPES)[number]> extends never ? true : never
+const _machineTypeExhaustive: _MachineTypeExhaustive = true
+void _machineTypeExhaustive
+
+/**
+ * Machine types that can be placed by the user via the MachinePanel.
+ * Excludes `factory_output` because that is pre-placed by the level
+ * definition (see LevelDefinition.startingMachines) — never user-placed.
+ */
+export const PLACEABLE_MACHINE_TYPES = [
+  'part_fabricator',
+  'assembler',
+  'quality_checker',
+  'painter',
+  'recycler',
+  'splitter',
+] as const satisfies readonly Exclude<MachineType, 'factory_output'>[]
+
+// Compile-time bidirectional exhaustiveness for PLACEABLE_MACHINE_TYPES:
+type _PlaceableMachineTypeExhaustive =
+  Exclude<Exclude<MachineType, 'factory_output'>, (typeof PLACEABLE_MACHINE_TYPES)[number]> extends never
+    ? (typeof PLACEABLE_MACHINE_TYPES)[number] extends Exclude<MachineType, 'factory_output'>
+      ? true
+      : never
+    : never
+const _placeableMachineTypeExhaustive: _PlaceableMachineTypeExhaustive = true
+void _placeableMachineTypeExhaustive
+
 export interface MachineInfo {
   id: string
   name: string
@@ -65,6 +113,31 @@ export type ItemType =
   | 'robot_worker'
   | 'robot_guardian'
   | 'raw_material'
+
+/**
+ * Single source of truth for the subset of ItemTypes that represent
+ * fully-assembled robots. Used by Simulation to count `robotsProduced`
+ * when an item reaches a factory_output. Pinned to the union by a
+ * compile-time exhaustiveness sentinel — adding a new `robot_*` variant
+ * to `ItemType` without appending it here breaks `tsc --noEmit`.
+ */
+export const ROBOT_ITEM_TYPES = [
+  'robot_explorer',
+  'robot_worker',
+  'robot_guardian',
+] as const satisfies readonly ItemType[]
+
+type _RobotItemTypeExhaustive =
+  Extract<ItemType, `robot_${string}`> extends (typeof ROBOT_ITEM_TYPES)[number]
+    ? (typeof ROBOT_ITEM_TYPES)[number] extends Extract<ItemType, `robot_${string}`> ? true : never
+    : never
+const _robotItemTypeExhaustive: _RobotItemTypeExhaustive = true
+void _robotItemTypeExhaustive
+
+const ROBOT_ITEM_TYPE_SET: ReadonlySet<ItemType> = new Set<ItemType>(ROBOT_ITEM_TYPES)
+export function isRobotItemType(type: ItemType): boolean {
+  return ROBOT_ITEM_TYPE_SET.has(type)
+}
 
 export type MachineState = 'idle' | 'processing' | 'blocked'
 
