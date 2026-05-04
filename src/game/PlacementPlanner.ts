@@ -1,8 +1,11 @@
 import type { Direction, GridPosition, MachineInfo, MachineType, SlotPosition } from './types'
-import type { GridReader } from './Factory'
+import type { GridReader } from './GridReader'
 import type { BeltRouter } from './BeltRouter'
+import type { PlacementPlanOptions, PlacementPlanResult } from './PlacementPlanTypes'
 import { rotationToFace, getSlotPositions, pickBestSlotOffset, slotPositionToOffset, offsetToSlotPosition } from './SlotUtils'
 import { machineSlotPointsAtNeighbor } from './SlotBlocking'
+
+export type { PlacementPlanOptions, PlacementPlanResult }
 
 /**
  * The direct path bypasses slot constraints. When a specific source/target
@@ -59,45 +62,8 @@ function directPathHonoursSlots(
  * optional; callers may pass an empty object (or omit the argument entirely)
  * to use the defaults.
  */
-export interface PlacementPlanOptions {
-  ignoreBeltIds?: ReadonlySet<string>
-  fixedRotations?: boolean
-  virtualMachines?: ReadonlyMap<string, MachineInfo>
-  ignoreMachinePositions?: ReadonlySet<string>
-  forcedHasBelts?: ReadonlySet<string>
-  extraBlockedCells?: ReadonlySet<string>
-  targetSlotPosition?: SlotPosition
-  sourceSlotPosition?: SlotPosition
-  /**
-   * When true, the planner falls back to placing the belt in the opposite
-   * direction (source↔target swapped, slot type flipped) ONLY if the target
-   * has no free slot of the requested complementary type. Used for
-   * explicit-slot drags from the UI. Defaults to `false`.
-   */
-  tryReverseSlotType?: boolean
-}
-
-/**
- * Result of {@link PlacementPlanner.computePlacementPlan}. The `srcRotation`
- * field ALWAYS refers to the original `from` machine passed in, even when
- * `reversed` is true (the planner internally swaps direction in that case
- * but reports the rotation against the original mapping). The target's
- * rotation is never derived — callers should read it from the target
- * machine directly.
- */
-export interface PlacementPlanResult {
-  path: GridPosition[]
-  collides: boolean
-  srcRotation?: Direction
-  /**
-   * True when the planner internally fell back to the reverse slot type
-   * (source↔target swapped, slot type flipped). `srcRotation` still refers
-   * to the original `from` machine — it is NOT swapped. Callers must
-   * consult `reversed` to decide which physical machine acts as the belt's
-   * source vs. destination.
-   */
-  reversed?: boolean
-}
+// PlacementPlanOptions and PlacementPlanResult are defined in
+// ./PlacementPlanTypes and re-exported above to keep a single source of truth.
 
 export class PlacementPlanner {
   private readonly grid: GridReader

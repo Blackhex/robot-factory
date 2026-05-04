@@ -75,6 +75,19 @@ describe('BlockInterpreter', () => {
       expect((commands[0] as any).speed).toBe(5)
     })
 
+    it('should parse legacy factory.setMachineSpeed("machine_1", 7)', () => {
+      // WHEN — legacy factory namespace mirror, accepting a string id literal
+      const commands = interpreter.interpret(
+        'factory.setMachineSpeed("machine_1", 7)',
+      )
+
+      // THEN
+      expect(commands).toHaveLength(1)
+      expect(commands[0].type).toBe('SET_MACHINE_SPEED')
+      expect((commands[0] as any).machineId).toBe('machine_1')
+      expect((commands[0] as any).speed).toBe(7)
+    })
+
     it('should ignore removed factory.routeTo()', () => {
       // WHEN — routeTo has been removed; the interpreter must not emit any command.
       const commands = interpreter.interpret('factory.routeTo("assembler")')
@@ -551,6 +564,19 @@ describe('BlockInterpreter', () => {
       expect((commands[0] as any).speed).toBe(5)
     })
 
+    it('should parse machines.setMachineSpeed(Machine.A, 5)', () => {
+      // WHEN
+      const commands = interpreter.interpret(
+        'machines.setMachineSpeed(Machine.A, 5)',
+      )
+
+      // THEN
+      expect(commands).toHaveLength(1)
+      expect(commands[0].type).toBe('SET_MACHINE_SPEED')
+      expect((commands[0] as any).machineId).toBe('machine_1')
+      expect((commands[0] as any).speed).toBe(5)
+    })
+
     it('should ignore removed belts.routeTo(Machine.C)', () => {
       // WHEN — belts.routeTo has been removed from the codebase.
       const commands = interpreter.interpret(
@@ -614,6 +640,19 @@ describe('BlockInterpreter', () => {
       expect(commands).toHaveLength(1)
       expect(commands[0].type).toBe('SET_BELT_SPEED')
       expect((commands[0] as any).beltId).toBe('belt_1')
+      expect((commands[0] as any).speed).toBe(3)
+    })
+
+    it('should resolve machines.setMachineSpeed(0, 3) to machine_1 + speed 3', () => {
+      // WHEN
+      const commands = interpreter.interpret(
+        'machines.setMachineSpeed(0, 3)',
+      )
+
+      // THEN
+      expect(commands).toHaveLength(1)
+      expect(commands[0].type).toBe('SET_MACHINE_SPEED')
+      expect((commands[0] as any).machineId).toBe('machine_1')
       expect((commands[0] as any).speed).toBe(3)
     })
 

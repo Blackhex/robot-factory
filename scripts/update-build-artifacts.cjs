@@ -171,6 +171,47 @@ function addSimpleNumericLoopsBlock(byQName, spec) {
   };
 }
 
+// Inject `machines.setMachineSpeed` block metadata if missing. Mirrors the
+// shape of `belts.setBeltSpeed` (Machine enum dropdown + numeric speed
+// param with min/max bounds). Idempotent — returns early if already set.
+function addMachineSpeedBlock(byQName) {
+  if (!byQName || byQName['machines.setMachineSpeed']) return;
+  byQName['machines.setMachineSpeed'] = {
+    kind: -3,
+    attributes: {
+      paramDefl: { speed: '1' },
+      block: 'set %machine speed to %speed',
+      blockId: 'factory_set_machine_speed',
+      weight: 70,
+      explicitDefaults: ['speed'],
+      paramMin: { speed: '1' },
+      paramMax: { speed: '10' },
+      _def: {
+        parts: [
+          { kind: 'label', text: 'set ', style: [] },
+          { kind: 'param', name: 'machine', ref: false },
+          { kind: 'label', text: ' speed to ', style: [] },
+          { kind: 'param', name: 'speed', ref: false },
+        ],
+        parameters: [
+          { kind: 'param', name: 'machine', ref: false },
+          { kind: 'param', name: 'speed', ref: false },
+        ],
+      },
+    },
+    parameters: [
+      { name: 'machine', type: 'Machine', isEnum: true },
+      {
+        name: 'speed',
+        initializer: '1',
+        default: '1',
+        options: { min: { value: '1' }, max: { value: '10' } },
+      },
+    ],
+    pyQName: 'machines.set_machine_speed',
+  };
+}
+
 // Files to update
 const files = [
   'pxt-target/built/target.json',
@@ -215,6 +256,7 @@ for (const f of files) {
       labelPrefix: 'wait', labelSuffix: 'ticks',
       defl: 10, min: 0, max: 600, weight: 92, pyQName: 'loops.wait_ticks',
     });
+    addMachineSpeedBlock(byQName);
   }
 
   stripVariablesNs(json);
@@ -271,6 +313,7 @@ for (const f of jsFiles) {
       labelPrefix: 'wait', labelSuffix: 'ticks',
       defl: 10, min: 0, max: 600, weight: 92, pyQName: 'loops.wait_ticks',
     });
+    addMachineSpeedBlock(byQName2);
   }
 
   stripVariablesNs(json);

@@ -386,4 +386,38 @@ describe('Machine', () => {
       expect(output.outputSlot).toBeNull()
     })
   })
+
+  describe('speed field', () => {
+    it('defaults to 1 on a freshly constructed machine', () => {
+      // GIVEN
+      const m = new Machine('m1', 'part_fabricator')
+
+      // THEN
+      expect(m.speed).toBe(1)
+    })
+
+    it('clearRuntimeState() preserves speed alongside currentRecipe and qualityThreshold', () => {
+      // GIVEN — configure a machine: recipe + qualityThreshold + speed
+      const m = new Machine('m1', 'quality_checker')
+      const recipe = wheelPressRecipe()
+      m.setRecipe(recipe)
+      m.qualityThreshold = 42
+      // Sanity: speed is a real declared field with default 1, not a stray
+      // dynamic property assignment. Without this guard, a future regression
+      // that drops the field declaration could leave m.speed = undefined here
+      // and the post-clear assertion would still trivially hold (5 === 5).
+      expect(m.speed).toBe(1)
+      m.speed = 5
+
+      // WHEN
+      m.clearRuntimeState()
+
+      // THEN — speed is configuration, not runtime state, so it must survive.
+      // currentRecipe and qualityThreshold are checked here as the canonical
+      // "preserved configuration" baseline that speed must follow.
+      expect(m.speed).toBe(5)
+      expect(m.currentRecipe).toBe(recipe)
+      expect(m.qualityThreshold).toBe(42)
+    })
+  })
 })

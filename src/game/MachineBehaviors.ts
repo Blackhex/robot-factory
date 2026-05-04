@@ -7,6 +7,7 @@ import type {
   MachineType,
   SplitterCondition,
 } from './types.ts'
+import { defectProbability } from './Defect.ts'
 
 /**
  * Structural view of the `Machine` class (declared in `./Machine.ts`)
@@ -33,6 +34,14 @@ export interface Machine {
   splitterCondition: SplitterCondition | null
   splitterCounter: number
   enabled: boolean
+  speed: number
+  /**
+   * Transient: set during `consumeInputs` if any consumed input was
+   * defective. Read in `produceOutput` so assembler and painter
+   * propagate defects across the processing-timer gap. Reset to `false`
+   * immediately after `produceOutput` completes.
+   */
+  pendingDefectFromInput: boolean
 }
 
 /**
@@ -44,15 +53,17 @@ export interface Machine {
  * and forward to it.
  */
 export interface MachineBehavior {
-  /** Advance the machine state for one tick. */
-  tick(machine: Machine): void
+  /** Advance the machine state for one tick. The `rng` is consulted by
+   *  defect-rolling behaviors (part_fabricator, assembler, painter); other
+   *  behaviors ignore it. */
+  tick(machine: Machine, rng: () => number): void
   /** Whether this machine accepts the given item type at all (regardless of slot capacity). */
   canConsume(machine: Machine, itemType: ItemType): boolean
 }
 
 // --- Default tick (part_fabricator, assembler, painter) ---
 
-function tickDefault(m: Machine): void {
+function tickDefault(m: Machine, rng: () => number): void {
   switch (m.state) {
     case 'idle':
       tryStartProcessing(m)
@@ -61,7 +72,7 @@ function tickDefault(m: Machine): void {
       m.processingTimer--
       if (m.processingTimer <= 0) {
         if (m.outputSlot === null) {
-          produceOutput(m)
+          produceOutput(m, rng)
           m.state = 'idle'
           tryStartProcessing(m)
         } else {
@@ -71,7 +82,7 @@ function tickDefault(m: Machine): void {
       break
     case 'blocked':
       if (m.outputSlot === null) {
-        produceOutput(m)
+        produceOutput(m, rng)
         m.state = 'idle'
         tryStartProcessing(m)
       }
@@ -81,7 +92,7 @@ function tickDefault(m: Machine): void {
 
 // --- QualityChecker tick ---
 
-function tickQualityChecker(m: Machine): void {
+function tickQualityChecker(m: Machine, _rng: () => number): void {
   switch (m.state) {
     case 'idle':
       if (m.inputSlots.length > 0) {
@@ -121,7 +132,7 @@ function tryRouteCheckedItem(m: Machine): void {
 // --- Splitter tick ---
 // TODO: 3-output routing will be handled at the simulation layer
 
-function tickSplitter(m: Machine): void {
+function tickSplitter(m: Machine, _rng: () => number): void {
   switch (m.state) {
     case 'idle':
       if (m.inputSlots.length > 0) {
@@ -170,12 +181,12 @@ function evaluateSplitterCondition(m: Machine, _item: Item): 'primary' | 'second
 
 // --- Recycler tick ---
 
-function tickRecycler(m: Machine): void {
+function tickRecycler(m: Machine, _rng: () => number): void {
   switch (m.state) {
     case 'idle':
       if (m.inputSlots.length > 0) {
         m.inputSlots.shift() // consume the input
-        m.processingTimer = 3
+        m.processingTimer = scaledTicks(3, m.speed)
         m.state = 'processing'
       }
       break
@@ -235,7 +246,7 @@ function tryStartProcessing(m: Machine): void {
   if (!hasRequiredInputs(m)) return
 
   consumeInputs(m)
-  m.processingTimer = m.currentRecipe.processingTicks
+  m.processingTimer = scaledTicks(m.currentRecipe.processingTicks, m.speed)
   m.state = 'processing'
 }
 
@@ -264,29 +275,58 @@ function consumeInputs(m: Machine): void {
   const recipe = m.currentRecipe
   if (!recipe || recipe.inputs.length === 0) return
 
+  let anyDefective = false
   for (const input of recipe.inputs) {
     let remaining = input.quantity
     for (let i = m.inputSlots.length - 1; i >= 0 && remaining > 0; i--) {
       if (m.inputSlots[i].type === input.type) {
+        if (m.inputSlots[i].isDefective) anyDefective = true
         m.inputSlots.splice(i, 1)
         remaining--
       }
     }
   }
+  m.pendingDefectFromInput = anyDefective
 }
 
-function produceOutput(m: Machine): void {
+/**
+ * Decide whether the about-to-be-produced output is defective.
+ *
+ * - If any consumed input was defective, the output is always defective
+ *   (propagation; no rng call).
+ * - Otherwise, roll: defective iff `rng() < defectProbability(m.speed)`.
+ *
+ * Exactly zero or one rng call per invocation.
+ */
+function evaluateDefect(
+  m: Machine,
+  rng: () => number,
+  hasInputDefect: boolean,
+): boolean {
+  if (hasInputDefect) return true
+  return rng() < defectProbability(m.speed)
+}
+
+function produceOutput(m: Machine, rng: () => number): void {
   const recipe = m.currentRecipe
   if (!recipe || recipe.outputs.length === 0) return
 
   const output = recipe.outputs[0]
+  const hasInputDefect = m.pendingDefectFromInput
 
-  // Assembler: create assembly from consumed components
+  // part_fabricator (no inputs): roll only.
+  // assembler (inputs > 0, output is assembly): propagate + roll.
+  // painter (inputs > 0, output is single item): propagate + roll.
+  let item: Item
   if (recipe.inputs.length > 0) {
-    m.outputSlot = createAssembly(output.type, [])
+    item = createAssembly(output.type, [])
   } else {
-    m.outputSlot = createItem(output.type)
+    item = createItem(output.type)
   }
+
+  item.isDefective = evaluateDefect(m, rng, hasInputDefect)
+  m.outputSlot = item
+  m.pendingDefectFromInput = false
 }
 
 // --- canConsume strategies ---
@@ -307,18 +347,29 @@ function canConsumeRecipeDriven(m: Machine, itemType: ItemType): boolean {
   return recipe.inputs.some((i) => i.type === itemType)
 }
 
+/**
+ * Scale a base processing duration by the machine's speed multiplier.
+ * The `safeSpeed` guard is defense in depth: the block validator clamps
+ * speed to 1..10, but a hand-typed `factory.setMachineSpeed("m", 0)`
+ * from the fallback editor would otherwise divide by zero.
+ */
+function scaledTicks(baseTicks: number, speed: number): number {
+  const safeSpeed = speed > 0 ? speed : 1
+  return Math.max(1, Math.ceil(baseTicks / safeSpeed))
+}
+
 // --- Behavior objects ---
 
 const partFabricatorBehavior: MachineBehavior = {
-  tick: (m) => tickDefault(m),
+  tick: (m, rng) => tickDefault(m, rng),
   canConsume: (m, t) => canConsumeRecipeDriven(m, t),
 }
 const assemblerBehavior: MachineBehavior = {
-  tick: (m) => tickDefault(m),
+  tick: (m, rng) => tickDefault(m, rng),
   canConsume: (m, t) => canConsumeRecipeDriven(m, t),
 }
 const painterBehavior: MachineBehavior = {
-  tick: (m) => tickDefault(m),
+  tick: (m, rng) => tickDefault(m, rng),
   canConsume: (m, t) => canConsumeRecipeDriven(m, t),
 }
 const qualityCheckerBehavior: MachineBehavior = {
@@ -334,7 +385,7 @@ const recyclerBehavior: MachineBehavior = {
   canConsume: canConsumeAlways,
 }
 const factoryOutputBehavior: MachineBehavior = {
-  tick: () => {},
+  tick: (_m, _rng) => {},
   canConsume: canConsumeAlways,
 }
 

@@ -35,6 +35,18 @@ export class Machine {
   // Package-internal: read/written by MachineBehaviors.tickSplitter.
   splitterCounter = 0
 
+  // Configuration: scales processingTimer (preserved by clearRuntimeState).
+  speed = 1
+
+  /**
+   * Transient: set during `consumeInputs` when any consumed input was
+   * defective; read in `produceOutput` so assembler/painter can propagate
+   * the defect flag through the processing-timer gap. Reset to `false`
+   * immediately after `produceOutput` completes (next batch starts clean).
+   * Always `false` for fabricators (no inputs).
+   */
+  pendingDefectFromInput = false
+
   constructor(id: string, machineType: MachineType, maxInputSlots = 4) {
     this.id = id
     this.machineType = machineType
@@ -68,6 +80,7 @@ export class Machine {
     this.consumedItems = 0
     this.splitterCounter = 0
     this.enabled = false
+    this.pendingDefectFromInput = false
   }
 
   addInput(item: Item): boolean {
@@ -114,10 +127,10 @@ export class Machine {
     return MACHINE_BEHAVIORS[this.machineType].canConsume(this, itemType)
   }
 
-  tick(): void {
+  tick(rng: () => number = Math.random): void {
     // Single gate for all tickable machine types. factory_output is naturally
     // exempt because its registered behavior tick is a no-op.
     if (!this.enabled) return
-    MACHINE_BEHAVIORS[this.machineType].tick(this)
+    MACHINE_BEHAVIORS[this.machineType].tick(this, rng)
   }
 }

@@ -29,6 +29,7 @@ export interface DeliveryResult {
   itemsDelivered: number
   outputsDelivered: number
   robotsProduced: number
+  defectsDiscarded: number
   newGameOver: GameOverInfo | null
   events: DeliveryEvent[]
 }
@@ -62,6 +63,7 @@ export class ItemDeliveryEngine {
       itemsDelivered: 0,
       outputsDelivered: 0,
       robotsProduced: 0,
+      defectsDiscarded: 0,
       newGameOver: existingGameOver,
       events: [],
     }
@@ -77,6 +79,27 @@ export class ItemDeliveryEngine {
           // First, try to deliver to a machine at the belt's destination
           const targetMachine = this.deps.findMachineAt(belt.toX, belt.toZ)
           if (targetMachine && targetMachine.canAcceptInput()) {
+            // Discard contract: defective items at the Shipper (factory_output)
+            // are rejected at the dock — they count toward defect/quality
+            // stats but not toward delivered outputs or robots produced.
+            if (
+              targetMachine.machineType === 'factory_output' &&
+              item.isDefective
+            ) {
+              belt.removeItem(item.id)
+              result.defectsDiscarded++
+              result.events.push({
+                type: 'item_discarded',
+                data: {
+                  itemId: item.id,
+                  itemType: item.type,
+                  machineId: targetMachine.id,
+                  reason: 'defective',
+                },
+              })
+              progress = true
+              continue
+            }
             // Fatal mis-routing: machine cannot consume this item type at
             // all (wrong recipe, no recipe, or zero-input recipe). Trip
             // game-over once and leave the item parked at the belt end.

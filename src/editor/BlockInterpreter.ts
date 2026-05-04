@@ -154,6 +154,14 @@ export class BlockInterpreter {
       if (this.guardOverflow()) return
       this.commands.push({ type: 'SET_QUALITY_THRESHOLD', machineId: this.resolveMachineId(machine), threshold: Number(threshold) || 0 })
     },
+    setMachineSpeed: (machine: unknown, speed: unknown) => {
+      if (this.guardOverflow()) return
+      this.commands.push({
+        type: 'SET_MACHINE_SPEED',
+        machineId: this.resolveMachineId(machine),
+        speed: Number(speed) || 1,
+      })
+    },
     /**
      * Returns the selected machine value unchanged. Used as the
      * value-returning expression behind the `machine %machine` block,

@@ -98,19 +98,29 @@ describe('ConveyorBelt', () => {
       expect(item.positionOnBelt).toBeCloseTo(0.1)
     })
 
-    it('after sufficient advances item is past 1.0 and counted as ready', () => {
+    // Drift cap aligned with getReadyItems() (`>= 1.0 - 1e-9`) so back-
+    // pressure-refused items no longer escape the cap and overshoot to
+    // 1.1; previously this asserted `toBeCloseTo(1.1, 10)`.
+    it('caps at 1.0 once the item reaches the end of the cell and is counted as ready', () => {
       // GIVEN
       const item = createItem('wheel_small')
       belt.addItem(item)
 
       // WHEN
-      // 11 advances at 0.1 each = 1.1; overshoot is preserved.
+      // 11 advances at 0.1 each. Cumulative `+= 0.1` accumulates float
+      // drift (10 × 0.1 = 0.9999999999999999). The drift cap inside
+      // advance() uses `>= 1.0 - 1e-9` to catch items at the end of the
+      // cell despite that drift, so the item caps at ~1.0 and stops
+      // advancing — the bug where back-pressure-refused items escaped
+      // the cap and overshot to 1.1 was fixed alongside the per-cell
+      // capacity raise to 2.
       for (let i = 0; i < 11; i++) {
         belt.advance()
       }
 
       // THEN
-      expect(item.positionOnBelt).toBeCloseTo(1.1, 10)
+      expect(item.positionOnBelt).toBeGreaterThanOrEqual(1.0 - 1e-9)
+      expect(item.positionOnBelt).toBeLessThanOrEqual(1.0 + 1e-9)
       expect(belt.getReadyItems().length).toBe(1)
     })
 

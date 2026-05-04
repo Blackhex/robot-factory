@@ -166,6 +166,33 @@ describe('Simulation', () => {
       expect(b.speed).toBe(2.5)
     })
 
+    it('should execute SET_MACHINE_SPEED command', () => {
+      // GIVEN
+      const m = new Machine('m1', 'part_fabricator')
+      sim.addMachine(m)
+
+      // WHEN
+      sim.enqueueCommand({ type: 'SET_MACHINE_SPEED', machineId: 'm1', speed: 4 })
+      sim.tick()
+
+      // THEN
+      expect(m.speed).toBe(4)
+    })
+
+    it('SET_MACHINE_SPEED on unknown machine is a no-op', () => {
+      // GIVEN — no machine with id 'ghost' exists in the simulation
+
+      // WHEN / THEN — must not throw
+      expect(() => {
+        sim.enqueueCommand({
+          type: 'SET_MACHINE_SPEED',
+          machineId: 'ghost',
+          speed: 5,
+        })
+        sim.tick()
+      }).not.toThrow()
+    })
+
     it('should process multiple enqueued commands in one tick', () => {
       // GIVEN
       const m1 = new Machine('m1', 'part_fabricator')

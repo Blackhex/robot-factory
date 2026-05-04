@@ -89,9 +89,9 @@ describe('Simulation — tick order symmetry', () => {
 
   it('machine-placed and handover items are at symmetric positions', () => {
     // GIVEN: fabricator → seg0 → seg1 (2-segment chain).
-    // processingTicks=5: machine produces every 5 ticks but the belt cell
-    // takes 10 ticks to traverse, so items back up and are released every
-    // 10 ticks.
+    // processingTicks=5: under the capacity-2 contract (MIN_SPACING=0.5)
+    // the machine emits every 5 ticks at steady state because seg0 can hold
+    // a second item once the leader has advanced ≥0.5.
     const fab = new Machine('fab', 'part_fabricator')
     fab.setRecipe(quickFabRecipe(5))
     fab.start()
@@ -100,34 +100,65 @@ describe('Simulation — tick order symmetry', () => {
     const belts = buildBeltChain(sim, 2, 1.0, 0)
     sim.setMachineOutputBelt('fab', 'seg0')
 
-    // NEW order timeline:
-    //   Call 6: item1 produced, placed on seg0 at pos=0.0.
-    //   Calls 7–15: item1 advances on seg0 (0.1 → 0.9).
-    //   Call 16: advance pushes item1 to 1.0 → deliver hands to seg1:0.0.
-    //            item2 (produced at call 11, blocked since) placed on seg0:0.0.
-    //   ⇒ Both items at 0.0. Symmetric.
+    // NEW order timeline (capacity-2 contract, with FP-tolerant canFitAt):
+    //   Call 6:   item1 produced → seg0 @ 0.0.
+    //   Calls 7–10: item1 advances 0.1 → 0.4.
+    //   Call 11:  advance moves item1 to 0.5; transfer adds item2 @ 0.0
+    //             (gap 0.5 ≥ MIN_SPACING). seg0 = [item2@0.0, item1@0.5].
+    //   Calls 12–15: pair advances together. The back item picks up sub-ulp
+    //             FP drift from `cap = frontPos − MIN_SPACING` (e.g.
+    //             0.6 − 0.5 = 0.09999…), reaching ~0.3999… on call 15.
+    //   Call 16:  advance: item1 → 1.0; item2 → ~0.4999… (capped against
+    //             item1's 1.0). Deliver hands item1 → seg1 @ 0.0. Transfer
+    //             of item3 onto seg0 SUCCEEDS: canFitAt's 1e-9 tolerance
+    //             absorbs the sub-ulp drift, so |0.4999… − 0| is treated as
+    //             ≥ MIN_SPACING. ⇒ seg0 = [item3@0.0, item2@~0.5],
+    //                                seg1 = [item1@0.0].
     //
-    // OLD order: at call 16, both items end up at 0.1 (not 0.0).
+    // The symmetric pair this test guards is (machine-placed item3 on seg0,
+    // handed-over item1 on seg1) — both freshly arrived this tick at
+    // position 0.0 of their respective segments.
     tickN(sim, 16)
 
-    // THEN: both belt segments have exactly one item.
-    expect(belts[0].getItemCount()).toBe(1)
+    // THEN: seg0 holds the cap-2 pair (item2 + item3); seg1 holds item1.
+    // CONTRACT CHANGE: ConveyorBelt.canFitAt tolerance fix (1e-9) eliminated
+    // the asymmetric machine-injection cadence that previously REJECTED the
+    // call-16 transfer of item3 (back item sat at 0.4999… < 0.5 strict).
+    // Steady-state cadence is now uniform: machine emits every 5 ticks and
+    // seg0 reaches its cap-2 occupancy. Previously this asserted
+    // belts[0].getItemCount() === 1.
+    expect(belts[0].getItemCount()).toBe(2)
     expect(belts[1].getItemCount()).toBe(1)
 
+    // getItems() is sorted ascending by position: index [0] is the back
+    // item. On seg0 that's the freshly machine-placed item3; on seg1 it's
+    // the only (just-handed-over) item1. Both arrived at position 0.0 of
+    // their segments this tick — that is the symmetric pair.
     const itemOnSeg0 = belts[0].getItems()[0]
     const itemOnSeg1 = belts[1].getItems()[0]
 
-    // Key assertion: both at 0.0 (symmetric starting position).
-    expect(itemOnSeg0.positionOnBelt).toBeCloseTo(0.0, 10)
+    // Key assertion: machine-placed and handover items are BOTH at 0.0,
+    // i.e. genuinely symmetric. The bug previously forced the seg0 lead
+    // to 0.5 (the cap-2 partner item2) because item3's transfer was
+    // rejected, breaking symmetry.
+    // CONTRACT CHANGE: previously asserted itemOnSeg0 ≈ 0.5 (the
+    // captured reference was item2 at the cap-2 spacing slot, since
+    // item3 never landed). With the FP tolerance fix, item3 lands at 0.0
+    // and the symmetric (0.0, 0.0) pair is the correct contract.
+    expect(itemOnSeg0.positionOnBelt).toBeCloseTo(0.0, 5)
     expect(itemOnSeg1.positionOnBelt).toBeCloseTo(0.0, 10)
 
-    // One tick later: both should advance by 0.1 — still symmetric.
+    // One tick later: both captured items advance by 0.1 — symmetric
+    // drift, as the test name promises.
+    // CONTRACT CHANGE: previously asserted itemOnSeg0 ≈ 0.6 (item2's
+    // advance from 0.5). Under the fix, the captured seg0 reference is
+    // item3, which advances 0.0 → ~0.1.
     sim.tick()
-    expect(itemOnSeg0.positionOnBelt).toBeCloseTo(0.1, 10)
+    expect(itemOnSeg0.positionOnBelt).toBeCloseTo(0.1, 5)
     expect(itemOnSeg1.positionOnBelt).toBeCloseTo(0.1, 10)
   })
 
-  it('items are exactly 1.0 cells apart in steady state', () => {
+  it('items are exactly 0.5 cells apart in steady state', () => {
     // GIVEN: fabricator with processingTicks=5, 5-segment chain, speed=1.
     const fab = new Machine('fab', 'part_fabricator')
     fab.setRecipe(quickFabRecipe(5))
@@ -152,10 +183,11 @@ describe('Simulation — tick order symmetry', () => {
     // At least 2 items needed to measure a gap.
     expect(positions.length).toBeGreaterThanOrEqual(2)
 
-    // Every consecutive pair should be exactly 1.0 cells apart.
+    // Every consecutive pair should be exactly MIN_ITEM_SPACING cells apart.
     for (let i = 0; i < positions.length - 1; i++) {
       const gap = positions[i] - positions[i + 1]
-      expect(gap).toBeCloseTo(1.0, 5)
+      // Capacity raised to 2 (min-spacing 0.5): steady-state spacing is 0.5 cells, not 1.0.
+      expect(gap).toBeCloseTo(ConveyorBelt.MIN_ITEM_SPACING, 5)
     }
   })
 

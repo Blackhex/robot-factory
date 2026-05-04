@@ -29,3 +29,12 @@ export const ITEM_COLORS: Record<ItemType, number> = {
   robot_guardian: 0xcc4400,
   raw_material: 0xaa8866,
 }
+
+/**
+ * Color used for items flagged as `isDefective` on belts. Bright red,
+ * deliberately distinct from every per-type entry in `ITEM_COLORS` so
+ * defective items are unambiguously identifiable in the 3D scene. The
+ * renderer applies this via `InstancedMesh.setColorAt(idx, ...)` per
+ * defective instance; clean instances receive `ITEM_COLORS[type]`.
+ */
+export const DEFECTIVE_ITEM_COLOR: number = 0xff2222

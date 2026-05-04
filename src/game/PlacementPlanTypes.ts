@@ -14,6 +14,7 @@ export interface PlacementPlanOptions {
   extraBlockedCells?: ReadonlySet<string>
   targetSlotPosition?: SlotPosition
   sourceSlotPosition?: SlotPosition
+  /** Currently ignored by PlacementPlanner; ConnectedBeltEditOrchestrator validates the result downstream via `beltHasExactTuple`. */
   requireTargetSlotPosition?: boolean
   /**
    * When true, the planner falls back to placing the belt in the opposite

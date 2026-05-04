@@ -35,6 +35,12 @@ namespace machines {
     //% weight=80
     export function setRecipe(machine: Machine, recipe: Recipe): void { }
 
+    //% block="set %machine speed to %speed"
+    //% blockId=factory_set_machine_speed
+    //% weight=70
+    //% speed.defl=1 speed.min=1 speed.max=10
+    export function setMachineSpeed(machine: Machine, speed: number): void { }
+
     //% block="%machine"
     //% blockId=factory_pick_machine
     //% weight=60

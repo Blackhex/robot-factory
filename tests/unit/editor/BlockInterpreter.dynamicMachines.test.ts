@@ -199,6 +199,24 @@ describe('BlockInterpreter — dynamic machine/belt lists', () => {
       expect((commands[0] as any).machineId).toBe('machine_3')
       expect((commands[0] as any).threshold).toBe(85)
     })
+
+    it('should affect setMachineSpeed resolution', () => {
+      // GIVEN
+      interpreter.setMachineList([
+        { slotIndex: 0, id: 'machine_42', name: 'Turbo' },
+      ])
+
+      // WHEN — slot 0 should resolve to the dynamic id, not the static machine_1
+      const commands = interpreter.interpret(
+        'machines.setMachineSpeed(0, 6)',
+      )
+
+      // THEN
+      expect(commands).toHaveLength(1)
+      expect(commands[0].type).toBe('SET_MACHINE_SPEED')
+      expect((commands[0] as any).machineId).toBe('machine_42')
+      expect((commands[0] as any).speed).toBe(6)
+    })
   })
 
   // === setBeltList =======================================================

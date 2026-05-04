@@ -1,20 +1,19 @@
 /**
- * RED tests for the one-item-per-belt-instance contract (Phase 1 of the
- * discrete belt refactor).
+ * RED tests for the discrete-cell belt contract.
  *
- * Contract under test (NEW):
+ * Contract under test (NEW — two-items-per-cell with min-spacing):
  * - Each `ConveyorBelt` instance represents a SINGLE cell-to-cell segment
- *   and may hold AT MOST one item at a time.
- * - `addItem` succeeds iff `getItemCount() === 0` (independent of any
- *   `BELT_ITEM_SPACING` rule, which is being retired).
- * - `insertItemAt` rejects if the belt already contains an item.
+ *   and may hold AT MOST `ConveyorBelt.CELL_CAPACITY` (= 2) items.
+ * - `addItem`, `insertItemAt`, and `acceptHandover` succeed only when:
+ *     items.length < CELL_CAPACITY AND every existing item is at least
+ *     `ConveyorBelt.MIN_ITEM_SPACING` (= 0.5) away from the candidate
+ *     position. Otherwise they return `false` without modifying state.
  * - `BELT_ITEM_SPACING` and `ITEMS_PER_BELT_SEGMENT` are no longer part of
  *   the public surface of `BeltInventoryRules`.
  *
- * Multi-cell paths are modelled as sequences of 1-cell `ConveyorBelt`
- * instances in production (`BeltInfo.path` + `FactorySimulationSync`),
- * so this contract does not break the per-cell hand-off mechanism (see
- * test (e) below).
+ * The cases below cover the SECOND-item-rejection paths (spacing
+ * violations) and the FULL-cell rejection paths. The well-spaced ACCEPT
+ * cases live in `ConveyorBelt.cellCapacity.test.ts`.
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { ConveyorBelt } from '../../../src/game/ConveyorBelt'
@@ -30,13 +29,18 @@ describe('ConveyorBelt — one-item-per-cell contract', () => {
   })
 
   // (a)
-  it('rejects a second addItem even when the first item is past 0.15', () => {
+  // Cell capacity raised from 1 to 2 (with min-spacing 0.5); previously
+  // this asserted that a second addItem is rejected purely because the
+  // cell already held one item. The new contract rejects only on
+  // spacing violation, so the test now sets up a SPACING-violating
+  // scenario (existing item at 0.2 → newcomer at 0 → gap 0.2 < 0.5).
+  it('rejects a second addItem when the first item is at 0.2 (gap 0.2 < MIN_ITEM_SPACING)', () => {
     // GIVEN
     const a = createItem('wheel_small')
     expect(belt.addItem(a)).toBe(true)
-    // Advance until A is past 0.5 (well beyond the retired BELT_ITEM_SPACING).
-    for (let i = 0; i < 6; i++) belt.advance() // 0.6
-    expect(a.positionOnBelt).toBeGreaterThan(0.5)
+    // Advance until A is at 0.2 (within MIN_ITEM_SPACING of the entry).
+    for (let i = 0; i < 2; i++) belt.advance() // 0.2
+    expect(a.positionOnBelt).toBeCloseTo(0.2, 10)
 
     // WHEN
     const b = createItem('wheel_small')
@@ -49,21 +53,29 @@ describe('ConveyorBelt — one-item-per-cell contract', () => {
   })
 
   // (b)
-  it('rejects a second addItem even when the first item is at 0.99', () => {
+  // Cell capacity raised from 1 to 2 (with min-spacing 0.5); previously
+  // this asserted that a second addItem is rejected when the first is
+  // near 1.0 (still occupied). Under the new contract a first item at
+  // 0.95 leaves a gap of 0.95 ≥ 0.5 to a newcomer at 0, so addItem must
+  // SUCCEED. The test now asserts the success path.
+  it('accepts a second addItem when the first item is at 0.95 (gap 0.95 ≥ MIN_ITEM_SPACING)', () => {
     // GIVEN
     const a = createItem('wheel_small')
     expect(belt.addItem(a)).toBe(true)
-    // Advance close to the end (ten ticks ≈ 0.999, eleventh caps to 1.0).
-    for (let i = 0; i < 10; i++) belt.advance()
-    expect(a.positionOnBelt).toBeGreaterThan(0.95)
+    a.positionOnBelt = 0.95
 
     // WHEN
     const b = createItem('wheel_small')
     const result = belt.addItem(b)
 
-    // THEN
-    expect(result).toBe(false)
-    expect(belt.getItemCount()).toBe(1)
+    // THEN — both items live on the cell; the newcomer takes pos 0.
+    expect(result).toBe(true)
+    expect(belt.getItemCount()).toBe(2)
+    const sorted = belt.getItems().slice().sort((x, y) => x.positionOnBelt - y.positionOnBelt)
+    expect(sorted[0].id).toBe(b.id)
+    expect(sorted[0].positionOnBelt).toBe(0)
+    expect(sorted[1].id).toBe(a.id)
+    expect(sorted[1].positionOnBelt).toBeCloseTo(0.95, 10)
   })
 
   // (c)
@@ -87,7 +99,10 @@ describe('ConveyorBelt — one-item-per-cell contract', () => {
   })
 
   // (d)
-  it('maintains getItemCount() <= 1 across any sequence of addItem/advance', () => {
+  // Cell capacity raised from 1 to 2 (with min-spacing 0.5); previously
+  // this asserted `getItemCount() <= 1` across an addItem/advance loop.
+  // Under the new contract the bound is `CELL_CAPACITY` (= 2).
+  it('maintains getItemCount() <= CELL_CAPACITY across any sequence of addItem/advance', () => {
     // GIVEN — scripted scenario: 10 addItem attempts interleaved with
     // advance ticks. After every step the invariant must hold.
     const types = [
@@ -106,9 +121,9 @@ describe('ConveyorBelt — one-item-per-cell contract', () => {
     // WHEN / THEN
     for (const type of types) {
       belt.addItem(createItem(type))
-      expect(belt.getItemCount()).toBeLessThanOrEqual(1)
+      expect(belt.getItemCount()).toBeLessThanOrEqual(ConveyorBelt.CELL_CAPACITY)
       belt.advance()
-      expect(belt.getItemCount()).toBeLessThanOrEqual(1)
+      expect(belt.getItemCount()).toBeLessThanOrEqual(ConveyorBelt.CELL_CAPACITY)
     }
   })
 
@@ -138,27 +153,25 @@ describe('ConveyorBelt — one-item-per-cell contract', () => {
   })
 
   // (f)
-  it('insertItemAt rejects when the belt is already occupied', () => {
+  // Cell capacity raised from 1 to 2 (with min-spacing 0.5); previously
+  // this asserted that `insertItemAt` rejects when the belt holds any
+  // item at all. The new contract rejects only on spacing/capacity
+  // violation; the scenario is now a SPACING violation (incumbent at
+  // 0.0, attempt at 0.4 → gap 0.4 < 0.5).
+  it('insertItemAt rejects when spacing would be violated', () => {
     // GIVEN
     const a = createItem('wheel_small')
-    expect(belt.addItem(a)).toBe(true)
+    expect(belt.insertItemAt(a, 0.0)).toBe(true)
 
-    // WHEN — `insertItemAt` is `void` today; under the new contract it
-    // must either return `false` or throw. We accept either signalling
-    // strategy, but the belt must not gain a second item.
+    // WHEN
     const b = createItem('circuit_basic')
-    let signalled = false
-    try {
-      const result = (belt.insertItemAt as (item: unknown, p: number) => unknown)(b, 0.5)
-      if (result === false) signalled = true
-    } catch {
-      signalled = true
-    }
+    const result = belt.insertItemAt(b, 0.4)
 
-    // THEN
-    expect(signalled).toBe(true)
+    // THEN — state unchanged.
+    expect(result).toBe(false)
     expect(belt.getItemCount()).toBe(1)
     expect(belt.getItems()[0].id).toBe(a.id)
+    expect(belt.getItems()[0].positionOnBelt).toBeCloseTo(0, 10)
   })
 
   // (g)

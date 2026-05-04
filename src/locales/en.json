@@ -45,6 +45,8 @@
     "stop_machine_tooltip": "Stop the specified machine",
     "set_belt_speed": "set belt %1 speed to %2",
     "set_belt_speed_tooltip": "Set the speed of a conveyor belt",
+    "set_machine_speed": "set machine %1 speed to %2",
+    "set_machine_speed_tooltip": "Set how fast a machine produces (1 = baseline, 10 = ten times faster).",
     "category_loops": "Loops",
     "repeat_times": "repeat %1 times",
     "repeat_times_tooltip": "Repeat the enclosed actions a number of times",

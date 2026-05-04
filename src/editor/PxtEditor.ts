@@ -323,7 +323,7 @@ export class PxtEditor {
   private static readonly MACHINE_BLOCK_TYPES = [
     'factory_start_machine', 'factory_stop_machine',
     'factory_set_recipe', 'factory_on_machine_idle',
-    'factory_pick_machine',
+    'factory_pick_machine', 'factory_set_machine_speed',
   ]
 
   /** Belt block types that use the Belt enum dropdown. */

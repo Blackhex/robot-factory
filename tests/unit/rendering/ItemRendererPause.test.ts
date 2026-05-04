@@ -3,12 +3,27 @@
  *
  * Pause/render contract guard for ItemRenderer.
  *
- * When the caller signals pause via the explicit 5th argument
- * `paused = true` to `ItemRenderer.update(belts, gridW, gridH, dt,
- * paused)`, the renderer MUST NOT advance any item arc and MUST NOT snap
- * to simulator truth. It must HOLD the previously rendered `renderedArc`
- * / `beltKey` for items that already have prior render state. The `dt`
- * value passed alongside `paused = true` is ignored.
+ * The renderer's paused dispatch is two-stage:
+ *   - On the FIRST paused frame after a running frame (pause-entry),
+ *     the renderer HOLDS each item's previously rendered `renderedArc`
+ *     / `beltKey` so there is no visible jump on the click-to-pause
+ *     transition. This preserves the E2E invariant
+ *     `tests/e2e/SandboxSimulation.spec.ts > Pause should freeze
+ *      rendered belt items in place; Resume advances them again`.
+ *   - On every SUBSEQUENT paused frame (paused → paused continuation),
+ *     the renderer SNAPS each tracked item to sim truth on its current
+ *     belt. Sim truth doesn't change while paused, so the layout
+ *     settles to a stable, uniformly-spaced configuration ~16ms after
+ *     pause-entry and stays there until resume. This is the
+ *     `ItemRendererUniformFlow > pause preserves uniform spacing`
+ *     contract.
+ *
+ * The tests below assert STABILITY across subsequent paused frames
+ * (frame 1 and onward). Frame 0 is intentionally consumed as a warm-up
+ * before recording, because under the hold-then-snap contract its
+ * position equals the pre-pause extrapolated lead rather than truth and
+ * differs from frames 1+. The `dt` value passed alongside `paused =
+ * true` is ignored by both branches.
  *
  * When `paused` is `false` (default) the renderer behaves normally,
  * including the legacy `dt = 0` first-sight snap-to-truth resync path used
@@ -150,7 +165,12 @@ describe('ItemRenderer — pause contract (regression guards)', () => {
 
     // WHEN: 30 frames with paused=true and IDENTICAL belt state. A real
     // dt is passed to prove the pause signal — not dt=0 — is what
-    // causes the hold.
+    // causes the hold. The first paused frame is consumed as a warm-up
+    // (pause-entry holds the pre-pause extrapolated lead, which differs
+    // from sim truth); recording starts from the second paused frame
+    // onward, where the contract is snap-to-truth and the layout is
+    // stable.
+    renderer.update(segs, GRID_W, GRID_H, 0.016, true) // pause-entry warm-up
     const positions: { x: number; y: number; z: number }[] = []
     for (let i = 0; i < 30; i++) {
       renderer.update(segs, GRID_W, GRID_H, 0.016, true)
@@ -158,7 +178,7 @@ describe('ItemRenderer — pause contract (regression guards)', () => {
     }
 
     // THEN: every recorded position is exactly equal — no drift across
-    // 30 paused frames.
+    // 30 paused frames after pause-entry.
     for (let i = 0; i < positions.length; i++) {
       expect(
         positions[i].x,
@@ -194,7 +214,12 @@ describe('ItemRenderer — pause contract (regression guards)', () => {
     }
 
     // WHEN: 60 frames with paused=true and identical belt state. A real
-    // dt is passed to prove the pause signal causes the hold.
+    // dt is passed to prove the pause signal causes the hold. The first
+    // paused frame is consumed as a warm-up (pause-entry holds the
+    // pre-pause extrapolated lead, which differs from sim truth);
+    // recording starts from the second paused frame onward, where the
+    // contract is snap-to-truth and the layout is stable.
+    renderer.update(segs, GRID_W, GRID_H, 0.016, true) // pause-entry warm-up
     const positions: { x: number; y: number; z: number }[] = []
     for (let i = 0; i < 60; i++) {
       renderer.update(segs, GRID_W, GRID_H, 0.016, true)

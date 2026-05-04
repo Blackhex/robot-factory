@@ -76,6 +76,13 @@ export class SimulationCommandDispatcher {
         }
         break
       }
+      case 'SET_MACHINE_SPEED': {
+        const machine = this.deps.getMachine(command.machineId)
+        if (machine) {
+          machine.speed = command.speed
+        }
+        break
+      }
       case 'SET_QUALITY_THRESHOLD': {
         const machine = this.deps.getMachine(command.machineId)
         if (machine && machine.machineType === 'quality_checker') {

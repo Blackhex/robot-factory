@@ -163,6 +163,12 @@ export interface SetBeltSpeedCommand {
   readonly speed: number
 }
 
+export interface SetMachineSpeedCommand {
+  readonly type: 'SET_MACHINE_SPEED'
+  readonly machineId: string
+  readonly speed: number
+}
+
 export interface SetQualityThresholdCommand {
   readonly type: 'SET_QUALITY_THRESHOLD'
   readonly machineId: string
@@ -199,6 +205,7 @@ export type SimulationCommand =
   | StartMachineCommand
   | StopMachineCommand
   | SetBeltSpeedCommand
+  | SetMachineSpeedCommand
   | SetQualityThresholdCommand
   | SetSplitterConditionCommand
   | WaitCommand
@@ -207,6 +214,7 @@ export type SimulationEventType =
   | 'item_produced'
   | 'item_delivered'
   | 'output_delivered'
+  | 'item_discarded'
   | 'machine_state_changed'
   | 'order_complete'
   | 'belt_jam'

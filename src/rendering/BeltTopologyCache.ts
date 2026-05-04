@@ -14,7 +14,13 @@ export interface BeltLike {
   readonly toX: number
   readonly toZ: number
   readonly speed: number
-  getItems(): ReadonlyArray<{ id: string; type: ItemType; positionOnBelt: number }>
+  getItems(): ReadonlyArray<{
+    id: string
+    type: ItemType
+    positionOnBelt: number
+    /** Optional so legacy/synthetic test fixtures can omit it. */
+    isDefective?: boolean
+  }>
 }
 
 /**

@@ -1,14 +1,16 @@
 import type { Item } from './Item'
 import type { BeltInfo } from './types'
+import { ConveyorBelt } from './ConveyorBelt'
 
 /**
  * A single item captured from a removed belt during a live edit.
  *
- * The discrete one-item-per-cell contract identifies an item by
- * `(segmentIndex, positionOnCell)`.
+ * Under the per-cell capacity contract (up to two items per cell
+ * separated by `ConveyorBelt.MIN_ITEM_SPACING`) an item is identified
+ * by `(segmentIndex, positionOnCell)`.
  */
 export interface CapturedBeltItem {
-  /** Discrete segment index of the captured item on the OLD belt (0..oldSegCount-1). */
+  /** Segment index of the captured item on the OLD belt (0..oldSegCount-1). */
   segmentIndex: number
   /** Fractional progress on the captured cell, in `[0, 1)`. */
   positionOnCell: number
@@ -29,7 +31,9 @@ export interface RemovedBeltInventory {
 }
 
 /**
- * A planned placement on a destination belt under the discrete contract.
+ * A planned placement on a destination belt under the per-cell capacity
+ * contract (up to two items per cell separated by
+ * `ConveyorBelt.MIN_ITEM_SPACING`).
  */
 export interface BeltInventoryPlacement {
   beltId: string
@@ -124,23 +128,28 @@ function planExactSlotMigration(
   // Flow order: by oldSegmentIndex asc, tiebreak positionOnCell asc.
   resolved.sort((a, b) => a.oldSeg - b.oldSeg || a.oldPos - b.oldPos)
 
-  const occupied = new Set<number>()
+  const cellOccupants = new Map<number, number[]>()
+  const fits = (seg: number, pos: number): boolean =>
+    ConveyorBelt.canFitAt(cellOccupants.get(seg) ?? [], pos)
+
   for (const cap of resolved) {
     // Source-anchored projection: an item N cells from the source on the
-    // OLD chain stays N cells from the source on the NEW chain. The
-    // source machine is the chain anchor; topology changes never move an
-    // item visually unless its target cell is past the new chain end. This
-    // preserves tick-discrete spacing across machine moves: at any tick
-    // boundary all items have positionOnCell = (tick % cellTicks) /
-    // cellTicks, so source-anchored placement keeps the stream uniform.
-    const targetSeg = Math.max(0, cap.oldSeg)
-    let seg = targetSeg
-    while (seg < newSegCount && occupied.has(seg)) seg++
+    // OLD chain stays N cells from the source on the NEW chain at the
+    // same `oldPositionOnCell`. The source machine is the chain anchor;
+    // topology changes never move an item visually unless its target
+    // cell is past the new chain end. Under the two-items-per-cell
+    // contract, collisions on the same seg are resolved by walking
+    // forward to the next seg with room (preserving the existing
+    // source-anchored intent for capacity 1, generalized for capacity 2).
+    let seg = Math.max(0, cap.oldSeg)
+    while (seg < newSegCount && !fits(seg, cap.oldPos)) seg++
     if (seg >= newSegCount) {
       dropped.push({ item: cap.item, oldSegmentIndex: cap.oldSeg, reason: 'capacity' })
       continue
     }
-    occupied.add(seg)
+    const occList = cellOccupants.get(seg) ?? []
+    occList.push(cap.oldPos)
+    cellOccupants.set(seg, occList)
     placements.push({
       beltId: replacement.id,
       newSegmentIndex: seg,
@@ -168,12 +177,54 @@ function findExactSlotReplacement(
 }
 
 export function hasExactSlotIdentity(inventory: RemovedBeltInventory, belt: BeltInfo): boolean {
-  return isKnownSlot(inventory.sourceSlot) &&
-    isKnownSlot(inventory.destinationSlot) &&
-    isKnownSlot(belt.sourceSlot) &&
-    isKnownSlot(belt.destinationSlot) &&
-    belt.sourceSlot === inventory.sourceSlot &&
-    belt.destinationSlot === inventory.destinationSlot
+  const inventoryKey = beltEndpointKey(
+    inventory.sourceMachineId,
+    inventory.sourceSlot,
+    inventory.destinationMachineId,
+    inventory.destinationSlot,
+  )
+  const beltKey = beltEndpointKey(
+    belt.sourceMachine.id,
+    belt.sourceSlot,
+    belt.destinationMachine.id,
+    belt.destinationSlot,
+  )
+  return inventoryKey !== null && inventoryKey === beltKey
+}
+
+/**
+ * Stable identity of a belt connection across a live edit.
+ *
+ * Two belts represent the same logical connection iff they share the
+ * same `(sourceMachine.id, sourceSlot, destinationMachine.id,
+ * destinationSlot)` quadruple — the "endpoint quadruple". The literal
+ * `belt.id` is NOT stable: `FactoryBeltRegistry.nextBeltId()` mints a
+ * fresh `belt_${n}` on every reconnect.
+ *
+ * The string encoding uses `|` as a separator. Safety: slot values
+ * are a fixed string-union (`'front' | 'back' | 'left' | 'right'`)
+ * and machine ids are `machine_${n}` — neither can contain `|`.
+ *
+ * Used by:
+ *  - `BeltInventoryMigration.hasExactSlotIdentity` to decide whether
+ *    a removed belt's items should migrate to a recomputed belt.
+ *  - `FactorySimulationSync.removedBeltSpeeds` to key per-edit
+ *    speed-restoration maps.
+ *
+ * Returns `null` when either slot is missing or unknown — those
+ * belts cannot be matched as exact endpoints (matches the existing
+ * `isKnownSlot` guard).
+ */
+export function beltEndpointKey(
+  sourceMachineId: string,
+  sourceSlot: BeltInfo['sourceSlot'] | undefined | null,
+  destinationMachineId: string,
+  destinationSlot: BeltInfo['destinationSlot'] | undefined | null,
+): string | null {
+  if (!isKnownSlot(sourceSlot) || !isKnownSlot(destinationSlot)) {
+    return null
+  }
+  return `${sourceMachineId}|${sourceSlot}|${destinationMachineId}|${destinationSlot}`
 }
 
 function isKnownSlot(slot: BeltInfo['sourceSlot'] | undefined | null): slot is BeltInfo['sourceSlot'] {

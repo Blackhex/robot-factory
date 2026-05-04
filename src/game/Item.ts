@@ -5,6 +5,7 @@ export interface Item {
   readonly type: ItemType
   quality: number
   positionOnBelt: number
+  isDefective: boolean
   readonly components?: ReadonlyArray<Item>
 }
 
@@ -16,6 +17,7 @@ export function createItem(type: ItemType, quality = 80): Item {
     type,
     quality,
     positionOnBelt: 0,
+    isDefective: false,
   }
 }
 
@@ -34,6 +36,7 @@ export function createAssembly(
     type,
     quality: avgQuality,
     positionOnBelt: 0,
+    isDefective: false,
     components,
   }
 }

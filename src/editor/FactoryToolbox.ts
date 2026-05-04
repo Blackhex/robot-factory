@@ -33,6 +33,7 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
   if (level >= 2) {
     actionBlocks.push(
       block('factory_stop_machine'),
+      block('factory_set_machine_speed'),
       block('factory_set_belt_speed'),
     )
   }

@@ -57,6 +57,14 @@ describe('FactoryToolbox', () => {
       expect(types).not.toContain('factory_define_procedure')
       expect(types).not.toContain('factory_on_order_received')
     })
+
+    it('should NOT include factory_set_machine_speed (level-2+ action)', () => {
+      // WHEN
+      const types = getBlockTypes(getToolboxForLevel(1))
+
+      // THEN — set_machine_speed is paired with set_belt_speed and unlocks at level 2
+      expect(types).not.toContain('factory_set_machine_speed')
+    })
   })
 
   describe('level 2: extended actions', () => {
@@ -69,6 +77,14 @@ describe('FactoryToolbox', () => {
       expect(types).toContain('factory_set_belt_speed')
       // The routeTo block was removed from the codebase.
       expect(types).not.toContain('factory_route_to')
+    })
+
+    it('should include factory_set_machine_speed (paired with set_belt_speed)', () => {
+      // WHEN
+      const types = getBlockTypes(getToolboxForLevel(2))
+
+      // THEN
+      expect(types).toContain('factory_set_machine_speed')
     })
   })
 

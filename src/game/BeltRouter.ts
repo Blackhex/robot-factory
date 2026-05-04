@@ -1,5 +1,5 @@
 import type { GridPosition } from './types'
-import type { GridReader } from './Factory'
+import type { GridReader } from './GridReader'
 
 /** Check if a path has an L-shape turn at the first or last intermediate cell. */
 export function hasLShapeAtEndpoints(path: GridPosition[]): boolean {

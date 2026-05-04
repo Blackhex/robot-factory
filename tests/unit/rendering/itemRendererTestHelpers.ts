@@ -3,7 +3,10 @@
  */
 import { ItemRenderer } from '../../../src/rendering/ItemRenderer'
 import { ConveyorBelt } from '../../../src/game/ConveyorBelt'
+import { Simulation } from '../../../src/game/Simulation'
+import { Machine } from '../../../src/game/Machine'
 import { createItem } from '../../../src/game/Item'
+import { buildBeltPath } from '../../../src/rendering/BeltPath'
 import type { ItemType } from '../../../src/game/types'
 
 /* ------------------------------------------------------------------ */
@@ -36,6 +39,17 @@ export interface BeltChainHarness {
   belts: ConveyorBelt[]
   chainOffsets: number[]
   cellLengths: number[]
+}
+
+/**
+ * Chain harness backed by a real `Simulation` plus a terminal output
+ * machine. Used by both the stream-stability and uniform-flow suites
+ * (the former also uses a stub variant where `outputMachine` is a
+ * disabled recycler — that variant is built locally).
+ */
+export interface SinkChainHarness extends BeltChainHarness {
+  sim: Simulation
+  outputMachine: Machine
 }
 
 /* ------------------------------------------------------------------ */
@@ -90,4 +104,102 @@ export function injectItem(harness: BeltChainHarness): string | null {
   const item = createItem(ITEM_TYPE)
   if (!harness.belts[0].addItem(item)) return null
   return item.id
+}
+
+/**
+ * Build a real Simulation with a straight chain of `cellCount`
+ * ConveyorBelt segments laid along (0,0) → (cellCount,0) and a
+ * `factory_output` (always-accepts) sink at the chain end. Belt ids
+ * follow `<chainId>_seg<N>` so the renderer's `cacheBeltTopology`
+ * recognises the chain and populates prev/next/prevPrev links.
+ *
+ * Use this for tests that exercise normal flow without back-pressure.
+ * For back-pressure scenarios (full-machine stub), build the harness
+ * locally — those need a different output-machine configuration.
+ */
+export function buildSinkChainHarness(
+  chainId: string,
+  cellCount: number,
+  speed: number = SPEED,
+): SinkChainHarness {
+  const sim = new Simulation()
+  const belts: ConveyorBelt[] = []
+  for (let i = 0; i < cellCount; i++) {
+    const belt = new ConveyorBelt(
+      `${chainId}_seg${i}`,
+      i,
+      0,
+      i + 1,
+      0,
+      speed,
+    )
+    sim.addBelt(belt)
+    belts.push(belt)
+  }
+  // Always-accepts sink: deliveries succeed every tick, so back-pressure
+  // never builds — items stream through at full belt speed indefinitely.
+  const outputMachine = new Machine('output', 'factory_output')
+  sim.addMachine(outputMachine)
+  sim.setMachinePosition(outputMachine.id, cellCount, 0)
+
+  // Per-cell arc length matching the renderer's path builder.
+  const cellLengths: number[] = []
+  for (let i = 0; i < belts.length; i++) {
+    const b = belts[i]
+    const prev = i > 0
+      ? { x: belts[i - 1].fromX, z: belts[i - 1].fromZ }
+      : undefined
+    const path = buildBeltPath(
+      { x: b.fromX, z: b.fromZ },
+      { x: b.toX, z: b.toZ },
+      prev,
+      HALF_W,
+      HALF_H,
+    )
+    cellLengths.push(path.length)
+  }
+  const chainOffsets: number[] = []
+  let acc = 0
+  for (const L of cellLengths) {
+    chainOffsets.push(acc)
+    acc += L
+  }
+  return { sim, belts, outputMachine, cellLengths, chainOffsets }
+}
+
+/**
+ * Run the sim+render loop for `totalTicks` sim ticks. Every
+ * `cadenceTicks` ticks (starting at tick 0) injects one item onto
+ * belt 0 of the chain. Renders FRAMES_PER_TICK frames between each
+ * tick. Calls `onFrame(frameIdx)` after each render update.
+ */
+export function runChainStream(
+  renderer: ItemRenderer,
+  harness: SinkChainHarness,
+  totalTicks: number,
+  cadenceTicks: number,
+  onFrame: (frameIdx: number) => void,
+): void {
+  renderer.cacheBeltTopology(harness.sim.getBelts())
+  // Seed (dt = 0) so first sight of any item snaps to truth.
+  renderer.update(
+    renderer.buildRenderData(harness.sim.getBelts()),
+    GRID_W,
+    GRID_H,
+    0,
+  )
+  let frameIdx = 0
+  for (let t = 0; t < totalTicks; t++) {
+    if (t % cadenceTicks === 0) injectItem(harness)
+    harness.sim.tick()
+    for (let f = 0; f < FRAMES_PER_TICK; f++) {
+      renderer.update(
+        renderer.buildRenderData(harness.sim.getBelts()),
+        GRID_W,
+        GRID_H,
+        RENDER_DT,
+      )
+      onFrame(frameIdx++)
+    }
+  }
 }

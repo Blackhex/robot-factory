@@ -45,6 +45,8 @@
     "stop_machine_tooltip": "Zastaví zadaný stroj",
     "set_belt_speed": "nastavit rychlost pásu %1 na %2",
     "set_belt_speed_tooltip": "Nastaví rychlost dopravního pásu",
+    "set_machine_speed": "nastavit rychlost stroje %1 na %2",
+    "set_machine_speed_tooltip": "Nastaví, jak rychle stroj vyrábí (1 = základní, 10 = desetkrát rychleji).",
     "category_loops": "Smyčky",
     "repeat_times": "opakuj %1 krát",
     "repeat_times_tooltip": "Opakuje vložené akce zadaný počet krát",

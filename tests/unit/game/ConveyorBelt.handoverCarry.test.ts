@@ -115,4 +115,61 @@ describe('ConveyorBelt — handover overshoot-carry contract', () => {
       expect(item.positionOnBelt).toBe(1)
     })
   })
+
+  // Two-items-per-cell handover spacing — the cell now holds up to 2
+  // items provided every pair satisfies |posA − posB| ≥ MIN_ITEM_SPACING
+  // (= 0.5). These extend (not replace) the existing handover assertions
+  // above; the existing tests probe the orthogonal "overshoot is preserved
+  // by advance, NOT clamped" contract.
+  describe('acceptHandover with an existing item already on the cell', () => {
+    it('accepts a handover when the existing item leaves a gap ≥ MIN_ITEM_SPACING', () => {
+      // GIVEN — incumbent at 0.6, newcomer overshoot 0.05 → gap 0.55 ≥ 0.5.
+      const incumbent = createItem('wheel_small')
+      expect(belt.insertItemAt(incumbent, 0.6)).toBe(true)
+
+      // WHEN
+      const newcomer = createItem('circuit_basic')
+      const ok = belt.acceptHandover(newcomer, 0.05)
+
+      // THEN — both items live on the cell, sorted by position.
+      expect(ok).toBe(true)
+      expect(belt.getItemCount()).toBe(2)
+      const sorted = belt
+        .getItems()
+        .slice()
+        .sort((a, b) => a.positionOnBelt - b.positionOnBelt)
+      expect(sorted[0].id).toBe(newcomer.id)
+      expect(sorted[0].positionOnBelt).toBeCloseTo(0.05, 10)
+      expect(sorted[1].id).toBe(incumbent.id)
+      expect(sorted[1].positionOnBelt).toBeCloseTo(0.6, 10)
+    })
+
+    it('rejects a handover when spacing would be violated and leaves the upstream item parked', () => {
+      // GIVEN — incumbent at 0.4 on the downstream cell; upstream item parked
+      // at the end of an upstream cell (waiting for handover).
+      const incumbent = createItem('wheel_small')
+      expect(belt.insertItemAt(incumbent, 0.4)).toBe(true)
+
+      const upstream = new ConveyorBelt('upstream', -1, 0, 0, 0, 1.0)
+      const parked = createItem('circuit_basic')
+      expect(upstream.insertItemAt(parked, 1.0)).toBe(true)
+
+      // WHEN — try to hand parked over to `belt` with overshoot 0.05.
+      // Gap to incumbent = 0.4 − 0.05 = 0.35 < 0.5 → REJECT.
+      const ok = belt.acceptHandover(parked, 0.05)
+
+      // THEN — downstream unchanged; upstream item stays exactly where it was.
+      expect(ok).toBe(false)
+      expect(belt.getItemCount()).toBe(1)
+      expect(belt.getItems()[0].id).toBe(incumbent.id)
+      expect(belt.getItems()[0].positionOnBelt).toBeCloseTo(0.4, 10)
+
+      // Caller's invariant: on a `false` return the upstream item must
+      // remain on the upstream belt — `acceptHandover` does NOT remove it
+      // and the caller (Simulation.deliverItems) checks the return.
+      expect(upstream.getItemCount()).toBe(1)
+      expect(upstream.getItems()[0].id).toBe(parked.id)
+      expect(parked.positionOnBelt).toBeCloseTo(1.0, 10)
+    })
+  })
 })

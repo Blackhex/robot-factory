@@ -48,9 +48,11 @@ export class Simulation {
   private readonly commandDispatcher: SimulationCommandDispatcher
   private readonly queueRunner: CommandQueueRunner
   private readonly deliveryEngine: ItemDeliveryEngine
+  private readonly rng: () => number
 
-  constructor(tickRate = DEFAULT_TICK_RATE) {
+  constructor(tickRate = DEFAULT_TICK_RATE, rng: () => number = Math.random) {
     this.tickRate = tickRate
+    this.rng = rng
     this.commandDispatcher = new SimulationCommandDispatcher({
       getMachine: (id) => this.machines.get(id),
       getBelt: (id) => this.belts.get(id),
@@ -185,6 +187,7 @@ export class Simulation {
     this.itemsDelivered += result.itemsDelivered
     this.outputsDelivered += result.outputsDelivered
     this.robotsProduced += result.robotsProduced
+    this.defects += result.defectsDiscarded
     if (result.newGameOver !== null && this._gameOver === null) {
       this._gameOver = result.newGameOver
       this._paused = true
@@ -199,7 +202,7 @@ export class Simulation {
       const prevState = machine.state
       const prevOutput = machine.outputSlot
       const prevSecondary = machine.secondaryOutputSlot
-      machine.tick()
+      machine.tick(this.rng)
       if (machine.state !== prevState) {
         this.emit('machine_state_changed', {
           machineId: machine.id,
@@ -217,7 +220,11 @@ export class Simulation {
       }
       if (machine.secondaryOutputSlot && machine.secondaryOutputSlot !== prevSecondary) {
         this.itemsProduced++
-        if (machine.machineType === 'quality_checker') {
+        if (
+          machine.machineType === 'quality_checker' &&
+          !machine.secondaryOutputSlot.isDefective
+        ) {
+          // Defective items are counted once at the factory boundary (Shipper discard); skip here to avoid double-counting.
           this.defects++
         }
         this.emit('item_produced', {
