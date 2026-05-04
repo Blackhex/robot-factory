@@ -131,6 +131,46 @@ function patchEventBlocks(byQName) {
   }
 }
 
+// Inject `loops.wait` block metadata if missing. The script's normal
+// behavior is to copy the updated factory.ts source verbatim into each
+// artifact, but the compiled `apiInfo.byQName` map is NOT regenerated
+// from that source — it must be patched directly. This helper mirrors
+// the structural shape of `loops.repeatTimes` (a simple loops block
+// with one numeric parameter and explicit min/max bounds), but omits
+// `handlerStatement` because the wait blocks are leaf statements, not
+// wrappers. Used by both `loops.wait` and `loops.waitTicks`.
+// Idempotent: returns early if the entry already exists.
+function addSimpleNumericLoopsBlock(byQName, spec) {
+  if (!byQName || byQName[spec.qName]) return;
+  byQName[spec.qName] = {
+    kind: -3,
+    attributes: {
+      paramDefl: { [spec.paramName]: String(spec.defl) },
+      block: `${spec.labelPrefix} %${spec.paramName} ${spec.labelSuffix}`,
+      blockId: spec.blockId,
+      weight: spec.weight,
+      explicitDefaults: [spec.paramName],
+      paramMin: { [spec.paramName]: String(spec.min) },
+      paramMax: { [spec.paramName]: String(spec.max) },
+      _def: {
+        parts: [
+          { kind: 'label', text: `${spec.labelPrefix} `, style: [] },
+          { kind: 'param', name: spec.paramName, ref: false },
+          { kind: 'label', text: ` ${spec.labelSuffix}`, style: [] },
+        ],
+        parameters: [{ kind: 'param', name: spec.paramName, ref: false }],
+      },
+    },
+    parameters: [{
+      name: spec.paramName,
+      initializer: String(spec.defl),
+      default: String(spec.defl),
+      options: { min: { value: String(spec.min) }, max: { value: String(spec.max) } },
+    }],
+    pyQName: spec.pyQName,
+  };
+}
+
 // Files to update
 const files = [
   'pxt-target/built/target.json',
@@ -165,6 +205,16 @@ for (const f of files) {
     patchPickMachineLabel(byQName);
     overrideNamespaceWeights(byQName);
     patchEventBlocks(byQName);
+    addSimpleNumericLoopsBlock(byQName, {
+      qName: 'loops.wait', blockId: 'factory_wait', paramName: 'ms',
+      labelPrefix: 'wait', labelSuffix: 'ms',
+      defl: 1000, min: 0, max: 60000, weight: 95, pyQName: 'loops.wait',
+    });
+    addSimpleNumericLoopsBlock(byQName, {
+      qName: 'loops.waitTicks', blockId: 'factory_wait_ticks', paramName: 'ticks',
+      labelPrefix: 'wait', labelSuffix: 'ticks',
+      defl: 10, min: 0, max: 600, weight: 92, pyQName: 'loops.wait_ticks',
+    });
   }
 
   stripVariablesNs(json);
@@ -211,6 +261,16 @@ for (const f of jsFiles) {
     patchPickMachineLabel(byQName2);
     overrideNamespaceWeights(byQName2);
     patchEventBlocks(byQName2);
+    addSimpleNumericLoopsBlock(byQName2, {
+      qName: 'loops.wait', blockId: 'factory_wait', paramName: 'ms',
+      labelPrefix: 'wait', labelSuffix: 'ms',
+      defl: 1000, min: 0, max: 60000, weight: 95, pyQName: 'loops.wait',
+    });
+    addSimpleNumericLoopsBlock(byQName2, {
+      qName: 'loops.waitTicks', blockId: 'factory_wait_ticks', paramName: 'ticks',
+      labelPrefix: 'wait', labelSuffix: 'ticks',
+      defl: 10, min: 0, max: 600, weight: 92, pyQName: 'loops.wait_ticks',
+    });
   }
 
   stripVariablesNs(json);

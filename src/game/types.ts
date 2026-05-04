@@ -183,6 +183,17 @@ export interface SetSplitterConditionCommand {
   readonly condition: SplitterCondition
 }
 
+/**
+ * Queue-level control command that pauses dispatch of subsequent
+ * commands for the requested number of ticks. `WAIT` is consumed by
+ * `Simulation.processCommands()` and is NEVER passed to the
+ * `SimulationCommandDispatcher` — it has no side-effecting semantics.
+ */
+export interface WaitCommand {
+  readonly type: 'WAIT'
+  readonly ticks: number
+}
+
 export type SimulationCommand =
   | SetRecipeCommand
   | StartMachineCommand
@@ -190,6 +201,7 @@ export type SimulationCommand =
   | SetBeltSpeedCommand
   | SetQualityThresholdCommand
   | SetSplitterConditionCommand
+  | WaitCommand
 
 export type SimulationEventType =
   | 'item_produced'

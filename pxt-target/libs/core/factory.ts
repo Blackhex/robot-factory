@@ -70,6 +70,18 @@ namespace loops {
     //% handlerStatement=1
     export function repeatTimes(count: number, body: () => void): void { }
 
+    //% block="wait %ms ms"
+    //% blockId=factory_wait
+    //% weight=95
+    //% ms.defl=1000 ms.min=0 ms.max=60000
+    export function wait(ms: number): void { }
+
+    //% block="wait %ticks ticks"
+    //% blockId=factory_wait_ticks
+    //% weight=92
+    //% ticks.defl=10 ticks.min=0 ticks.max=600
+    export function waitTicks(ticks: number): void { }
+
     //% block="while %condition"
     //% blockId=factory_while_condition
     //% weight=90

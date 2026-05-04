@@ -8,6 +8,7 @@ import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
 import { ItemDeliveryEngine } from './ItemDeliveryEngine.ts'
 import { SimulationCommandDispatcher } from './SimulationCommandDispatcher.ts'
+import { CommandQueueRunner } from './CommandQueueRunner.ts'
 
 type SimEventHandler = (event: SimulationEvent) => void
 
@@ -25,12 +26,10 @@ export class Simulation {
   private machines: Map<string, Machine> = new Map()
   private belts: Map<string, ConveyorBelt> = new Map()
   private handlers: Map<SimulationEventType, SimEventHandler[]> = new Map()
-  private commandQueue: SimulationCommand[] = []
   private intervalId: ReturnType<typeof setInterval> | null = null
   private _running = false
   private _paused = false
   private _gameOver: GameOverInfo | null = null
-
   currentTick = 0
   readonly tickRate: number
 
@@ -47,6 +46,7 @@ export class Simulation {
   private secondaryOutputBelts: Map<string, string> = new Map()
 
   private readonly commandDispatcher: SimulationCommandDispatcher
+  private readonly queueRunner: CommandQueueRunner
   private readonly deliveryEngine: ItemDeliveryEngine
 
   constructor(tickRate = DEFAULT_TICK_RATE) {
@@ -56,6 +56,7 @@ export class Simulation {
       getBelt: (id) => this.belts.get(id),
       getBelts: () => this.belts,
     })
+    this.queueRunner = new CommandQueueRunner(this.commandDispatcher)
     this.deliveryEngine = new ItemDeliveryEngine({
       getBelts: () => this.belts,
       findMachineAt: (x, z) => this.findMachineAt(x, z),
@@ -110,11 +111,11 @@ export class Simulation {
   // --- Command queue ---
 
   enqueueCommand(command: SimulationCommand): void {
-    this.commandQueue.push(command)
+    this.queueRunner.enqueue(command)
   }
 
   enqueueCommands(commands: SimulationCommand[]): void {
-    this.commandQueue.push(...commands)
+    this.queueRunner.enqueueAll(commands)
   }
 
   // --- Simulation control ---
@@ -133,6 +134,7 @@ export class Simulation {
   stop(): void {
     this._running = false
     this._paused = false
+    this.queueRunner.clear()
     if (this.intervalId !== null) {
       clearInterval(this.intervalId)
       this.intervalId = null
@@ -164,7 +166,7 @@ export class Simulation {
 
   tick(): void {
     if (this._gameOver !== null) return
-    this.processCommands()
+    this.queueRunner.tick()
     this.updateMachines()
     this.advanceBelts()
     this.runDelivery()
@@ -174,18 +176,10 @@ export class Simulation {
     this.currentTick++
   }
 
-  private processCommands(): void {
-    const commands = this.commandQueue.splice(0)
-    for (const command of commands) {
-      this.commandDispatcher.execute(command)
-    }
-  }
-
-  /** Shim — delegates to `SimulationCommandDispatcher`. */
+  /** Shim — delegates to `SimulationCommandDispatcher`. WAIT commands are silently filtered (queue-level control, never dispatched). */
   executeCommand(command: SimulationCommand): void {
-    this.commandDispatcher.execute(command)
+    if (command.type !== 'WAIT') this.commandDispatcher.execute(command)
   }
-
   private runDelivery(): void {
     const result = this.deliveryEngine.deliver(this.currentTick, this._gameOver)
     this.itemsDelivered += result.itemsDelivered
@@ -355,7 +349,7 @@ export class Simulation {
     for (const machine of this.machines.values()) {
       machine.clearRuntimeState()
     }
-    this.commandQueue.length = 0
+    this.queueRunner.clear()
     this.currentTick = 0
     this.itemsProduced = 0
     this.itemsDelivered = 0

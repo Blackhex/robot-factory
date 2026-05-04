@@ -2,6 +2,13 @@ import type { SimulationCommand } from '../game/types'
 
 const MAX_OPERATIONS = 10_000
 
+// Simulation tick rate in Hz. Must stay in sync with `DEFAULT_TICK_RATE`
+// in src/game/Simulation.ts. Duplicated locally (rather than imported)
+// to keep the editor layer free of game-runtime imports per the
+// architectural rule that src/editor/ does not depend on simulation
+// internals beyond the shared command/type contracts.
+const SIM_TICK_RATE_HZ = 10
+
 // --- Canonical enum tables (single source of truth) ----------------------
 //
 // Each table is the ONLY place to add/remove members. The maps and arrays
@@ -184,6 +191,23 @@ export class BlockInterpreter {
         body()
         if (this.opCount === before && this.guardOverflow()) return
       }
+    },
+    wait: (ms: unknown) => {
+      if (this.guardOverflow()) return
+      const msNum = Number(ms)
+      // Defensive: NaN / undefined / negative input → 0 ticks (no-op wait).
+      const safeMs = Number.isFinite(msNum) && msNum > 0 ? msNum : 0
+      // Ceil rounding so any positive ms produces at least one tick of delay.
+      const ticks = safeMs === 0 ? 0 : Math.ceil(safeMs * SIM_TICK_RATE_HZ / 1000)
+      this.commands.push({ type: 'WAIT', ticks })
+    },
+    waitTicks: (ticks: unknown) => {
+      if (this.guardOverflow()) return
+      const n = Number(ticks)
+      // Defensive: NaN / undefined / negative input → 0 ticks (no-op wait).
+      // Non-integer positive input is floored — ticks are integral by contract.
+      const safeTicks = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
+      this.commands.push({ type: 'WAIT', ticks: safeTicks })
     },
   }
 

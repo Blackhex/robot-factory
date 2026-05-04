@@ -543,3 +543,224 @@ test.describe('Sandbox — Explicit machine start contract', () => {
     }).toPass({ timeout: 30000, intervals: [250] })
   })
 })
+
+// ----------------------------------------------------------------------------
+// Wait block contract
+// ----------------------------------------------------------------------------
+//
+// Pins behavior of a new `loops.wait(ms)` PXT block / interpreter handler:
+//
+//   * The wait pauses ONLY the command queue — it must delay any subsequent
+//     command (e.g. stopMachine) by `ms` milliseconds (interpreter converts
+//     to ticks at 10 ticks/sec, ceil rounding).
+//   * Machines that are already enabled MUST keep ticking during the wait.
+//
+// All three tests are expected to FAIL today because:
+//   - `loops.wait` is not defined on the namespace object passed to
+//     `new Function(...)` inside BlockInterpreter, so the program throws at
+//     the wait call.
+//   - The interpreter swallows the throw, which silently skips every command
+//     issued AFTER the wait (including the stopMachine in the wait+stop
+//     scenario). That means today the Fabricator is NEVER stopped → deliveries
+//     keep growing across the whole run, breaking the "count is frozen after
+//     wait expires" assertions.
+// ----------------------------------------------------------------------------
+
+test.describe('Sandbox — wait block', () => {
+  test('wait(2000) pauses a subsequent stopMachine until 2s have elapsed', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
+  }) => {
+    test.setTimeout(120000)
+
+    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+
+    // setRecipe + startMachine fire immediately (tick 0).
+    // wait(2000) blocks the command queue for ~2s.
+    // stopMachine fires AFTER the wait expires (~tick 20).
+    const waitThenStopProgram =
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+      'machines.startMachine(Machine.A)\n' +
+      'loops.wait(2000)\n' +
+      'machines.stopMachine(Machine.A)'
+
+    await probe.resetOutputDeliveryRecording()
+    await probe.startOutputDeliveryRecording()
+
+    await setProgramAndStart(toolbar, editorPanel, waitThenStopProgram)
+
+    await expect.poll(() => probe.isRunning(), { timeout: 5000 }).toBe(true)
+
+    // Sanity: the machine started immediately (tick 0), so it MUST have
+    // produced at least one delivery within a generous window. We poll
+    // rather than time-pin because belt traversal time depends on belt
+    // length and speed.
+    await expect(async () => {
+      const deliveries = await probe.readOutputDeliveries()
+      expect(deliveries.length).toBeGreaterThan(0)
+    }).toPass({ timeout: 15000, intervals: [250] })
+
+    // ~5s after sim start: wait should have expired at ~2s, stopMachine
+    // should have fired, and any in-flight items at that point have had
+    // ~3s to drain to the Shipper. Record the "frozen" delivery count.
+    await probe.settle(5000)
+    const postStopDeliveries = (await probe.readOutputDeliveries()).length
+    expect(
+      postStopDeliveries,
+      'Machine produced for ~2s before stop; some deliveries must have arrived by 5s',
+    ).toBeGreaterThan(0)
+
+    // 5 more seconds. Because the machine is stopped, NO additional
+    // deliveries may occur in this window. This is the contract that
+    // pins `loops.wait` — the stopMachine command was queued AFTER the
+    // wait and must have fired.
+    await probe.settle(5000)
+    const finalDeliveries = (await probe.readOutputDeliveries()).length
+    expect(
+      finalDeliveries,
+      'After stopMachine fires (post-wait), no further deliveries may be recorded',
+    ).toBe(postStopDeliveries)
+  })
+
+  test('wait does not block already-running machines (Fabricator keeps producing during wait)', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
+  }) => {
+    test.setTimeout(90000)
+
+    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+
+    // Same wait+stop program — but here we sample DURING the 2s wait window
+    // to prove the simulation keeps ticking (the wait only gates the command
+    // queue, not the simulation itself).
+    const waitThenStopProgram =
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+      'machines.startMachine(Machine.A)\n' +
+      'loops.wait(2000)\n' +
+      'machines.stopMachine(Machine.A)'
+
+    await probe.resetOutputDeliveryRecording()
+    await probe.startOutputDeliveryRecording()
+
+    await setProgramAndStart(toolbar, editorPanel, waitThenStopProgram)
+
+    await expect.poll(() => probe.isRunning(), { timeout: 5000 }).toBe(true)
+
+    // Sample 1: ~0.5s into the wait window.
+    await probe.settle(500)
+    const snapEarly = await probe.readSnapshot()
+    const earlyOnBelt = snapEarly.itemsOnBelts
+    const earlyConsumed = snapEarly.machineStates.reduce(
+      (sum, m) => sum + (m.consumedItems ?? 0), 0,
+    )
+
+    // Sample 2: ~1.5s into the wait window (still BEFORE the wait expires
+    // and the stopMachine fires).
+    await probe.settle(1000)
+    const snapMid = await probe.readSnapshot()
+    const midOnBelt = snapMid.itemsOnBelts
+    const midConsumed = snapMid.machineStates.reduce(
+      (sum, m) => sum + (m.consumedItems ?? 0), 0,
+    )
+
+    // The simulation must have advanced between the two samples — either new
+    // items were placed on the belt OR the Fabricator consumed input. (We
+    // accept either signal because in a steady-state pipeline the belt may
+    // already be full at sample 1, and the only observable progress is on
+    // the consumed-input counter.)
+    const beltGrew = midOnBelt > earlyOnBelt
+    const consumedGrew = midConsumed > earlyConsumed
+    expect(
+      beltGrew || consumedGrew,
+      `Simulation must keep ticking during loops.wait — itemsOnBelts ${earlyOnBelt}->${midOnBelt}, consumed ${earlyConsumed}->${midConsumed}`,
+    ).toBe(true)
+  })
+
+  test('positive control: same setup WITHOUT wait+stop produces noticeably more deliveries over 7s', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
+  }) => {
+    test.setTimeout(90000)
+
+    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+
+    // Plain setRecipe + startMachine — Fabricator runs uninterrupted.
+    const recipeAndStartProgram =
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+      'machines.startMachine(Machine.A)'
+
+    await probe.resetOutputDeliveryRecording()
+    await probe.startOutputDeliveryRecording()
+
+    await setProgramAndStart(toolbar, editorPanel, recipeAndStartProgram)
+
+    await expect.poll(() => probe.isRunning(), { timeout: 5000 }).toBe(true)
+
+    // Run for 7s, mirroring the wait+stop scenario's observation window.
+    await probe.settle(7000)
+
+    const deliveries = (await probe.readOutputDeliveries()).length
+
+    // The wait+stop variant freezes deliveries at whatever was in-flight
+    // when stopMachine fired (~2s of production). Without the stop, the
+    // Fabricator runs the full 7s — that must produce strictly MORE
+    // deliveries. We assert a threshold (>= 4) that's comfortably higher
+    // than what 2s of production yields, but the contract is "noticeably
+    // more"; tune as needed once production code lands.
+    expect(
+      deliveries,
+      'Without wait+stop, the Fabricator runs the full 7s and must deliver more items than the wait+stop scenario',
+    ).toBeGreaterThanOrEqual(4)
+  })
+
+  test('waitTicks(20) pauses a subsequent stopMachine until ~2s have elapsed', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
+  }) => {
+    test.setTimeout(120000)
+
+    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+
+    // setRecipe + startMachine fire immediately (tick 0).
+    // waitTicks(20) blocks the command queue for 20 simulation ticks
+    // (~2s at the default 10 Hz tick rate).
+    // stopMachine fires AFTER the wait expires (~tick 20).
+    const waitTicksThenStopProgram =
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+      'machines.startMachine(Machine.A)\n' +
+      'loops.waitTicks(20)\n' +
+      'machines.stopMachine(Machine.A)'
+
+    await probe.resetOutputDeliveryRecording()
+    await probe.startOutputDeliveryRecording()
+
+    await setProgramAndStart(toolbar, editorPanel, waitTicksThenStopProgram)
+
+    await expect.poll(() => probe.isRunning(), { timeout: 5000 }).toBe(true)
+
+    // Sanity: the machine started immediately (tick 0), so it MUST have
+    // produced at least one delivery within a generous window.
+    await expect(async () => {
+      const deliveries = await probe.readOutputDeliveries()
+      expect(deliveries.length).toBeGreaterThan(0)
+    }).toPass({ timeout: 15000, intervals: [250] })
+
+    // ~5s after sim start: waitTicks(20) should have expired at ~2s,
+    // stopMachine should have fired, and any in-flight items at that
+    // point have had ~3s to drain to the Shipper. Record the "frozen"
+    // delivery count.
+    await probe.settle(5000)
+    const postStopDeliveries = (await probe.readOutputDeliveries()).length
+    expect(
+      postStopDeliveries,
+      'Machine produced for ~2s before stop; some deliveries must have arrived by 5s',
+    ).toBeGreaterThan(0)
+
+    // 5 more seconds. Because the machine is stopped, NO additional
+    // deliveries may occur in this window. This is the contract that
+    // pins `loops.waitTicks` — the stopMachine command was queued AFTER
+    // the wait and must have fired.
+    await probe.settle(5000)
+    const finalDeliveries = (await probe.readOutputDeliveries()).length
+    expect(
+      finalDeliveries,
+      'After stopMachine fires (post-waitTicks), no further deliveries may be recorded',
+    ).toBe(postStopDeliveries)
+  })
+})

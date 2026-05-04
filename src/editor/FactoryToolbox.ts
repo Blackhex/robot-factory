@@ -51,6 +51,8 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
       colour: '120',
       contents: [
         block('factory_repeat_times'),
+        block('factory_wait'),
+        block('factory_wait_ticks'),
         block('factory_while_condition'),
       ],
     })

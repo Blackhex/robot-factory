@@ -1,7 +1,16 @@
-import type { SimulationCommand } from './types.ts'
+import type { SimulationCommand, WaitCommand } from './types.ts'
 import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
 import { getRecipeById } from './Recipe.ts'
+
+/**
+ * Side-effecting commands accepted by the dispatcher. `WaitCommand` is
+ * deliberately excluded: it is a queue-level control concept consumed
+ * inside `Simulation.processCommands()` and must never reach the
+ * dispatcher. Narrowing the input type here makes that architectural
+ * rule a compile-time guarantee rather than a runtime convention.
+ */
+export type DispatchableCommand = Exclude<SimulationCommand, WaitCommand>
 
 /**
  * Dependency object accepted by `SimulationCommandDispatcher`. The
@@ -18,7 +27,7 @@ export interface SimulationCommandDispatcherDeps {
  * Executes a single `SimulationCommand` against the simulation's
  * machines and belts. Extracted from `Simulation.executeCommand` as
  * part of the B-10 god-file split. Behavior is byte-for-byte identical
- * to the previous inline switch.
+ * to the previous switch in `Simulation.executeCommand`.
  */
 export class SimulationCommandDispatcher {
   private readonly deps: SimulationCommandDispatcherDeps
@@ -27,7 +36,7 @@ export class SimulationCommandDispatcher {
     this.deps = deps
   }
 
-  execute(command: SimulationCommand): void {
+  execute(command: DispatchableCommand): void {
     switch (command.type) {
       case 'SET_RECIPE': {
         const machine = this.deps.getMachine(command.machineId)
