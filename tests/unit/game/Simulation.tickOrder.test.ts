@@ -64,6 +64,7 @@ describe('Simulation — tick order symmetry', () => {
     // GIVEN: fabricator with processingTicks=1 connected to a belt.
     const fab = new Machine('fab', 'part_fabricator')
     fab.setRecipe(quickFabRecipe(1))
+    fab.start()
     sim.addMachine(fab)
 
     const belt = new ConveyorBelt('seg0', 0, 0, 1, 0, 1.0)
@@ -93,6 +94,7 @@ describe('Simulation — tick order symmetry', () => {
     // 10 ticks.
     const fab = new Machine('fab', 'part_fabricator')
     fab.setRecipe(quickFabRecipe(5))
+    fab.start()
     sim.addMachine(fab)
 
     const belts = buildBeltChain(sim, 2, 1.0, 0)
@@ -129,6 +131,7 @@ describe('Simulation — tick order symmetry', () => {
     // GIVEN: fabricator with processingTicks=5, 5-segment chain, speed=1.
     const fab = new Machine('fab', 'part_fabricator')
     fab.setRecipe(quickFabRecipe(5))
+    fab.start()
     sim.addMachine(fab)
 
     const belts = buildBeltChain(sim, 5, 1.0, 0)

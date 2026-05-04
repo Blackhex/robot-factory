@@ -38,13 +38,16 @@ export class SimulationCommandDispatcher {
         break
       }
       case 'START_MACHINE': {
-        // Machine will auto-start processing on next tick if recipe + inputs ready
+        const machine = this.deps.getMachine(command.machineId)
+        if (machine) {
+          machine.start()
+        }
         break
       }
       case 'STOP_MACHINE': {
         const machine = this.deps.getMachine(command.machineId)
         if (machine) {
-          machine.currentRecipe = null
+          machine.stop()
         }
         break
       }

@@ -22,6 +22,7 @@ export class Machine {
   outputSlot: Item | null = null
   readonly maxInputSlots: number
   consumedItems = 0
+  enabled = false
 
   // Multi-output support (QualityChecker, Splitter)
   secondaryOutputSlot: Item | null = null
@@ -44,6 +45,16 @@ export class Machine {
     this.currentRecipe = recipe
   }
 
+  /** Enable processing on this machine. Does not modify currentRecipe. */
+  start(): void {
+    this.enabled = true
+  }
+
+  /** Disable processing on this machine. Does not modify currentRecipe. */
+  stop(): void {
+    this.enabled = false
+  }
+
   /**
    * Reset all in-flight runtime state (slots, timers, counters), preserving
    * configuration like recipe, qualityThreshold, splitterCondition, id, and type.
@@ -56,6 +67,7 @@ export class Machine {
     this.processingTimer = 0
     this.consumedItems = 0
     this.splitterCounter = 0
+    this.enabled = false
   }
 
   addInput(item: Item): boolean {
@@ -103,6 +115,9 @@ export class Machine {
   }
 
   tick(): void {
+    // Single gate for all tickable machine types. factory_output is naturally
+    // exempt because its registered behavior tick is a no-op.
+    if (!this.enabled) return
     MACHINE_BEHAVIORS[this.machineType].tick(this)
   }
 }

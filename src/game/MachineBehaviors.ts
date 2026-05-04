@@ -32,6 +32,7 @@ export interface Machine {
   qualityThreshold: number
   splitterCondition: SplitterCondition | null
   splitterCounter: number
+  enabled: boolean
 }
 
 /**

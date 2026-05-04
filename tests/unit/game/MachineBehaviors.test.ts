@@ -88,6 +88,7 @@ describe('MachineBehaviors strategy registry', () => {
       resetItemIdCounter()
       const m = new Machine('pf1', 'part_fabricator')
       m.setRecipe(smallFabRecipe())
+      m.start()
       m.addInput(createItem('raw_material'))
 
       // WHEN — tick until processing completes.
@@ -111,6 +112,7 @@ describe('MachineBehaviors strategy registry', () => {
       resetItemIdCounter()
       const qc = new Machine('qc1', 'quality_checker')
       qc.qualityThreshold = 50
+      qc.start()
       qc.addInput(createItem('wheel_small', 30)) // below threshold
 
       // WHEN — tick until processing completes.

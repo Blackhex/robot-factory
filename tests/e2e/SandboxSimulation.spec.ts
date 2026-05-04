@@ -398,3 +398,148 @@ test.describe('Sandbox — Game Over modal', () => {
     await gameOverModal.expectHidden()
   })
 })
+
+// ----------------------------------------------------------------------------
+// Explicit machine start contract
+// ----------------------------------------------------------------------------
+//
+// Regression coverage for the new "machines must be explicitly started"
+// behavior: a Fabricator with a recipe but NO `startMachine(...)` call MUST
+// remain idle and produce zero items. Today the Fabricator auto-runs as soon
+// as a recipe is set; this describe block pins the desired contract and the
+// negative-control test is expected to FAIL until production code is updated
+// (Machine / MachineBehaviors / SimulationCommandDispatcher).
+//
+// Setup mirrors the canonical sandbox flow used by `buildAndRunSandboxFactory`
+// — single Fabricator at (10,10) wired to a Shipper (factory_output) at
+// (13,10) — but the program text is varied per test instead of using the
+// shared scenario helper.
+// ----------------------------------------------------------------------------
+
+async function buildFabricatorToShipperLayout(
+  mainMenu: import('./pom/screens/MainMenuPage').MainMenuPage,
+  toolbar: import('./pom/screens/ToolbarPage').ToolbarPage,
+  grid: import('./pom/canvas/FactoryGridPage').FactoryGridPage,
+  machinePanel: import('./pom/screens/MachinePanelPage').MachinePanelPage,
+  probe: import('./pom/canvas/SimulationProbe').SimulationProbe,
+) {
+  await enterSandbox(mainMenu, toolbar)
+  await grid.expectCanvasVisible()
+
+  // Fabricator at (10,10) — default machine type from double-click placement.
+  await grid.dblClickCell({ x: 10, z: 10 })
+
+  // Shipper (factory_output) at (13,10).
+  await grid.dblClickCell({ x: 13, z: 10 })
+  await grid.clickCell({ x: 13, z: 10 })
+  await machinePanel.expectVisible()
+  await machinePanel.selectType('factory_output')
+  await machinePanel.expectTypeValue('factory_output')
+  await machinePanel.clickClose()
+  await machinePanel.expectHidden()
+
+  const machines = await probe.getMachines()
+  const fabricator = machines.find((m) => m.type === 'part_fabricator')
+  const shipper = machines.find((m) => m.type === 'factory_output')
+  expect(fabricator, 'Fabricator must exist before belt placement').toBeTruthy()
+  expect(shipper, 'Shipper (factory_output) must exist before belt placement').toBeTruthy()
+
+  const beltPlaced = await probe.placeBeltViaTestApi(
+    fabricator!.x, fabricator!.z, shipper!.x, shipper!.z,
+  )
+  expect(beltPlaced).toBe(true)
+}
+
+async function setProgramAndStart(
+  toolbar: import('./pom/screens/ToolbarPage').ToolbarPage,
+  editorPanel: import('./pom/screens/EditorPanelPage').EditorPanelPage,
+  programCode: string,
+) {
+  await toolbar.clickEditor()
+  await editorPanel.expectOpen()
+  await editorPanel.expectFallbackTextareaAttached()
+  await editorPanel.setFallbackProgramViaValueAssignment(programCode)
+  await toolbar.clickEditor()
+  await editorPanel.expectClosed()
+
+  await toolbar.expectStartButtonVisible()
+  await toolbar.clickStart()
+}
+
+test.describe('Sandbox — Explicit machine start contract', () => {
+  test('Fabricator with a recipe but NO startMachine call produces zero items', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
+  }) => {
+    test.setTimeout(90000)
+
+    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+
+    // Program contains ONLY a recipe assignment — no `startMachine` call.
+    // Under the new contract, the Fabricator must remain idle and produce
+    // nothing. Today the Fabricator auto-runs on a recipe alone, so this
+    // assertion block is expected to FAIL until the production code is
+    // updated.
+    const recipeOnlyProgram = 'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)'
+
+    await probe.resetOutputDeliveryRecording()
+    await probe.startOutputDeliveryRecording()
+
+    await setProgramAndStart(toolbar, editorPanel, recipeOnlyProgram)
+
+    // Confirm simulation actually started (the recorder needs the sim to exist
+    // for output_delivered events to be wired up, and starting the sim is
+    // also a precondition for the negative assertion to be meaningful).
+    await expect.poll(() => probe.isRunning(), { timeout: 5000 }).toBe(true)
+
+    // Let the simulation run for several real seconds. With the recipe alone
+    // and no `startMachine` call, no items should ever be produced.
+    await probe.settle(6000)
+
+    const snapshot = await probe.readSnapshot()
+    const deliveries = await probe.readOutputDeliveries()
+
+    expect(
+      deliveries.length,
+      'Shipper must receive ZERO deliveries when no startMachine() command was issued',
+    ).toBe(0)
+    expect(
+      snapshot.itemsOnBelts,
+      'No items must appear on belts when no startMachine() command was issued',
+    ).toBe(0)
+    for (const machine of snapshot.machineStates) {
+      expect(
+        machine.consumedItems,
+        `Machine ${machine.id} must not have consumed any items without startMachine()`,
+      ).toBe(0)
+    }
+  })
+
+  test('Sanity check: same setup WITH startMachine produces items (positive control)', async ({
+    mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
+  }) => {
+    test.setTimeout(90000)
+
+    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+
+    const recipeAndStartProgram =
+      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
+      'machines.startMachine(Machine.A)'
+
+    await probe.resetOutputDeliveryRecording()
+    await probe.startOutputDeliveryRecording()
+
+    await setProgramAndStart(toolbar, editorPanel, recipeAndStartProgram)
+
+    await expect.poll(() => probe.isRunning(), { timeout: 5000 }).toBe(true)
+
+    await expect(async () => {
+      const snap = await probe.readSnapshot()
+      expect(snap.itemsOnBelts).toBeGreaterThan(0)
+    }).toPass({ timeout: 30000, intervals: [250] })
+
+    await expect(async () => {
+      const deliveries = await probe.readOutputDeliveries()
+      expect(deliveries.length).toBeGreaterThan(0)
+    }).toPass({ timeout: 30000, intervals: [250] })
+  })
+})

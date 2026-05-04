@@ -47,6 +47,7 @@ function buildPipeline(
   const sim = new Simulation()
   const src = new Machine('src', 'part_fabricator')
   src.setRecipe(recipe('wheel_press_small'))
+  src.start()
   const dst = new Machine('dst', destType)
   if (destRecipe !== null) {
     dst.setRecipe(destRecipe)

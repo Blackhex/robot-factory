@@ -32,6 +32,7 @@ describe('Machine', () => {
       const assembler = new Machine('asm1', 'assembler')
       const recipe = getRecipeById('assemble_drivetrain_basic')!
       assembler.setRecipe(recipe)
+      assembler.start()
 
       // WHEN
       // Requires: 2x wheel_small + 1x circuit_basic
@@ -66,6 +67,7 @@ describe('Machine', () => {
       // GIVEN
       const recipe = wheelPressRecipe() // 5 ticks
       machine.setRecipe(recipe)
+      machine.start()
 
       // WHEN
       // First cycle: produce an item
@@ -87,6 +89,7 @@ describe('Machine', () => {
       // GIVEN
       const recipe = wheelPressRecipe()
       machine.setRecipe(recipe)
+      machine.start()
       // First cycle + second cycle → blocked
       for (let i = 0; i < 11; i++) {
         machine.tick()
@@ -104,6 +107,7 @@ describe('Machine', () => {
       // GIVEN
       const recipe = wheelPressRecipe() // 5 ticks
       machine.setRecipe(recipe)
+      machine.start()
       // Get to blocked state
       for (let i = 0; i < 11; i++) {
         machine.tick()
@@ -200,6 +204,7 @@ describe('Machine', () => {
     it('should transition idle → processing when recipe set and ticked', () => {
       // GIVEN
       machine.setRecipe(wheelPressRecipe())
+      machine.start()
 
       // WHEN
       machine.tick()
@@ -212,6 +217,7 @@ describe('Machine', () => {
       // GIVEN
       const recipe = wheelPressRecipe() // 5 ticks
       machine.setRecipe(recipe)
+      machine.start()
 
       // WHEN
       machine.tick() // idle → processing (timer = 5)
@@ -227,6 +233,7 @@ describe('Machine', () => {
       // GIVEN
       const recipe = wheelPressRecipe() // 5 ticks
       machine.setRecipe(recipe)
+      machine.start()
 
       // WHEN
       // 1 tick to start + 5 ticks processing
@@ -243,6 +250,7 @@ describe('Machine', () => {
       // GIVEN
       const recipe = wheelPressRecipe()
       machine.setRecipe(recipe)
+      machine.start()
 
       // WHEN
       // 1 tick start + 5 ticks processing = output produced, transitions to idle
@@ -261,6 +269,7 @@ describe('Machine', () => {
       // GIVEN
       const recipe = chassisRecipe() // 8 ticks
       machine.setRecipe(recipe)
+      machine.start()
 
       // WHEN
       machine.tick() // start processing (timer = 8)
@@ -284,6 +293,7 @@ describe('Machine', () => {
     it('should return the output item and clear the slot', () => {
       // GIVEN
       machine.setRecipe(wheelPressRecipe())
+      machine.start()
       for (let i = 0; i < 6; i++) {
         machine.tick()
       }

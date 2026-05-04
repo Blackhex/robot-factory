@@ -144,6 +144,7 @@ describe('B-10 god-file split: ItemDeliveryEngine + SimulationCommandDispatcher'
       const recipe = getRecipeById('wheel_press_small')
       if (!recipe) throw new Error('wheel_press_small recipe not found')
       fab.setRecipe(recipe)
+      fab.start()
       sim.addMachine(fab)
       sim.setMachinePosition('fab', 0, 0)
 
@@ -154,6 +155,7 @@ describe('B-10 god-file split: ItemDeliveryEngine + SimulationCommandDispatcher'
 
       // quality_checker at (1,0): default threshold 80, items at quality 80 → primary output
       const qc = new Machine('qc1', 'quality_checker')
+      qc.start()
       sim.addMachine(qc)
       sim.setMachinePosition('qc1', 1, 0)
 

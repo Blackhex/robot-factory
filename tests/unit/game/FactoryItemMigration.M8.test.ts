@@ -74,6 +74,7 @@ describe('Factory belt edit during running simulation — item migration M8', ()
           machineId: fabricator.id,
           recipeId: 'wheel_press_small',
         })
+        sim.enqueueCommand({ type: 'START_MACHINE', machineId: fabricator.id })
         tickUntil(sim, () => producedItemIds.length === 1, 10)
         const producedItemId = producedItemIds[0]
         sim.enqueueCommand({ type: 'STOP_MACHINE', machineId: fabricator.id })

@@ -136,7 +136,9 @@ describe('Simulation', () => {
     it('should execute STOP_MACHINE command', () => {
       // GIVEN
       const m = new Machine('m1', 'part_fabricator')
-      m.setRecipe(wheelPressRecipe())
+      const recipe = wheelPressRecipe()
+      m.setRecipe(recipe)
+      m.start()
       sim.addMachine(m)
 
       // WHEN
@@ -144,7 +146,11 @@ describe('Simulation', () => {
       sim.tick()
 
       // THEN
-      expect(m.currentRecipe).toBeNull()
+      // Contract change: stop preserves recipe; see Machine.enabled.test.ts for the
+      // canonical assertions. STOP_MACHINE flips `enabled` off but must NOT clear
+      // `currentRecipe` so the machine can be re-started without re-issuing SET_RECIPE.
+      expect(m.enabled).toBe(false)
+      expect(m.currentRecipe).toBe(recipe)
     })
 
     it('should execute SET_BELT_SPEED command', () => {
@@ -265,6 +271,7 @@ describe('Simulation', () => {
       // GIVEN
       const m = new Machine('m1', 'part_fabricator')
       m.setRecipe(wheelPressRecipe())
+      m.start()
       sim.addMachine(m)
 
       // WHEN
@@ -350,6 +357,7 @@ describe('Simulation', () => {
       sim.on('machine_state_changed', (e) => events.push(e))
       const m = new Machine('m1', 'part_fabricator')
       m.setRecipe(wheelPressRecipe())
+      m.start()
       sim.addMachine(m)
 
       // WHEN
@@ -367,6 +375,7 @@ describe('Simulation', () => {
       sim.on('item_produced', (e) => events.push(e))
       const m = new Machine('m1', 'part_fabricator')
       m.setRecipe(wheelPressRecipe()) // 5 ticks
+      m.start()
       sim.addMachine(m)
 
       // WHEN
@@ -770,6 +779,7 @@ describe('Simulation', () => {
       // We seed via `addInput` so the test is independent of belt delivery timing.
       const qc = new Machine('qc1', 'quality_checker')
       qc.qualityThreshold = 50
+      qc.start()
       qc.addInput(createItem('wheel_small', 30)) // quality < threshold → secondary
       sim.addMachine(qc)
 
@@ -787,6 +797,7 @@ describe('Simulation', () => {
       // GIVEN — same setup but item quality is above threshold → routes to primary
       const qc = new Machine('qc1', 'quality_checker')
       qc.qualityThreshold = 50
+      qc.start()
       qc.addInput(createItem('wheel_small', 80)) // quality >= threshold → primary
       sim.addMachine(qc)
 
@@ -804,6 +815,7 @@ describe('Simulation', () => {
       // GIVEN — quality_checker with threshold 50
       const qc = new Machine('qc1', 'quality_checker')
       qc.qualityThreshold = 50
+      qc.start()
       sim.addMachine(qc)
 
       // WHEN — push a low-quality item, route it, drain the secondary slot, then repeat.
@@ -896,6 +908,7 @@ describe('Simulation', () => {
       // THEN — connection preserved (verified indirectly by running the pipeline)
       m.addInput(createItem('wheel_small'))
       m.addInput(createItem('wheel_small'))
+      m.start()
       // Tick enough times for the part_fabricator to produce + transfer
       tickN(sim, 30)
       // If the connection was lost, no item would land on belt b1
@@ -995,6 +1008,7 @@ describe('Integration: full pipeline', () => {
     const sim = new Simulation()
     const fabricator = new Machine('fab1', 'part_fabricator')
     fabricator.setRecipe(wheelPressRecipe()) // produces wheel_small in 5 ticks
+    fabricator.start()
     sim.addMachine(fabricator)
     sim.setMachinePosition('fab1', 0, 0)
     const belt = new ConveyorBelt('belt1', 0, 0, 1, 0, 1.0)
@@ -1032,6 +1046,7 @@ describe('Integration: full pipeline', () => {
       machineId: 'fab1',
       recipeId: 'wheel_press_small',
     })
+    sim.enqueueCommand({ type: 'START_MACHINE', machineId: 'fab1' })
     // First tick processes command and starts the machine
     sim.tick()
 
@@ -1059,6 +1074,7 @@ describe('QualityChecker', () => {
   it('should route passing item to primary output', () => {
     // GIVEN
     const qc = new Machine('qc1', 'quality_checker')
+    qc.start()
     // Default threshold = 80; item quality 90 → passes
     qc.addInput(createItem('wheel_small', 90))
 
@@ -1075,6 +1091,7 @@ describe('QualityChecker', () => {
   it('should route failing item to secondary output', () => {
     // GIVEN
     const qc = new Machine('qc1', 'quality_checker')
+    qc.start()
     // Default threshold = 80; item quality 50 → fails
     qc.addInput(createItem('wheel_small', 50))
 
@@ -1092,6 +1109,7 @@ describe('QualityChecker', () => {
     // GIVEN
     const qc = new Machine('qc1', 'quality_checker')
     qc.qualityThreshold = 60 // Lower threshold
+    qc.start()
     // Item quality 70 → passes (>= 60)
     qc.addInput(createItem('wheel_small', 70))
 
@@ -1107,6 +1125,7 @@ describe('QualityChecker', () => {
   it('should process in exactly 1 tick', () => {
     // GIVEN
     const qc = new Machine('qc1', 'quality_checker')
+    qc.start()
     qc.addInput(createItem('wheel_small', 90))
 
     // WHEN
@@ -1125,6 +1144,7 @@ describe('QualityChecker', () => {
   it('should become blocked when output slot is full', () => {
     // GIVEN
     const qc = new Machine('qc1', 'quality_checker')
+    qc.start()
     // Two passing items
     qc.addInput(createItem('wheel_small', 90))
     qc.addInput(createItem('wheel_small', 95))
@@ -1145,6 +1165,7 @@ describe('QualityChecker', () => {
     // GIVEN
     const qc = new Machine('qc1', 'quality_checker')
     qc.qualityThreshold = 80
+    qc.start()
     qc.addInput(createItem('wheel_small', 80)) // exactly at threshold → passes
 
     // WHEN
@@ -1168,6 +1189,7 @@ describe('Splitter', () => {
     // GIVEN
     const sp = new Machine('sp1', 'splitter')
     sp.splitterCondition = { conditionType: 'by_item_type', itemType: 'wheel_small' }
+    sp.start()
     sp.addInput(createItem('wheel_small'))
 
     // WHEN
@@ -1183,6 +1205,7 @@ describe('Splitter', () => {
     // GIVEN
     const sp = new Machine('sp1', 'splitter')
     sp.splitterCondition = { conditionType: 'by_item_type', itemType: 'wheel_small' }
+    sp.start()
     sp.addInput(createItem('circuit_basic'))
 
     // WHEN
@@ -1198,6 +1221,7 @@ describe('Splitter', () => {
     // GIVEN
     const sp = new Machine('sp1', 'splitter')
     sp.splitterCondition = { conditionType: 'by_quality', qualityThreshold: 70 }
+    sp.start()
     sp.addInput(createItem('wheel_small', 90))
 
     // WHEN
@@ -1212,6 +1236,7 @@ describe('Splitter', () => {
     // GIVEN
     const sp = new Machine('sp1', 'splitter')
     sp.splitterCondition = { conditionType: 'by_quality', qualityThreshold: 70 }
+    sp.start()
     sp.addInput(createItem('wheel_small', 50))
 
     // WHEN
@@ -1226,6 +1251,7 @@ describe('Splitter', () => {
     // GIVEN
     const sp = new Machine('sp1', 'splitter')
     sp.splitterCondition = { conditionType: 'alternating' }
+    sp.start()
 
     // WHEN — first item → primary (counter=1, odd → primary)
     sp.addInput(createItem('wheel_small'))
@@ -1248,6 +1274,7 @@ describe('Splitter', () => {
     // GIVEN
     const sp = new Machine('sp1', 'splitter')
     sp.splitterCondition = { conditionType: 'by_item_type', itemType: 'wheel_small' }
+    sp.start()
     sp.addInput(createItem('wheel_small'))
 
     // WHEN
@@ -1262,6 +1289,7 @@ describe('Splitter', () => {
   it('should default to primary when no condition set', () => {
     // GIVEN
     const sp = new Machine('sp1', 'splitter')
+    sp.start()
     sp.addInput(createItem('wheel_small'))
 
     // WHEN
@@ -1283,6 +1311,7 @@ describe('Recycler', () => {
   it('should convert any item to raw_material', () => {
     // GIVEN
     const recycler = new Machine('rec1', 'recycler')
+    recycler.start()
     recycler.addInput(createItem('wheel_small', 30))
 
     // WHEN
@@ -1299,6 +1328,7 @@ describe('Recycler', () => {
   it('should take exactly 3 ticks to process', () => {
     // GIVEN
     const recycler = new Machine('rec1', 'recycler')
+    recycler.start()
     recycler.addInput(createItem('circuit_basic'))
 
     // WHEN
@@ -1325,6 +1355,7 @@ describe('Recycler', () => {
   it('should consume the input item on start', () => {
     // GIVEN
     const recycler = new Machine('rec1', 'recycler')
+    recycler.start()
     recycler.addInput(createItem('wheel_small'))
 
     // WHEN
@@ -1337,6 +1368,7 @@ describe('Recycler', () => {
   it('should become blocked when output is full', () => {
     // GIVEN
     const recycler = new Machine('rec1', 'recycler')
+    recycler.start()
     recycler.addInput(createItem('wheel_small'))
     recycler.addInput(createItem('circuit_basic'))
 
@@ -1365,6 +1397,7 @@ describe('Simulation: machine subtypes & commands', () => {
   it('should transfer secondary output to connected belt', () => {
     // GIVEN
     const qc = new Machine('qc1', 'quality_checker')
+    qc.start()
     sim.addMachine(qc)
     const primaryBelt = new ConveyorBelt('bp', 0, 0, 1, 0)
     const secondaryBelt = new ConveyorBelt('bs', 0, 0, 0, 1)
@@ -1389,6 +1422,7 @@ describe('Simulation: machine subtypes & commands', () => {
   it('should transfer primary output to connected belt', () => {
     // GIVEN
     const qc = new Machine('qc1', 'quality_checker')
+    qc.start()
     sim.addMachine(qc)
     const primaryBelt = new ConveyorBelt('bp', 0, 0, 1, 0)
     sim.addBelt(primaryBelt)
@@ -1479,6 +1513,7 @@ describe('Simulation: machine subtypes & commands', () => {
     const events: SimulationEvent[] = []
     sim.on('item_produced', (e) => events.push(e))
     const qc = new Machine('qc1', 'quality_checker')
+    qc.start()
     sim.addMachine(qc)
     qc.addInput(createItem('wheel_small', 50)) // fails threshold
 
