@@ -4,6 +4,7 @@ import { BlockInterpreter } from './BlockInterpreter'
 import { getToolboxForLevel } from './FactoryToolbox'
 import { buildDropdownOptions, resolveDropdownText, type DropdownItem } from './dropdownOptions'
 import { PxtFallbackEditor } from './PxtFallbackEditor'
+import { patchPluggableSlots, migrateExistingWorkspaceBlocks, installMigrationListener, PLUGGABLE_CONSUMER_TRANSFORMS, PLUGGABLE_REPORTER_TRANSFORMS } from './pluggableSlotsPatcher'
 import toolboxOverridesCss from './pxt-toolbox-overrides.css?raw'
 
 /**
@@ -35,6 +36,7 @@ export class PxtEditor {
   private pendingBeltUpdate: Array<{id: string, name: string, sourceName: string, destName: string}> | null = null
   private prototypePatched = false
   private textPatched = false
+  private pluggableSlotsPatched = false
   private stylesInjected = false
   private toolboxObserver: MutationObserver | null = null
   private nextRequestId = 1
@@ -329,6 +331,7 @@ export class PxtEditor {
   /** Belt block types that use the Belt enum dropdown. */
   private static readonly BELT_BLOCK_TYPES = [
     'factory_set_belt_speed',
+    'factory_pick_belt',
   ]
 
   /** Maximum number of machine/belt slots exposed in the dropdown enum. */
@@ -347,6 +350,7 @@ export class PxtEditor {
     }))
     this.interpreter.setMachineList(slotted)
     this.patchBlocklyDropdowns('machine', slotted)
+    this.patchPluggableMachineBeltSlots()
   }
 
   /**
@@ -369,6 +373,19 @@ export class PxtEditor {
       label: `${b.sourceName} → ${b.destName}`,
     }))
     this.patchBlocklyDropdowns('belt', labeled)
+    this.patchPluggableMachineBeltSlots()
+  }
+
+  /** One-shot patch + per-call workspace migration. See [`pluggableSlotsPatcher.ts`]. */
+  private patchPluggableMachineBeltSlots(): void {
+    if (!this.pxtReady || !this.iframe) return
+    let blockly: any; try { blockly = (this.iframe.contentWindow as any)?.Blockly } catch { return }
+    if (!blockly?.Blocks) return
+    if (!this.pluggableSlotsPatched) { this.pluggableSlotsPatched = true; patchPluggableSlots(blockly, PLUGGABLE_CONSUMER_TRANSFORMS, PLUGGABLE_REPORTER_TRANSFORMS) }
+    try {
+      const ws = blockly.getMainWorkspace?.() ?? blockly.mainWorkspace
+      if (ws) { migrateExistingWorkspaceBlocks(blockly, ws, PLUGGABLE_CONSUMER_TRANSFORMS); installMigrationListener(blockly, ws, PLUGGABLE_CONSUMER_TRANSFORMS) }
+    } catch (err) { console.warn('[PxtEditor] migrateExistingWorkspaceBlocks call failed', err) }
   }
 
   /**

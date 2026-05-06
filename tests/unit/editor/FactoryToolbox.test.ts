@@ -65,6 +65,15 @@ describe('FactoryToolbox', () => {
       // THEN — set_machine_speed is paired with set_belt_speed and unlocks at level 2
       expect(types).not.toContain('factory_set_machine_speed')
     })
+
+    it('should NOT include factory_pick_belt (level-2+ reporter, paired with set_belt_speed)', () => {
+      // WHEN
+      const types = getBlockTypes(getToolboxForLevel(1))
+
+      // THEN — pickBelt is the value-returning reporter that shadows into
+      // set_belt_speed; it unlocks together with set_belt_speed at level 2.
+      expect(types).not.toContain('factory_pick_belt')
+    })
   })
 
   describe('level 2: extended actions', () => {
@@ -85,6 +94,15 @@ describe('FactoryToolbox', () => {
 
       // THEN
       expect(types).toContain('factory_set_machine_speed')
+    })
+
+    it('should include factory_pick_belt (value-returning reporter for belts)', () => {
+      // WHEN
+      const types = getBlockTypes(getToolboxForLevel(2))
+
+      // THEN — pickBelt mirrors pickMachine: it is the reporter that
+      // shadows into the belt slot of set_belt_speed.
+      expect(types).toContain('factory_pick_belt')
     })
   })
 

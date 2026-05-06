@@ -241,6 +241,27 @@ describe('BlockInterpreter', () => {
     })
   })
 
+  // === pick-belt (value-returning expression, mirrors pickMachine) =======
+
+  describe('belts.pickBelt', () => {
+    it('should return the belt value so it can be assigned to a JS variable', () => {
+      // GIVEN
+      const source = `
+        let b = belts.pickBelt(Belt.Belt1)
+        belts.setBeltSpeed(b, 5)
+      `
+
+      // WHEN
+      const commands = interpreter.interpret(source)
+
+      // THEN
+      expect(commands).toHaveLength(1)
+      expect(commands[0].type).toBe('SET_BELT_SPEED')
+      expect((commands[0] as any).beltId).toBe('belt_1')
+      expect((commands[0] as any).speed).toBe(5)
+    })
+  })
+
   // === Native JS functions (built-in PXT Functions category) ============
 
   describe('native JS functions', () => {

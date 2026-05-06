@@ -35,6 +35,7 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
       block('factory_stop_machine'),
       block('factory_set_machine_speed'),
       block('factory_set_belt_speed'),
+      block('factory_pick_belt'),
     )
   }
   categories.push({

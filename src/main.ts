@@ -549,6 +549,8 @@ async function main(): Promise<void> {
     if (factory.updateMachineType(machine.x, machine.z, newType)) {
       factoryRenderer?.syncMeshes()
       machinePanel.setMachine(factory.getMachineAt(machine.x, machine.z))
+      syncFactoryToEditor()
+      void autoSaveFactory()
     }
   })
 
@@ -556,6 +558,7 @@ async function main(): Promise<void> {
     const factory = gameManager.factory
     if (!factory) return
     factory.renameMachine(machine.x, machine.z, newName)
+    syncFactoryToEditor()
     void autoSaveFactory()
   }
 

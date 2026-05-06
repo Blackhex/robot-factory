@@ -23,21 +23,25 @@ namespace machines {
     //% block="start %machine"
     //% blockId=factory_start_machine
     //% weight=100
+    //% machine.shadow="factory_pick_machine"
     export function startMachine(machine: Machine): void { }
 
     //% block="stop %machine"
     //% blockId=factory_stop_machine
     //% weight=90
+    //% machine.shadow="factory_pick_machine"
     export function stopMachine(machine: Machine): void { }
 
     //% block="set recipe of %machine to %recipe"
     //% blockId=factory_set_recipe
     //% weight=80
+    //% machine.shadow="factory_pick_machine"
     export function setRecipe(machine: Machine, recipe: Recipe): void { }
 
     //% block="set %machine speed to %speed"
     //% blockId=factory_set_machine_speed
     //% weight=70
+    //% machine.shadow="factory_pick_machine"
     //% speed.defl=1 speed.min=1 speed.max=10
     export function setMachineSpeed(machine: Machine, speed: number): void { }
 
@@ -59,8 +63,17 @@ namespace belts {
     //% block="set %belt speed to %speed"
     //% blockId=factory_set_belt_speed
     //% weight=100
+    //% belt.shadow="factory_pick_belt"
     //% speed.defl=1 speed.min=0 speed.max=10
     export function setBeltSpeed(belt: Belt, speed: number): void { }
+
+    //% block="%belt"
+    //% blockId=factory_pick_belt
+    //% weight=60
+    //% blockGap=8
+    export function pickBelt(belt: Belt): Belt {
+        return belt
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -134,5 +147,6 @@ namespace events {
     //% block="on %machine idle"
     //% blockId=factory_on_machine_idle
     //% weight=80
+    //% machine.shadow="factory_pick_machine"
     export function onMachineIdle(machine: Machine, handler: () => void): void { }
 }

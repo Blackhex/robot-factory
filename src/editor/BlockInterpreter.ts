@@ -181,6 +181,12 @@ export class BlockInterpreter {
       if (this.guardOverflow()) return
       this.commands.push({ type: 'SET_BELT_SPEED', beltId: this.resolveBeltId(belt), speed: Number(speed) || 1 })
     },
+    /**
+     * Returns the selected belt value unchanged. Used as the
+     * value-returning expression behind the `belt %belt` block,
+     * letting users assign a Belt to a built-in Blockly variable.
+     */
+    pickBelt: (belt: unknown) => belt,
   }
 
   private readonly loopsNs = {
