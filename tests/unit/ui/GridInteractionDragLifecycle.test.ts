@@ -80,12 +80,12 @@ describe('GridInteraction drag lifecycle', () => {
       ;({ factory, interaction, simulation, canvas, selectionSpy, setRaycastCell } = createDragPauseHarness())
     })
 
-    function dispatchPointer(type: string): void {
+    function dispatchPointer(type: string, clientX = 100, clientY = 100): void {
       const event = new MouseEvent(type, {
         bubbles: true,
         button: 0,
-        clientX: 100,
-        clientY: 100,
+        clientX,
+        clientY,
       })
       Object.defineProperty(event, 'pointerId', { value: 7 })
       canvas.dispatchEvent(event)
@@ -206,11 +206,13 @@ describe('GridInteraction drag lifecycle', () => {
       expectNoSimulationPauseLifecycle()
 
       setRaycastCell({ x: 3, z: 3 })
-      dispatchPointer('pointermove')
+      // Dispatch with moved client coords so this is treated as a real drag
+      // (not a click), exercising the drop/commit path rather than selection.
+      dispatchPointer('pointermove', 200, 200)
       expectFactoryState(factory, ASSEMBLER_AT_2_2)
       expectNoSimulationPauseLifecycle()
 
-      dispatchPointer('pointerup')
+      dispatchPointer('pointerup', 200, 200)
       expectFactoryState(factory, ASSEMBLER_AT_2_2)
 
       expect(selectionSpy).not.toHaveBeenCalled()
@@ -226,8 +228,8 @@ describe('GridInteraction drag lifecycle', () => {
     let simulation: DragPauseSimulation
     let setRaycastCell: (cell: RaycastCell) => void
 
-    const fakePointerEvent = (type: string) =>
-      ({ type, button: 0, clientX: 100, clientY: 100 }) as unknown as PointerEvent
+    const fakePointerEvent = (type: string, clientX = 100, clientY = 100) =>
+      ({ type, button: 0, clientX, clientY }) as unknown as PointerEvent
 
     beforeEach(() => {
       ;({ factory, interaction, simulation, setRaycastCell } = createDragPauseHarness())
@@ -277,7 +279,9 @@ describe('GridInteraction drag lifecycle', () => {
       expect(simulation.resume).not.toHaveBeenCalled()
 
       setRaycastCell({ x: 3, z: 3 })
-      ;(interaction as any).handlePointerUp(fakePointerEvent('pointerup'))
+      // Pointerup at moved client coords so it is treated as a drag (not click)
+      // and the commit path runs.
+      ;(interaction as any).handlePointerUp(fakePointerEvent('pointerup', 200, 200))
       expectFactoryState(factory, {
         grid: {
           box: [0, 0, 4, 4],

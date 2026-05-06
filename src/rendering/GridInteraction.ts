@@ -47,6 +47,11 @@ export class GridInteraction {
   private dragConnectedMachines: Array<{ position: GridPosition, machineIsSource: boolean }> = []
   private dragIgnoreBeltIds: Set<string> = new Set()
 
+  private dragStartClientX: number | null = null
+  private dragStartClientY: number | null = null
+  private dragHasMoved = false
+  private static readonly CLICK_DISTANCE_PX_SQ = 25 // (5 px)^2
+
   private handlePointerMoveBound: (e: PointerEvent) => void
   private handlePointerDownBound: (e: PointerEvent) => void
   private handlePointerUpBound: (e: PointerEvent) => void
@@ -236,6 +241,9 @@ export class GridInteraction {
     this.dragSourceSlotPosition = null
     this.dragConnectedMachines = []
     this.dragIgnoreBeltIds = new Set()
+    this.dragStartClientX = null
+    this.dragStartClientY = null
+    this.dragHasMoved = false
     this.preview.resetDragPreview()
   }
 
@@ -270,6 +278,7 @@ export class GridInteraction {
     this.dragLifecycle.beginPointerCapture(event)
     this.dragSourceSlotType = slotType
     this.dragSourceSlotPosition = sourceSlotPosition ?? null
+    this.captureDragStart(event)
     this.controls.enabled = false
     this.deselectMachine()
     this.deselectBelt()
@@ -283,12 +292,30 @@ export class GridInteraction {
     this.dragIgnoreBeltIds = this.factory.getConnectedBeltIds(machine.x, machine.z)
     this.preview.setMachineGhostColor(MACHINE_COLORS[machine.type] ?? 0xffffff)
     this.preview.hideMachineGhost()
+    this.captureDragStart(event)
     this.controls.enabled = false
+  }
+
+  private captureDragStart(event: PointerEvent): void {
+    this.dragStartClientX = event.clientX
+    this.dragStartClientY = event.clientY
+    this.dragHasMoved = false
+  }
+
+  private updateDragMovement(event: PointerEvent): void {
+    if (this.dragHasMoved) return
+    if (this.dragStartClientX === null || this.dragStartClientY === null) return
+    const dx = event.clientX - this.dragStartClientX
+    const dy = event.clientY - this.dragStartClientY
+    if (dx * dx + dy * dy > GridInteraction.CLICK_DISTANCE_PX_SQ) {
+      this.dragHasMoved = true
+    }
   }
 
   // ─── Event Handlers ───────────────────────────────────
 
   private handlePointerMove(event: PointerEvent): void {
+    if (this.dragMode !== null) this.updateDragMovement(event)
     this.updateMouseNDC(event)
     const cell = this.raycastToDragGrid()
 
@@ -353,7 +380,14 @@ export class GridInteraction {
   private handlePointerUp(_event: PointerEvent): void {
     if (!this.dragMode || !this.dragOrigin) return
     if (!this.dragLifecycle.isActivePointer(_event)) return
+    this.updateDragMovement(_event)
     try {
+      if (!this.dragHasMoved) {
+        const sourceMachine = this.factory.getMachineAt(this.dragOrigin.x, this.dragOrigin.z)
+        if (sourceMachine) this.selectMachine(sourceMachine)
+        return
+      }
+
       this.updateMouseNDC(_event)
       const raycaster = this.gridRaycast.getRaycaster()
       const raycastBeltDropTarget = this.dragMode === 'belt'
@@ -383,6 +417,9 @@ export class GridInteraction {
       this.dragSourceSlotPosition = null
       this.dragConnectedMachines = []
       this.dragIgnoreBeltIds = new Set()
+      this.dragStartClientX = null
+      this.dragStartClientY = null
+      this.dragHasMoved = false
       this.preview.resetDragPreview()
       this.controls.enabled = true
       this.dragLifecycle.releasePointerCapture()

@@ -39,8 +39,8 @@ describe('GridInteraction selection', () => {
       vi.spyOn(interaction as any, 'updateMouseNDC').mockImplementation(() => {})
     })
 
-    const fakePointerEvent = (type: string) =>
-      ({ type, button: 0, clientX: 100, clientY: 100 }) as unknown as PointerEvent
+    const fakePointerEvent = (type: string, clientX = 100, clientY = 100) =>
+      ({ type, button: 0, clientX, clientY }) as unknown as PointerEvent
 
     it('should NOT select a machine on pointerdown alone (drag start)', () => {
       expectFactoryState(factory, ASSEMBLER_AT_2_2)
@@ -68,14 +68,16 @@ describe('GridInteraction selection', () => {
       expect(selectedMachine.z).toBe(2)
     })
 
-    it('should NOT select when pointerup is off-grid (drag cancelled)', () => {
+    it('should NOT select when pointerup is off-grid after a real drag (cancelled)', () => {
       expectFactoryState(factory, ASSEMBLER_AT_2_2)
       // GIVEN pointerdown on a valid cell
       ;(interaction as any).handlePointerDown(fakePointerEvent('pointerdown'))
 
-      // WHEN pointer released outside the grid
+      // WHEN the pointer is dragged (moved >5px) and released outside the grid.
+      // Movement matters: a no-movement release is treated as a click and would
+      // select the source machine even if the ground raycast misses.
       vi.spyOn(interaction as any, 'raycastToGrid').mockReturnValue(null)
-      ;(interaction as any).handlePointerUp(fakePointerEvent('pointerup'))
+      ;(interaction as any).handlePointerUp(fakePointerEvent('pointerup', 200, 200))
       expectFactoryState(factory, ASSEMBLER_AT_2_2)
 
       // THEN no selection callback
@@ -88,9 +90,9 @@ describe('GridInteraction selection', () => {
       vi.spyOn(interaction as any, 'raycastToGrid').mockReturnValue({ x: 2, z: 2 })
       ;(interaction as any).handlePointerDown(fakePointerEvent('pointerdown'))
 
-      // WHEN pointer released on a different, empty cell (3,3)
+      // WHEN pointer released on a different, empty cell (3,3) after movement
       vi.spyOn(interaction as any, 'raycastToGrid').mockReturnValue({ x: 3, z: 3 })
-      ;(interaction as any).handlePointerUp(fakePointerEvent('pointerup'))
+      ;(interaction as any).handlePointerUp(fakePointerEvent('pointerup', 200, 200))
       expectFactoryState(factory, {
         grid: {
           box: [0, 0, 4, 4],
@@ -134,11 +136,11 @@ describe('GridInteraction selection', () => {
       }
       expectFactoryState(factory, A_AND_P)
 
-      // WHEN pointerdown on (2,2) and pointerup on occupied (3,3)
+      // WHEN pointerdown on (2,2) and pointerup on occupied (3,3) after movement
       vi.spyOn(interaction as any, 'raycastToGrid').mockReturnValue({ x: 2, z: 2 })
       ;(interaction as any).handlePointerDown(fakePointerEvent('pointerdown'))
       vi.spyOn(interaction as any, 'raycastToGrid').mockReturnValue({ x: 3, z: 3 })
-      ;(interaction as any).handlePointerUp(fakePointerEvent('pointerup'))
+      ;(interaction as any).handlePointerUp(fakePointerEvent('pointerup', 200, 200))
       expectFactoryState(factory, A_AND_P)
 
       // THEN no selection, and neither machine moved
