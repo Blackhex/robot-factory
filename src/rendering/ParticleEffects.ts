@@ -10,7 +10,6 @@ interface Particle {
 
 const MAX_SPARKS = 200
 const MAX_SMOKE = 100
-const MAX_CONFETTI = 300
 
 class ParticleSystem {
   private particles: Particle[] = []
@@ -116,13 +115,11 @@ export class ParticleEffects {
   private scene: THREE.Scene
   private sparks: ParticleSystem
   private smoke: ParticleSystem
-  private confetti: ParticleSystem
 
   constructor(scene: THREE.Scene) {
     this.scene = scene
     this.sparks = new ParticleSystem(scene, MAX_SPARKS, 0.08)
     this.smoke = new ParticleSystem(scene, MAX_SMOKE, 0.15)
-    this.confetti = new ParticleSystem(scene, MAX_CONFETTI, 0.12)
   }
 
   emitSparks(position: THREE.Vector3): void {
@@ -165,31 +162,13 @@ export class ParticleEffects {
     )
   }
 
-  emitConfetti(areaWidth: number, areaHeight: number): void {
-    const center = new THREE.Vector3(0, 8, 0)
-    this.confetti.emit(
-      center,
-      60,
-      () =>
-        new THREE.Vector3(
-          (Math.random() - 0.5) * areaWidth * 0.8,
-          -(Math.random() * 0.5 + 0.5),
-          (Math.random() - 0.5) * areaHeight * 0.8,
-        ),
-      () => new THREE.Color().setHSL(Math.random(), 0.9, 0.6),
-      3 + Math.random() * 2,
-    )
-  }
-
   update(dt: number): void {
     this.sparks.update(dt, -5)
     this.smoke.update(dt, 0.2)
-    this.confetti.update(dt, -1.5)
   }
 
   dispose(): void {
     this.sparks.dispose(this.scene)
     this.smoke.dispose(this.scene)
-    this.confetti.dispose(this.scene)
   }
 }

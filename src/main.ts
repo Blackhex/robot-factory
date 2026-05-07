@@ -1,6 +1,6 @@
 import './style.css'
 import { initI18n, i18next } from './i18n/i18n'
-import { GameManager, type GameState } from './game/GameManager'
+import { GameManager } from './game/GameManager'
 import { getAllLevels, type LevelDefinition } from './game/Level'
 import { ConveyorBelt } from './game/ConveyorBelt'
 import { SceneManager } from './rendering/SceneManager'
@@ -13,6 +13,7 @@ import { ParticleEffects } from './rendering/ParticleEffects'
 import { createTerminalDrainGraceDecider } from './rendering/TerminalDrainGraceAcceptability'
 import { MainMenu } from './ui/MainMenu'
 import { LevelSelect } from './ui/LevelSelect'
+import { createEditorVisibilityController } from './ui/createEditorVisibilityController'
 import { HUD } from './ui/HUD'
 import { ScoreScreen } from './ui/ScoreScreen'
 import { LevelFailedScreen } from './ui/LevelFailedScreen'
@@ -24,9 +25,11 @@ import { Toolbar } from './ui/Toolbar'
 import { MachinePanel } from './ui/MachinePanel'
 import { BeltPanel } from './ui/BeltPanel'
 import { LevelBrief } from './ui/LevelBrief'
+import { createGameStateChangeHandler } from './ui/createGameStateChangeHandler'
 import { createFactoryBackedGameOverFallbackResolvers } from './ui/createFactoryBackedGameOverFallbackResolvers'
-import { wireGameOverModal } from './ui/wireGameOverModal'
-import { wireOutcomeScreens } from './ui/wireOutcomeScreens'
+import { wireMenuAndPanelCallbacks } from './ui/wireMenuAndPanelCallbacks'
+import { createSimulationEffectsWireUp } from './ui/wireSimulationEffects'
+import { wireToolbarAndOutcomeCallbacks } from './ui/wireToolbarAndOutcomeCallbacks'
 import { PxtEditor } from './editor/PxtEditor'
 import { AudioManager } from './audio/AudioManager'
 import {
@@ -108,7 +111,6 @@ async function main(): Promise<void> {
   let factoryRenderer: FactoryRenderer | null = null
   let itemRenderer: ItemRenderer | null = null
   let gridInteraction: GridInteraction | null = null
-  let editorVisible = false
 
   // --- Helpers ---
 
@@ -133,36 +135,14 @@ async function main(): Promise<void> {
     onResize: (w, h) => sceneManager.resize(w, h),
   })
   editorViewport.attachResizeDrag()
-
-  function openEditor(): void {
-    editorVisible = true
-    editorContainer.classList.add('open')
-    // Mirror onto <body> so narrow-viewport responsive CSS can dock the
-    // level brief out of the editor's way (UX blocker B3).
-    document.body.classList.add('editor-open')
-    editorResizeHandle.style.display = 'block'
-    editorResizeHandle.style.right = editorContainer.style.width
-      ? `calc(${editorContainer.style.width} - 3px)`
-      : 'calc(max(500px, 40%) - 3px)'
-    pxtEditor.show()
-    // Refit so required machines stay in the unobscured canvas region.
-    editorViewport.refitCameraToCurrentLevel()
-  }
-
-  function closeEditor(): void {
-    editorVisible = false
-    editorContainer.classList.remove('open')
-    document.body.classList.remove('editor-open')
-    editorResizeHandle.style.display = 'none'
-    pxtEditor.hide()
-    // Restore the standard centred fit now that the canvas is fully visible.
-    editorViewport.refitCameraToCurrentLevel()
-  }
-
-  function toggleEditor(): void {
-    if (editorVisible) closeEditor()
-    else openEditor()
-  }
+  const editorVisibility = createEditorVisibilityController({
+    editorContainer,
+    resizeHandle: editorResizeHandle,
+    pxtEditor,
+    refitCamera: () => editorViewport.refitCameraToCurrentLevel(),
+  })
+  const closeEditor = (): void => editorVisibility.close()
+  const toggleEditor = (): void => editorVisibility.toggle()
 
   function saveProgress(): void {
     localStorage.setItem(PROGRESS_KEY, JSON.stringify(gameManager.saveProgress()))
@@ -334,297 +314,82 @@ async function main(): Promise<void> {
     }
   }
 
-  // --- GameManager state change handler ---
-
-  gameManager.on('stateChanged', (event) => {
-    const newState = event.data.to as GameState
-
-    hideAllUI()
-
-    switch (newState) {
-      case 'main_menu':
-        cleanupLevelRendering()
-        closeEditor()
-        mainMenu.show()
-        cameraController.resetView()
-        break
-
-      case 'level_select':
-        cleanupLevelRendering()
-        closeEditor()
-        levelSelect.updateProgress(gameManager.getProgress())
-        levelSelect.show()
-        break
-
-      case 'build_phase': {
-        const level = gameManager.currentLevel
-        if (level) {
-          toolbar.show()
-          toolbar.setSandboxMode(false)
-          toolbar.setSimulationState('idle')
-          setupBuildPhase(level)
-          levelBrief.setLevel(level)
-          levelBrief.show()
-        }
-        break
-      }
-
-      case 'play_phase':
-        // Auto-save factory before entering play
-        void autoSaveFactory()
-        toolbar.show()
-        toolbar.setSandboxMode(false)
-        toolbar.setSimulationState('running')
-        hud.show()
-        // Keep the level brief visible so the player remembers the goal.
-        if (gameManager.currentLevel) levelBrief.show()
-        gridInteraction?.disable()
-        // Start belt audio
-        audio.playBeltRolling()
-        // Wire simulation events for particles and audio
-        wireSimulationEffects()
-        break
-
-      case 'score_screen': {
-        closeEditor()
-        audio.stopBeltRolling()
-        toolbar.setSimulationState('stopped')
-        const score = gameManager.lastScore
-        const level = gameManager.currentLevel
-        if (score && level) {
-          scoreScreen.setScore(i18next.t(level.nameKey), score)
-          scoreScreen.show()
-          saveProgress()
-          // Success audio + confetti
-          audio.playSuccess()
-          particleEffects?.emitConfetti(level.gridSize.width, level.gridSize.height)
-        }
-        break
-      }
-
-      case 'level_failed': {
-        closeEditor()
-        audio.stopBeltRolling()
-        toolbar.setSimulationState('stopped')
-        const level = gameManager.currentLevel
-        levelFailedScreen.setLevelName(level ? i18next.t(level.nameKey) : '')
-        levelFailedScreen.show()
-        // Soft error cue — distinct from game-over modal so we don't queue
-        // an additional sting on top of any currently-playing audio.
-        audio.playError()
-        break
-      }
-
-      case 'sandbox':
-        toolbar.show()
-        toolbar.setSandboxMode(true)
-        toolbar.setSimulationState('idle')
-        setupSandbox()
-        break
-    }
+  const wireSimulationEffects = createSimulationEffectsWireUp({
+    getSimulation: () => gameManager.simulation,
+    getFactory: () => gameManager.factory,
+    getParticleEffects: () => particleEffects,
+    modal: gameOverModal,
+    ...createFactoryBackedGameOverFallbackResolvers(() => gameManager.factory),
   })
 
-  // Wraps a UI handler with the standard click sound. Used pervasively below
-  // to avoid copy-pasting `audio.playUIClick()` into every callback.
-  const click = <A extends unknown[]>(fn: (...args: A) => void) => (...args: A): void => {
-    audio.playUIClick()
-    fn(...args)
-  }
+  gameManager.on('stateChanged', createGameStateChangeHandler({
+    gameManager,
+    hideAllUI,
+    cleanupLevelRendering,
+    closeEditor,
+    mainMenu,
+    levelSelect,
+    toolbar,
+    hud,
+    levelBrief,
+    scoreScreen,
+    levelFailedScreen,
+    cameraController,
+    setupBuildPhase,
+    setupSandbox,
+    autoSaveFactory,
+    getGridInteraction: () => gridInteraction,
+    wireSimulationEffects,
+    saveProgress,
+    audio,
+  }))
 
-  // --- MainMenu callbacks ---
-
-  mainMenu.onStart = click(() => gameManager.enterLevelSelect())
-  mainMenu.onSandbox = click(() => gameManager.enterSandbox())
-
-  // --- LevelSelect callbacks ---
-
-  levelSelect.onLevelSelected = click((levelId: string) => gameManager.startLevel(levelId))
-  levelSelect.onBack = click(() => gameManager.enterMainMenu())
-
-  // --- Toolbar simulation callbacks ---
-
-  // Small toolbar state mutations shared by sim start/resume callbacks.
-  const setRunning = (): void => { toolbar.setPaused(false); toolbar.setSimulationState('running') }
-
-  toolbar.onStart = () => {
-    audio.playUIClick()
-    const state = gameManager.getCurrentState()
-    const sim = gameManager.simulation
-
-    if (state === 'build_phase') {
-      populateSimulation()
-      const commands = pxtEditor.getProgram()
-      if (commands.length > 0) sim?.enqueueCommands(commands)
-      gameManager.startSimulation()
-      setRunning()
-    } else if (state === 'play_phase' && sim?.paused) {
-      sim.resume(); setRunning()
-    } else if (state === 'sandbox' && sim) {
-      if (sim.paused) {
-        sim.resume(); setRunning()
-      } else if (!sim.running) {
-        populateSimulation()
-        const commands = pxtEditor.getProgram()
-        if (commands.length > 0) sim.enqueueCommands(commands)
-        audio.playBeltRolling()
-        wireSimulationEffects()
-        sim.start()
-        hud.show()
-        setRunning()
-      }
-    }
-  }
-
-  toolbar.onPause = click(() => {
-    const sim = gameManager.simulation
-    if (sim?.running && !sim.paused) {
-      sim.pause()
-      toolbar.setPaused(true)
-      toolbar.setSimulationState('paused')
-    }
-  })
-
-  toolbar.onResume = click(() => {
-    const sim = gameManager.simulation
-    if (sim?.running && sim.paused) { sim.resume(); setRunning() }
-  })
-
-  const restartCurrentSession = () => {
-    const state = gameManager.getCurrentState()
-    if (state === 'play_phase') {
-      gameManager.stopSimulation()
-    } else if (state === 'sandbox') {
-      gameManager.simulation?.clearInFlight()
-      itemRenderer?.clear()
-      hud.hide()
-    }
-    toolbar.setPaused(false)
-    toolbar.setSimulationState('idle')
-  }
-
-  toolbar.onRestart = click(restartCurrentSession)
-
-  // Shared "retry the current level" and "back to level select" helpers used
-  // by both the score and level-failed screens. The audio click is a UI
-  // concern and stays here; the game-layer restart is delegated to
-  // `gameManager.retryCurrentLevel()` so we don't duplicate the lookup.
-  const retry = click(() => gameManager.retryCurrentLevel())
-  const goToLevelSelectWithSfx = click(() => gameManager.enterLevelSelect())
-
-  wireOutcomeScreens({
+  wireToolbarAndOutcomeCallbacks({
+    toolbar,
     scoreScreen,
     levelFailedScreen,
     gameOverModal,
-    onNextLevel: click(() => {
-      const nextId = getNextLevelId()
-      if (nextId) gameManager.startLevel(nextId)
-      else gameManager.enterLevelSelect()
-    }),
-    onRetryLevel: retry,
-    onBackToLevelSelect: goToLevelSelectWithSfx,
-    onRestartSession: click(restartCurrentSession),
-  })
-
-  // --- Tutorial callback ---
-
-  tutorialOverlay.onComplete = () => tutorialOverlay.hide()
-
-  // --- Machine + belt panel callbacks ---
-
-  machinePanel.onDelete = click(() => gridInteraction?.deleteSelectedMachine())
-
-  beltPanel.onDelete = click(() => {
-    if (!gridInteraction) return
-    gridInteraction.deleteSelectedBelt()
-    factoryRenderer?.clearBeltHighlight()
-    factoryRenderer?.syncMeshes()
-    beltPanel.hide()
-  })
-
-  beltPanel.onNameChange = (belt, newName) => {
-    const factory = gameManager.factory
-    if (!factory) return
-    factory.renameBelt(belt.id, newName)
-    syncFactoryToEditor()
-    void autoSaveFactory()
-  }
-
-  machinePanel.onTypeChange = click((machine, newType) => {
-    const factory = gameManager.factory
-    if (!factory) return
-    if (factory.updateMachineType(machine.x, machine.z, newType)) {
+    audio,
+    gameManager,
+    pxtEditor,
+    populateSimulation,
+    wireSimulationEffects,
+    hud,
+    getItemRenderer: () => itemRenderer,
+    getNextLevelId,
+    toggleEditor,
+    resetView: () => cameraController.resetView(),
+    autoSaveFactory,
+    importFactory: async () => {
+      const save = await importFromFile()
+      const factory = gameManager.factory
+      if (!factory) return
+      importFactoryWithProgram(save, factory, pxtEditor)
       factoryRenderer?.syncMeshes()
-      machinePanel.setMachine(factory.getMachineAt(machine.x, machine.z))
       syncFactoryToEditor()
-      void autoSaveFactory()
-    }
+    },
+    exportFactory: async () => {
+      const factory = gameManager.factory
+      if (!factory) return
+      const levelId = gameManager.currentLevel?.id
+      const save = await exportFactoryWithProgram(factory, pxtEditor, levelId)
+      exportToFile(save)
+    },
   })
 
-  machinePanel.onNameChange = (machine, newName) => {
-    const factory = gameManager.factory
-    if (!factory) return
-    factory.renameMachine(machine.x, machine.z, newName)
-    syncFactoryToEditor()
-    void autoSaveFactory()
-  }
-
-  toolbar.onToggleEditor = click(toggleEditor)
-  toolbar.onBackToMenu = click(() => gameManager.enterMainMenu())
-  toolbar.onResetView = click(() => cameraController.resetView())
-  toolbar.onSave = click(() => { void autoSaveFactory() })
-
-  toolbar.onLoad = click(() => {
-    void importFromFile()
-      .then((save) => {
-        const factory = gameManager.factory
-        if (!factory) return
-        importFactoryWithProgram(save, factory, pxtEditor)
-        factoryRenderer?.syncMeshes()
-        syncFactoryToEditor()
-      })
-      .catch(() => audio.playError())
+  wireMenuAndPanelCallbacks({
+    mainMenu,
+    levelSelect,
+    tutorialOverlay,
+    machinePanel,
+    beltPanel,
+    audio,
+    gameManager,
+    getGridInteraction: () => gridInteraction,
+    getFactoryRenderer: () => factoryRenderer,
+    syncFactoryToEditor,
+    autoSaveFactory,
   })
-
-  toolbar.onExport = async () => {
-    audio.playUIClick()
-    const factory = gameManager.factory
-    if (!factory) return
-    const levelId = gameManager.currentLevel?.id
-    const save = await exportFactoryWithProgram(factory, pxtEditor, levelId)
-    exportToFile(save)
-  }
-
-  // --- Simulation effects (particles + audio) ---
-
-  let wiredSim: object | null = null
-
-  function wireSimulationEffects(): void {
-    const sim = gameManager.simulation
-    if (!sim || sim === wiredSim) return
-    wiredSim = sim
-
-    wireGameOverModal({
-      simulation: sim,
-      modal: gameOverModal,
-      ...createFactoryBackedGameOverFallbackResolvers(() => gameManager.factory),
-    })
-
-    sim.on('machine_state_changed', (event) => {
-      if (event.data.to === 'processing') {
-        audio.playMachineProcess()
-        // Emit sparks at machine position
-        const machineId = event.data.machineId as string
-        const factory = gameManager.factory
-        if (factory && particleEffects) {
-          const machines = factory.getMachines()
-          const info = machines.find((m) => m.id === machineId)
-          if (info) {
-            particleEffects.emitSparksAt(info.x + 0.5, 0.5, info.z + 0.5)
-          }
-        }
-      }
-    })
-  }
 
   wireWindowEvents({
     canvasContainer,

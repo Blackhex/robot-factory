@@ -1,73 +1,153 @@
-import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'fs'
-import { resolve } from 'path'
+import { describe, it, expect, vi } from 'vitest'
+import { wireMenuAndPanelCallbacks } from '../../../src/ui/wireMenuAndPanelCallbacks'
 
-/**
- * Source-string tests pinning the wiring of `machinePanel.onTypeChange` and
- * `machinePanel.onNameChange` callbacks in `src/main.ts`.
- *
- * Bug being prevented: changing a machine's type or name was updating the
- * factory model but not pushing the new machine list into the PXT editor
- * (so block dropdowns kept showing stale names) and — for the type change
- * path — was not autosaving either.
- *
- * The fix requires both handlers to call `syncFactoryToEditor()` and
- * `void autoSaveFactory()` after a successful update.
- */
-
-const ROOT = resolve(__dirname, '..', '..', '..')
-const MAIN_TS_PATH = resolve(ROOT, 'src', 'main.ts')
-
-function findMatchingBrace(source: string, openIdx: number): number {
-  if (source[openIdx] !== '{') return -1
-  let depth = 0
-  for (let i = openIdx; i < source.length; i++) {
-    const ch = source[i]
-    if (ch === '{') depth++
-    else if (ch === '}') {
-      depth--
-      if (depth === 0) return i
-    }
+function createWiringFixture() {
+  const syncFactoryToEditor = vi.fn()
+  const autoSaveFactory = vi.fn(async () => {})
+  const playUIClick = vi.fn()
+  const enterLevelSelect = vi.fn()
+  const enterSandbox = vi.fn()
+  const startLevel = vi.fn()
+  const enterMainMenu = vi.fn()
+  const deleteSelectedMachine = vi.fn()
+  const deleteSelectedBelt = vi.fn()
+  const clearBeltHighlight = vi.fn()
+  const syncMeshes = vi.fn()
+  const factory = {
+    renameBelt: vi.fn(),
+    updateMachineType: vi.fn(() => true),
+    getMachineAt: vi.fn(() => ({ id: 'machine-1' })),
+    renameMachine: vi.fn(),
   }
-  return -1
+  const mainMenu = {
+    onStart: () => {},
+    onSandbox: () => {},
+  }
+  const levelSelect = {
+    onLevelSelected: (_levelId: string) => {},
+    onBack: () => {},
+  }
+  const machinePanel = {
+    onDelete: (_machine: unknown) => {},
+    onTypeChange: (_machine: unknown, _newType: unknown) => {},
+    onNameChange: (_machine: unknown, _newName: string) => {},
+    setMachine: vi.fn(),
+  }
+  const beltPanel = {
+    onDelete: () => {},
+    onNameChange: (_belt: unknown, _newName: string) => {},
+    hide: vi.fn(),
+  }
+
+  wireMenuAndPanelCallbacks({
+    mainMenu: mainMenu as never,
+    levelSelect: levelSelect as never,
+    tutorialOverlay: { onComplete: () => {}, hide: vi.fn() } as never,
+    machinePanel: machinePanel as never,
+    beltPanel: beltPanel as never,
+    audio: { playUIClick } as never,
+    gameManager: {
+      enterLevelSelect,
+      enterSandbox,
+      startLevel,
+      enterMainMenu,
+      factory,
+    } as never,
+    getGridInteraction: () => ({ deleteSelectedMachine, deleteSelectedBelt }) as never,
+    getFactoryRenderer: () => ({ clearBeltHighlight, syncMeshes }) as never,
+    syncFactoryToEditor,
+    autoSaveFactory,
+  })
+
+  return {
+    mainMenu,
+    levelSelect,
+    machinePanel,
+    beltPanel,
+    factory,
+    playUIClick,
+    enterLevelSelect,
+    enterSandbox,
+    startLevel,
+    enterMainMenu,
+    deleteSelectedMachine,
+    deleteSelectedBelt,
+    clearBeltHighlight,
+    syncMeshes,
+    syncFactoryToEditor,
+    autoSaveFactory,
+  }
 }
 
-/**
- * Extract the body of the first handler assignment matching
- * `machinePanel.<handlerName> = ...`. Returns the inside of the outermost
- * `{ ... }` of the assigned function.
- */
-function extractHandlerBody(source: string, handlerName: string): string {
-  const marker = `machinePanel.${handlerName} =`
-  const start = source.indexOf(marker)
-  expect(start, `handler assignment for ${handlerName} not found`).toBeGreaterThanOrEqual(0)
-  const openBrace = source.indexOf('{', start)
-  expect(openBrace, `opening brace for ${handlerName} not found`).toBeGreaterThanOrEqual(0)
-  const closeBrace = findMatchingBrace(source, openBrace)
-  expect(closeBrace, `closing brace for ${handlerName} not found`).toBeGreaterThan(openBrace)
-  return source.slice(openBrace + 1, closeBrace)
-}
+describe('wireMenuAndPanelCallbacks machinePanel handlers', () => {
+  it('plays click audio for main menu and level select callbacks', () => {
+    const fixture = createWiringFixture()
 
-describe('main.ts machinePanel handlers', () => {
-  const source = readFileSync(MAIN_TS_PATH, 'utf8')
+    fixture.mainMenu.onStart()
+    fixture.mainMenu.onSandbox()
+    fixture.levelSelect.onLevelSelected('level-2')
+    fixture.levelSelect.onBack()
+
+    expect(fixture.enterLevelSelect).toHaveBeenCalledTimes(1)
+    expect(fixture.enterSandbox).toHaveBeenCalledTimes(1)
+    expect(fixture.startLevel).toHaveBeenCalledWith('level-2')
+    expect(fixture.enterMainMenu).toHaveBeenCalledTimes(1)
+    expect(fixture.playUIClick).toHaveBeenCalledTimes(4)
+  })
+
+  it('plays click audio for machine panel click-wrapped callbacks', () => {
+    const fixture = createWiringFixture()
+
+    fixture.machinePanel.onDelete({ x: 3, z: 4 })
+    fixture.machinePanel.onTypeChange({ x: 3, z: 4 }, 'assembler')
+
+    expect(fixture.deleteSelectedMachine).toHaveBeenCalledTimes(1)
+    expect(fixture.factory.updateMachineType).toHaveBeenCalledWith(3, 4, 'assembler')
+    expect(fixture.playUIClick).toHaveBeenCalledTimes(2)
+  })
+
+  it('plays click audio for belt panel delete callback', () => {
+    const fixture = createWiringFixture()
+
+    fixture.beltPanel.onDelete()
+
+    expect(fixture.deleteSelectedBelt).toHaveBeenCalledTimes(1)
+    expect(fixture.clearBeltHighlight).toHaveBeenCalledTimes(1)
+    expect(fixture.syncMeshes).toHaveBeenCalledTimes(1)
+    expect(fixture.beltPanel.hide).toHaveBeenCalledTimes(1)
+    expect(fixture.playUIClick).toHaveBeenCalledTimes(1)
+  })
 
   it('onTypeChange calls syncFactoryToEditor() after a successful type update', () => {
-    const body = extractHandlerBody(source, 'onTypeChange')
-    expect(body).toContain('syncFactoryToEditor()')
+    const fixture = createWiringFixture()
+
+    fixture.machinePanel.onTypeChange({ x: 3, z: 4 }, 'assembler')
+
+    expect(fixture.syncFactoryToEditor).toHaveBeenCalled()
   })
 
   it('onTypeChange calls void autoSaveFactory() after a successful type update', () => {
-    const body = extractHandlerBody(source, 'onTypeChange')
-    expect(body).toContain('void autoSaveFactory()')
+    const fixture = createWiringFixture()
+
+    fixture.machinePanel.onTypeChange({ x: 3, z: 4 }, 'assembler')
+
+    expect(fixture.autoSaveFactory).toHaveBeenCalled()
   })
 
   it('onNameChange calls syncFactoryToEditor() after renameMachine', () => {
-    const body = extractHandlerBody(source, 'onNameChange')
-    expect(body).toContain('syncFactoryToEditor()')
+    const fixture = createWiringFixture()
+
+    fixture.machinePanel.onNameChange({ x: 3, z: 4 }, 'North Dock')
+
+    expect(fixture.factory.renameMachine).toHaveBeenCalledWith(3, 4, 'North Dock')
+    expect(fixture.syncFactoryToEditor).toHaveBeenCalled()
   })
 
   it('onNameChange calls void autoSaveFactory() after renameMachine', () => {
-    const body = extractHandlerBody(source, 'onNameChange')
-    expect(body).toContain('void autoSaveFactory()')
+    const fixture = createWiringFixture()
+
+    fixture.machinePanel.onNameChange({ x: 3, z: 4 }, 'North Dock')
+
+    expect(fixture.autoSaveFactory).toHaveBeenCalled()
   })
 })
