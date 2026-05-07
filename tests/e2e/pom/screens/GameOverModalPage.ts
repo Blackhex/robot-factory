@@ -41,6 +41,14 @@ export class GameOverModalPage {
     await expect(this.restartBtn).toBeVisible()
   }
 
+  async getMessageText(): Promise<string> {
+    return (await this.message.textContent()) ?? ''
+  }
+
+  async getTitleText(): Promise<string> {
+    return (await this.title.textContent()) ?? ''
+  }
+
   async clickRestart(): Promise<void> {
     await this.restartBtn.click()
   }

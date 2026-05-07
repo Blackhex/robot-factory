@@ -222,7 +222,8 @@
     "item_fallback": "{{item}}",
     "reason": {
       "unconsumable_input": "{{machine}} neumí použít {{item}}. Zkontroluj recept nebo kam pás vede.",
-      "unconsumable_input_machine_disabled": "{{machine}} je zastavený, takže nemůže přijmout {{item}}. Spusť {{machine}} a zkus to znovu."
+      "unconsumable_input_machine_disabled": "{{machine}} je zastavený, takže nemůže přijmout {{item}}. Spusť {{machine}} a zkus to znovu.",
+      "no_recipe": "Spustil/a jsi {{machine}} bez receptu. Nastav recept před spuštěním."
     },
     "restart": "Restartovat"
   },

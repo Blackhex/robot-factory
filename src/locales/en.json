@@ -222,7 +222,8 @@
     "item_fallback": "{{item}}",
     "reason": {
       "unconsumable_input": "The {{machine}} can't use {{item}}. Check its recipe or where the belt leads.",
-      "unconsumable_input_machine_disabled": "The {{machine}} is stopped, so it can't accept {{item}}. Start the {{machine}} and try again."
+      "unconsumable_input_machine_disabled": "The {{machine}} is stopped, so it can't accept {{item}}. Start the {{machine}} and try again.",
+      "no_recipe": "You started the {{machine}} without a recipe. Set a recipe before starting it."
     },
     "restart": "Restart"
   },

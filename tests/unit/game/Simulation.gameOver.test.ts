@@ -335,3 +335,217 @@ describe('Simulation game-over on unconsumable delivery', () => {
     }
   })
 })
+
+// --- New rule: starting a recipe-required machine with no recipe is fatal ---
+
+import * as TypesModule from '../../../src/game/types'
+
+function captureGameOverEvents(sim: Simulation): SimulationEvent[] {
+  const events: SimulationEvent[] = []
+  sim.on('game_over' as SimulationEventType, (e) => events.push(e))
+  return events
+}
+
+describe('isRecipeRequiredMachineType helper', () => {
+  const recipeRequired: MachineType[] = [
+    'part_fabricator',
+    'assembler',
+    'painter',
+  ]
+  const recipeOptional: MachineType[] = [
+    'quality_checker',
+    'splitter',
+    'factory_output',
+    'recycler',
+  ]
+
+  for (const type of recipeRequired) {
+    it(`returns true for ${type}`, () => {
+      const fn = (TypesModule as { isRecipeRequiredMachineType?: (t: MachineType) => boolean })
+        .isRecipeRequiredMachineType
+      expect(typeof fn).toBe('function')
+      expect(fn!(type)).toBe(true)
+    })
+  }
+
+  for (const type of recipeOptional) {
+    it(`returns false for ${type}`, () => {
+      const fn = (TypesModule as { isRecipeRequiredMachineType?: (t: MachineType) => boolean })
+        .isRecipeRequiredMachineType
+      expect(typeof fn).toBe('function')
+      expect(fn!(type)).toBe(false)
+    })
+  }
+})
+
+describe('Simulation game-over on starting machine without recipe', () => {
+  beforeEach(() => {
+    resetItemIdCounter()
+  })
+
+  const recipeRequiredTypes: MachineType[] = [
+    'part_fabricator',
+    'assembler',
+    'painter',
+  ]
+
+  for (const type of recipeRequiredTypes) {
+    it(`fires game_over after starting a ${type} with no recipe (one tick)`, () => {
+      // GIVEN
+      const sim = new Simulation()
+      const machine = new Machine(`m_${type}`, type)
+      sim.addMachine(machine)
+      sim.setMachinePosition(machine.id, 0, 0)
+      const events = captureGameOverEvents(sim)
+
+      // WHEN
+      machine.start()
+      sim.tick()
+
+      // THEN
+      expect(sim.gameOver).not.toBeNull()
+      expect(sim.gameOver!.reason).toBe('no_recipe')
+      expect(sim.gameOver!.machineId).toBe(machine.id)
+      expect((sim.gameOver as { itemId?: unknown }).itemId).toBeUndefined()
+      expect((sim.gameOver as { itemType?: unknown }).itemType).toBeUndefined()
+      expect(typeof sim.gameOver!.tick).toBe('number')
+      expect(sim.paused).toBe(true)
+
+      expect(events).toHaveLength(1)
+      expect(events[0].data['reason']).toBe('no_recipe')
+      expect(events[0].data['machineId']).toBe(machine.id)
+      expect(events[0].data['itemId']).toBeUndefined()
+      expect(events[0].data['itemType']).toBeUndefined()
+    })
+  }
+
+  const nonRecipeTypes: MachineType[] = [
+    'quality_checker',
+    'splitter',
+    'factory_output',
+    'recycler',
+  ]
+
+  for (const type of nonRecipeTypes) {
+    it(`does NOT fire game_over after starting a ${type} with no recipe`, () => {
+      // GIVEN
+      const sim = new Simulation()
+      const machine = new Machine(`m_${type}`, type)
+      sim.addMachine(machine)
+      sim.setMachinePosition(machine.id, 0, 0)
+      const events = captureGameOverEvents(sim)
+
+      // WHEN
+      machine.start()
+      tickN(sim, 5)
+
+      // THEN
+      expect(sim.gameOver).toBeNull()
+      expect(events).toHaveLength(0)
+    })
+  }
+
+  it('does NOT fire game_over when recipe is set BEFORE start (part_fabricator)', () => {
+    // GIVEN
+    const sim = new Simulation()
+    const machine = new Machine('m1', 'part_fabricator')
+    machine.setRecipe(recipe('wheel_press_small'))
+    sim.addMachine(machine)
+    sim.setMachinePosition(machine.id, 0, 0)
+    const events = captureGameOverEvents(sim)
+
+    // WHEN
+    machine.start()
+    tickN(sim, 20)
+
+    // THEN
+    expect(sim.gameOver).toBeNull()
+    expect(events).toHaveLength(0)
+  })
+
+  it('does NOT fire game_over for an added-but-never-started recipe-required machine', () => {
+    // GIVEN — machine added without recipe and never started (enabled stays false).
+    const sim = new Simulation()
+    const machine = new Machine('m1', 'part_fabricator')
+    sim.addMachine(machine)
+    sim.setMachinePosition(machine.id, 0, 0)
+    expect(machine.enabled).toBe(false)
+    const events = captureGameOverEvents(sim)
+
+    // WHEN
+    tickN(sim, 200)
+
+    // THEN
+    expect(sim.gameOver).toBeNull()
+    expect(events).toHaveLength(0)
+  })
+
+  it('does NOT fire game_over when START_MACHINE and SET_RECIPE are queued in the same tick', () => {
+    // GIVEN
+    const sim = new Simulation()
+    const machine = new Machine('m1', 'part_fabricator')
+    sim.addMachine(machine)
+    sim.setMachinePosition(machine.id, 0, 0)
+    const events = captureGameOverEvents(sim)
+
+    // WHEN — both commands processed before the no-recipe scan.
+    sim.enqueueCommands([
+      { type: 'START_MACHINE', machineId: machine.id },
+      { type: 'SET_RECIPE', machineId: machine.id, recipeId: 'wheel_press_small' },
+    ])
+    sim.tick()
+
+    // THEN
+    expect(sim.gameOver).toBeNull()
+    expect(events).toHaveLength(0)
+    expect(machine.currentRecipe).not.toBeNull()
+  })
+
+  it('emits game_over only ONCE when multiple recipe-required machines are started without recipes', () => {
+    // GIVEN
+    const sim = new Simulation()
+    const a = new Machine('a', 'part_fabricator')
+    const b = new Machine('b', 'assembler')
+    const c = new Machine('c', 'painter')
+    sim.addMachine(a)
+    sim.addMachine(b)
+    sim.addMachine(c)
+    sim.setMachinePosition('a', 0, 0)
+    sim.setMachinePosition('b', 1, 0)
+    sim.setMachinePosition('c', 2, 0)
+    const events = captureGameOverEvents(sim)
+
+    // WHEN
+    a.start()
+    b.start()
+    c.start()
+    sim.tick()
+    tickN(sim, 5)
+
+    // THEN — first machine wins; subsequent ticks must not re-emit.
+    expect(sim.gameOver).not.toBeNull()
+    expect(sim.gameOver!.reason).toBe('no_recipe')
+    expect(events).toHaveLength(1)
+    expect(events[0].data['machineId']).toBe('a')
+  })
+
+  it('does not change gameOver or emit additional events on ticks after game over', () => {
+    // GIVEN
+    const sim = new Simulation()
+    const machine = new Machine('m1', 'painter')
+    sim.addMachine(machine)
+    sim.setMachinePosition(machine.id, 0, 0)
+    const events = captureGameOverEvents(sim)
+    machine.start()
+    sim.tick()
+    expect(sim.gameOver).not.toBeNull()
+    const snapshot = { ...sim.gameOver }
+
+    // WHEN
+    tickN(sim, 50)
+
+    // THEN
+    expect(sim.gameOver).toEqual(snapshot)
+    expect(events).toHaveLength(1)
+  })
+})

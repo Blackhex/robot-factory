@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest'
 import { initI18n, switchLanguage } from '../../../src/i18n/i18n'
 import { GameOverModal } from '../../../src/ui/GameOverModal'
 import type { GameOverInfo } from '../../../src/game/types'
@@ -75,6 +75,13 @@ describe('GameOverModal', () => {
     parent = document.createElement('div')
     document.body.appendChild(parent)
     modal = new GameOverModal(parent)
+  })
+
+  afterEach(() => {
+    // Dispose so the modal's i18next 'languageChanged' subscription does not
+    // leak into subsequent tests (each constructor adds another listener).
+    modal.dispose()
+    parent.remove()
   })
 
   describe('constructor', () => {
@@ -234,6 +241,50 @@ describe('GameOverModal', () => {
 
       // THEN
       expect(cb).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('no_recipe reason', () => {
+    function makeNoRecipeInfo(): GameOverModalInfo {
+      // itemId/itemType intentionally omitted — they are absent for no_recipe.
+      return {
+        reason: 'no_recipe',
+        machineId: 'm_1',
+        machineType: 'part_fabricator',
+        machineName: 'Press 1',
+        tick: 5,
+      } as unknown as GameOverModalInfo
+    }
+
+    it('renders the localized no_recipe message including the machine name', () => {
+      // WHEN
+      modal.show(makeNoRecipeInfo())
+
+      // THEN — message must come from the localized 'game_over.reason.no_recipe'
+      // key (NOT the raw key string), interpolated with the machine name.
+      const messageEl = parent.querySelector('.ui-game-over-message') as HTMLElement
+      const text = messageEl.textContent ?? ''
+      expect(text).not.toBe('game_over.reason.no_recipe')
+      expect(text.length).toBeGreaterThan(0)
+      expect(text).toContain('Press 1')
+    })
+
+    it('updates the no_recipe message when the language changes', async () => {
+      // GIVEN
+      modal.show(makeNoRecipeInfo())
+      const messageEl = parent.querySelector('.ui-game-over-message') as HTMLElement
+      const enText = messageEl.textContent ?? ''
+      expect(enText).not.toBe('game_over.reason.no_recipe')
+      expect(enText).toContain('Press 1')
+
+      // WHEN
+      await switchLanguage('cs')
+
+      // THEN
+      const csText = messageEl.textContent ?? ''
+      expect(csText).not.toBe('game_over.reason.no_recipe')
+      expect(csText).not.toBe(enText)
+      expect(csText).toContain('Press 1')
     })
   })
 

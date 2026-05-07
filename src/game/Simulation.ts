@@ -9,6 +9,7 @@ import { ConveyorBelt } from './ConveyorBelt.ts'
 import { ItemDeliveryEngine } from './ItemDeliveryEngine.ts'
 import { SimulationCommandDispatcher } from './SimulationCommandDispatcher.ts'
 import { CommandQueueRunner } from './CommandQueueRunner.ts'
+import { detectNoRecipeStart } from './NoRecipeGuard.ts'
 
 type SimEventHandler = (event: SimulationEvent) => void
 
@@ -66,61 +67,22 @@ export class Simulation {
     })
   }
 
-  // --- Entity management ---
-
-  addMachine(machine: Machine): void {
-    this.machines.set(machine.id, machine)
-  }
-
-  removeMachine(id: string): boolean {
-    return this.machines.delete(id)
-  }
-
-  getMachine(id: string): Machine | undefined {
-    return this.machines.get(id)
-  }
-
-  getMachines(): ReadonlyMap<string, Machine> {
-    return this.machines
-  }
-
-  addBelt(belt: ConveyorBelt): void {
-    this.belts.set(belt.id, belt)
-  }
-
-  removeBelt(id: string): boolean {
-    return this.belts.delete(id)
-  }
-
-  getBelt(id: string): ConveyorBelt | undefined {
-    return this.belts.get(id)
-  }
-
-  getBelts(): ReadonlyMap<string, ConveyorBelt> {
-    return this.belts
-  }
-
-  // --- Output belt connections ---
+  addMachine(machine: Machine): void { this.machines.set(machine.id, machine) }
+  removeMachine(id: string): boolean { return this.machines.delete(id) }
+  getMachine(id: string): Machine | undefined { return this.machines.get(id) }
+  getMachines(): ReadonlyMap<string, Machine> { return this.machines }
+  addBelt(belt: ConveyorBelt): void { this.belts.set(belt.id, belt) }
+  removeBelt(id: string): boolean { return this.belts.delete(id) }
+  getBelt(id: string): ConveyorBelt | undefined { return this.belts.get(id) }
+  getBelts(): ReadonlyMap<string, ConveyorBelt> { return this.belts }
 
   setMachineOutputBelt(machineId: string, beltId: string, port: 'primary' | 'secondary' = 'primary'): void {
-    if (port === 'primary') {
-      this.primaryOutputBelts.set(machineId, beltId)
-    } else {
-      this.secondaryOutputBelts.set(machineId, beltId)
-    }
+    const target = port === 'primary' ? this.primaryOutputBelts : this.secondaryOutputBelts
+    target.set(machineId, beltId)
   }
 
-  // --- Command queue ---
-
-  enqueueCommand(command: SimulationCommand): void {
-    this.queueRunner.enqueue(command)
-  }
-
-  enqueueCommands(commands: SimulationCommand[]): void {
-    this.queueRunner.enqueueAll(commands)
-  }
-
-  // --- Simulation control ---
+  enqueueCommand(command: SimulationCommand): void { this.queueRunner.enqueue(command) }
+  enqueueCommands(commands: SimulationCommand[]): void { this.queueRunner.enqueueAll(commands) }
 
   start(): void {
     if (this._running) return
@@ -143,32 +105,22 @@ export class Simulation {
     }
   }
 
-  pause(): void {
-    this._paused = true
-  }
-
-  resume(): void {
-    this._paused = false
-  }
-
-  get running(): boolean {
-    return this._running
-  }
-
-  get paused(): boolean {
-    return this._paused
-  }
-
+  pause(): void { this._paused = true }
+  resume(): void { this._paused = false }
+  get running(): boolean { return this._running }
+  get paused(): boolean { return this._paused }
   /** Fatal game-over state, or `null` while the simulation runs normally. */
-  get gameOver(): GameOverInfo | null {
-    return this._gameOver
-  }
-
-  // --- Tick ---
+  get gameOver(): GameOverInfo | null { return this._gameOver }
 
   tick(): void {
     if (this._gameOver !== null) return
     this.queueRunner.tick()
+    this.checkNoRecipeGameOver()
+    if (this._gameOver !== null) {
+      this.emit('tick', { tick: this.currentTick })
+      this.currentTick++
+      return
+    }
     this.updateMachines()
     this.advanceBelts()
     this.runDelivery()
@@ -194,6 +146,16 @@ export class Simulation {
     }
     for (const event of result.events) {
       this.emit(event.type, event.data, event.tick)
+    }
+  }
+
+  private checkNoRecipeGameOver(): void {
+    if (this._gameOver !== null) return
+    const info = detectNoRecipeStart(this.machines.values(), this.currentTick)
+    if (info !== null) {
+      this._gameOver = info
+      this._paused = true
+      this.emit('game_over', { ...info })
     }
   }
 
@@ -287,12 +249,10 @@ export class Simulation {
     return undefined
   }
 
-  // Machine position map (set from Factory grid data)
+  /** Machine position map (set from Factory grid data). */
   private machinePositions: Map<string, { x: number; z: number }> = new Map()
 
-  setMachinePosition(machineId: string, x: number, z: number): void {
-    this.machinePositions.set(machineId, { x, z })
-  }
+  setMachinePosition(machineId: string, x: number, z: number): void { this.machinePositions.set(machineId, { x, z }) }
 
   private updateScoring(): void {
     for (const machine of this.machines.values()) {
@@ -301,8 +261,6 @@ export class Simulation {
       }
     }
   }
-
-  // --- Event emitter ---
 
   on(type: SimulationEventType, handler: SimEventHandler): void {
     const list = this.handlers.get(type)
@@ -332,8 +290,6 @@ export class Simulation {
     }
   }
 
-  // --- Stats ---
-
   getStats(): SimulationStats {
     const total = this.robotsProduced + this.defects
     return {
@@ -344,8 +300,6 @@ export class Simulation {
       outputsDelivered: this.outputsDelivered,
     }
   }
-
-  // --- Reset ---
 
   /** Soft reset: clear runtime state but preserve factory layout. */
   clearInFlight(): void {

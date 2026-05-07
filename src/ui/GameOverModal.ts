@@ -70,10 +70,13 @@ export class GameOverModal {
     this.retryBtn.textContent = i18next.t('game_over.restart')
     if (this._lastInfo) {
       const key = this.getMessageKey(this._lastInfo)
-      this.messageEl.textContent = i18next.t(key, {
+      const interpolations: Record<string, string> = {
         machine: this.getDisplayMachineName(this._lastInfo),
-        item: getLocalizedItemName(this._lastInfo.itemType),
-      })
+      }
+      if (this._lastInfo.reason !== 'no_recipe' && this._lastInfo.itemType !== undefined) {
+        interpolations.item = getLocalizedItemName(this._lastInfo.itemType)
+      }
+      this.messageEl.textContent = i18next.t(key, interpolations)
     }
   }
 

@@ -228,14 +228,29 @@ export interface SimulationEvent {
   data: Record<string, unknown>
 }
 
-export type GameOverReason = 'unconsumable_input'
+export type GameOverReason = 'unconsumable_input' | 'no_recipe'
 export type GameOverCause = 'machine_disabled'
 
 export interface GameOverInfo {
   reason: GameOverReason
   cause?: GameOverCause
   machineId: string
-  itemId: string
-  itemType: ItemType
+  itemId?: string
+  itemType?: ItemType
   tick: number
+}
+
+const RECIPE_REQUIRED_MACHINE_TYPES: ReadonlySet<MachineType> = new Set<MachineType>([
+  'part_fabricator',
+  'assembler',
+  'painter',
+])
+
+/**
+ * Returns true for machine types that cannot operate without a recipe.
+ * Starting such a machine while `currentRecipe === null` is a fatal
+ * configuration error (Game Over: 'no_recipe').
+ */
+export function isRecipeRequiredMachineType(type: MachineType): boolean {
+  return RECIPE_REQUIRED_MACHINE_TYPES.has(type)
 }
