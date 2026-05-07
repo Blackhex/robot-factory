@@ -1,7 +1,21 @@
-import type { GameOverInfo, SimulationEventType } from './types.ts'
+import type { GameOverCause, GameOverInfo, SimulationEventType } from './types.ts'
 import { isRobotItemType } from './types.ts'
 import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
+
+function getUnconsumableInputCause(targetMachine: Machine): GameOverCause | undefined {
+  if (!targetMachine.enabled) {
+    switch (targetMachine.machineType) {
+      case 'quality_checker':
+      case 'factory_output':
+        return 'machine_disabled'
+      default:
+        break
+    }
+  }
+
+  return undefined
+}
 
 /**
  * Dependency object accepted by `ItemDeliveryEngine`. The engine reads
@@ -23,6 +37,7 @@ export interface ItemDeliveryEngineDeps {
 export interface DeliveryEvent {
   type: SimulationEventType
   data: Record<string, unknown>
+  tick?: number
 }
 
 export interface DeliveryResult {
@@ -79,6 +94,29 @@ export class ItemDeliveryEngine {
           // First, try to deliver to a machine at the belt's destination
           const targetMachine = this.deps.findMachineAt(belt.toX, belt.toZ)
           if (targetMachine && targetMachine.canAcceptInput()) {
+            // Fatal mis-routing: machine cannot consume this item type at
+            // all (wrong recipe, disabled destination, no recipe, or
+            // zero-input recipe). Trip game-over once and leave the item
+            // parked at the belt end.
+            if (!targetMachine.canConsume(item.type)) {
+              if (result.newGameOver === null) {
+                const cause = getUnconsumableInputCause(targetMachine)
+                result.newGameOver = {
+                  reason: 'unconsumable_input',
+                  ...(cause ? { cause } : {}),
+                  machineId: targetMachine.id,
+                  itemId: item.id,
+                  itemType: item.type,
+                  tick: currentTick + 1,
+                }
+                result.events.push({
+                  type: 'game_over',
+                  tick: result.newGameOver.tick,
+                  data: { ...result.newGameOver },
+                })
+              }
+              continue
+            }
             // Discard contract: defective items at the Shipper (factory_output)
             // are rejected at the dock — they count toward defect/quality
             // stats but not toward delivered outputs or robots produced.
@@ -98,25 +136,6 @@ export class ItemDeliveryEngine {
                 },
               })
               progress = true
-              continue
-            }
-            // Fatal mis-routing: machine cannot consume this item type at
-            // all (wrong recipe, no recipe, or zero-input recipe). Trip
-            // game-over once and leave the item parked at the belt end.
-            if (!targetMachine.canConsume(item.type)) {
-              if (result.newGameOver === null) {
-                result.newGameOver = {
-                  reason: 'unconsumable_input',
-                  machineId: targetMachine.id,
-                  itemId: item.id,
-                  itemType: item.type,
-                  tick: currentTick,
-                }
-                result.events.push({
-                  type: 'game_over',
-                  data: { ...result.newGameOver },
-                })
-              }
               continue
             }
             targetMachine.addInput(item)

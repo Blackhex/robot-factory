@@ -1,5 +1,38 @@
-import type { ItemType } from '../game/types'
-import { buildBeltPath } from './BeltPath'
+import {
+  resolvePausedArc,
+  resolvePausedHold,
+  resolveSeedArc,
+} from './ItemArcResolverBasics'
+import {
+  beltKeyOf,
+  clampToTickInterval,
+  RENDER_CELL_CAPACITY,
+  RENDER_FP_EPS,
+  RENDER_MIN_ITEM_SPACING,
+  SIM_TICK_INTERVAL,
+  type BeltRenderData,
+  type ItemRenderState,
+  type PathInfo,
+  type RenderArcResolution,
+} from './ItemArcResolverTypes'
+
+export {
+  beltKeyOf,
+  clampToTickInterval,
+  RENDER_CELL_CAPACITY,
+  RENDER_FP_EPS,
+  RENDER_MIN_ITEM_SPACING,
+  resolvePausedArc,
+  resolvePausedHold,
+  resolveSeedArc,
+  SIM_TICK_INTERVAL,
+}
+export type {
+  BeltRenderData,
+  ItemRenderState,
+  PathInfo,
+  RenderArcResolution,
+}
 
 /**
  * Per-frame arc-length resolution for items on belts. The resolvers in
@@ -12,207 +45,6 @@ import { buildBeltPath } from './BeltPath'
  *
  * See `ItemRenderer.update()` JSDoc for the full per-frame contract.
  */
-
-export interface BeltRenderData {
-  from: { x: number; z: number }
-  to: { x: number; z: number }
-  prevSegmentFrom?: { x: number; z: number }
-  /** Belt fraction per second (used for render-time interpolation). */
-  speed?: number
-  items: ReadonlyArray<{
-    id?: string
-    type: ItemType
-    position: number
-    /**
-     * When true, the renderer paints the instance with
-     * `DEFECTIVE_ITEM_COLOR` instead of `ITEM_COLORS[type]`.
-     * Optional so legacy/synthetic test fixtures that build
-     * `BeltRenderData` literals without the flag continue to work.
-     */
-    isDefective?: boolean
-  }>
-}
-
-/** Sim tick interval in seconds (renderer's ±1-tick bound on truth). */
-export const SIM_TICK_INTERVAL = 0.1
-
-/**
- * Per-cell minimum spacing between items, in normalized cell-fraction.
- *
- * Mirrors `ConveyorBelt.MIN_ITEM_SPACING` in the simulation (which the
- * renderer cannot import — `src/rendering/` may only depend on
- * `src/game/types`, intra-rendering, and `three`). The renderer applies
- * the same spacing constraint to its predictive interpolation so a
- * back item that sim has parked at `frontPos − MIN_ITEM_SPACING` cannot
- * be rendered past that physical limit. Without this cap the renderer
- * would settle at `truthArc + speed*SIM_TICK_INTERVAL*L` (one full tick
- * ahead of truth) on every spacing-capped item, since per-frame
- * predictive advance is only clamped by the symmetric ±1-tick bound
- * around truth — and truth never advances for a parked item.
- *
- * Keep in sync with `ConveyorBelt.MIN_ITEM_SPACING`.
- */
-export const RENDER_MIN_ITEM_SPACING = 0.5
-
-// Mirrors ConveyorBelt.CELL_CAPACITY; the renderer cannot import the game layer.
-export const RENDER_CELL_CAPACITY = 2
-
-/**
- * Float-drift tolerance for "at end of cell" / "at tick boundary"
- * comparisons in the rendering layer. Used to decide when an item
- * has reached a cell boundary or when a clamped position is at the
- * edge of its allowed range, despite cumulative `+= speed * dt`
- * accumulating float error (e.g. 10 × 0.1 = 0.9999999999999999).
- *
- * Mirrors `ConveyorBelt.FP_DRIFT_EPS`; the renderer cannot import the
- * game layer.
- */
-export const RENDER_FP_EPS = 1e-9
-
-/** Cached belt path + its arc length. */
-export interface PathInfo {
-  path: ReturnType<typeof buildBeltPath>
-  L: number
-}
-
-/**
- * Renderer-global per-item state, keyed by stable `Item.id`.
- *
- * `renderedArc` is in arc-length units on the path identified by
- * `beltKey` (∈ [0, pathLength]). During a multi-frame cross-belt
- * hand-over `beltKey` may temporarily lag behind the simulator's truth
- * belt — the renderer keeps drawing on the OLD belt's path until its
- * world-space position crosses the cell boundary, then promotes to the
- * NEW belt. `pathLength` always matches the path identified by
- * `beltKey`. See `ItemRenderer.update()` JSDoc for the full contract.
- *
- * `timeSinceCarry` (seconds since the most recent cross-belt promotion)
- * lets `resolveSameBeltAdvance` slow the per-frame advance for items
- * that just transferred onto a downstream belt — without that
- * scaling the renderer would extrapolate up to a full sim-tick of arc
- * by the end of the post-carry tick, breaking the back-pressure
- * test's ±0.05 cell tolerance (see
- * `ItemRendererStreamStability "back-pressure: rendered position
- * matches sim truth on every stuck cell"`).
- */
-export interface ItemRenderState {
-  renderedArc: number
-  beltKey: string
-  pathLength: number
-  timeSinceCarry: number
-}
-
-/**
- * Per-frame resolved draw state. `activeBeltKey` / `activePath` /
- * `activePathLength` may identify the OLD belt during a multi-frame
- * cross-belt carry-over (see `ItemRenderer.update()` JSDoc).
- */
-export interface RenderArcResolution {
-  renderedArc: number
-  activeBeltKey: string
-  activePath: ReturnType<typeof buildBeltPath>
-  activePathLength: number
-}
-
-/** Canonical belt key formula used to identify the belt path an item is on. */
-export const beltKeyOf = (b: BeltRenderData): string =>
-  `${b.from.x},${b.from.z}->${b.to.x},${b.to.z}`
-
-/** Clamp `arc` to within `±tickAdvance` of `truthArc`. */
-export const clampToTickInterval = (
-  arc: number,
-  truthArc: number,
-  tickAdvance: number,
-): number => {
-  const upper = truthArc + tickAdvance
-  const lower = truthArc - tickAdvance
-  if (arc > upper) return upper
-  if (arc < lower) return lower
-  return arc
-}
-
-/**
- * Paused-snap branch: snap to sim truth on the current belt. This is
- * the SECOND-and-subsequent paused-frame branch — the dispatcher
- * (`ItemRenderer.update`) routes the FIRST paused frame after a
- * running frame to `resolvePausedHold` instead, so this resolver only
- * runs once `wasLastFramePaused === true`.
- *
- * While paused sim truth doesn't change, so this produces a stable,
- * uniformly-spaced layout for the duration of the pause — the layout
- * settles to truth one render frame (~16ms) after pause-entry. The
- * caller only routes to this branch when `prev.beltKey === key`;
- * cross-belt or seed paths handle the other cases.
- *
- * Trade-off: this is a deliberate choice over a "hold last rendered
- * position on every paused frame" behavior. Holding indefinitely froze
- * each item's per-frame extrapolation lead — varying between 0
- * (newly-seeded) and `+tickAdvance` (settled) — producing visibly
- * uneven spacing while the player inspected the paused factory.
- * Snapping to truth from the second paused frame onward is preferable
- * to ongoing visual corruption; the pause-hold sibling preserves the
- * E2E no-jump invariant for the pause-entry transition.
- *
- * `activePathLength` uses `info.L` (recomputed this frame from the
- * belt's current geometry) rather than `prev.pathLength` (cached from
- * the previous frame), so a Factory edit that changed the belt's
- * prev-segment elbow between frames is reflected immediately on pause.
- */
-export function resolvePausedArc(
-  key: string,
-  info: PathInfo,
-  truthArc: number,
-): RenderArcResolution {
-  return {
-    renderedArc: truthArc,
-    activeBeltKey: key,
-    activePath: info.path,
-    activePathLength: info.L,
-  }
-}
-
-/**
- * Pause-entry branch: on the first paused frame after a running
- * frame, hold the previously rendered position. This prevents a
- * visible jump when the player clicks pause — the held extrapolation
- * lead from the last running frame becomes the rendered position
- * for one paused frame.
- *
- * Subsequent paused frames are routed to `resolvePausedArc` (snap
- * to truth) by the caller, so the layout settles to uniform sim-truth
- * positions ~16ms after pause-entry. See `resolvePausedArc` for the
- * stable-layout branch and `ItemRenderer.update` for the dispatch.
- */
-export function resolvePausedHold(
-  prev: ItemRenderState,
-  key: string,
-  info: PathInfo,
-): RenderArcResolution {
-  return {
-    renderedArc: prev.renderedArc,
-    activeBeltKey: key,
-    activePath: info.path,
-    activePathLength: info.L,
-  }
-}
-
-/**
- * Seed branch: first sight of an id or seed-frame (`dt <= 0`). Snap
- * to sim truth on the current belt. Also the only entry point for a
- * brand-new id into tracked state.
- */
-export function resolveSeedArc(
-  truthArc: number,
-  key: string,
-  info: PathInfo,
-): RenderArcResolution {
-  return {
-    renderedArc: truthArc,
-    activeBeltKey: key,
-    activePath: info.path,
-    activePathLength: info.L,
-  }
-}
 
 /**
  * Same-belt advance: `renderedArc += speed * dt * L * advanceFactor`,
@@ -364,7 +196,7 @@ export function resolveSameBeltAdvance(
     // ahead". With cheating-close test inputs the (a) clause skips
     // the cap so it doesn't pull rendered below truth.
     const frontParked = frontItemTruthArc >= L - RENDER_FP_EPS
-    if (frontParked && sep >= minSpacingArc - RENDER_FP_EPS) {
+    if (isCascadeBlocked && frontParked && sep >= minSpacingArc - RENDER_FP_EPS) {
       const spacingCap = frontItemTruthArc - minSpacingArc
       if (next > spacingCap) next = spacingCap
     }

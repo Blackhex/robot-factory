@@ -85,6 +85,9 @@ export class Machine {
 
   addInput(item: Item): boolean {
     if (this.machineType === 'factory_output') {
+      if (!this.enabled) {
+        return false
+      }
       this.consumedItems++
       return true
     }

@@ -166,6 +166,7 @@ describe('B-10 god-file split: ItemDeliveryEngine + SimulationCommandDispatcher'
 
       // factory_output at (2,0)
       const out = new Machine('out1', 'factory_output')
+      out.start()
       sim.addMachine(out)
       sim.setMachinePosition('out1', 2, 0)
 

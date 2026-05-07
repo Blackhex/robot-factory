@@ -425,8 +425,7 @@ describe('Simulation.clearInFlight() — disables machines', () => {
 })
 
 // =============================================================================
-// 11. Disabled quality_checker / splitter / recycler are also gated;
-//     factory_output is exempt.
+// 11. Disabled quality_checker / splitter / recycler / factory_output are gated.
 // =============================================================================
 describe('Machine.tick() — non-default machine types respect enabled', () => {
   beforeEach(() => {
@@ -489,23 +488,23 @@ describe('Machine.tick() — non-default machine types respect enabled', () => {
     expect(rc.processingTimer).toBe(0)
   })
 
-  it('factory_output is EXEMPT from the enabled gate (passive sink always consumes)', () => {
-    // GIVEN — Shipper at default enabled === false. It must still accept items via addInput.
+  it('disabled factory_output does not consume inputs while enabled is false', () => {
+    // GIVEN — Shipper defaults to enabled === false and must no longer act
+    // as a passive sink when items are pushed into it directly.
     const shipper = new Machine('out1', 'factory_output')
     expect(shipper.enabled).toBe(false)
 
-    // WHEN — deliver three items.
-    expect(shipper.addInput(createItem('robot_explorer'))).toBe(true)
-    expect(shipper.addInput(createItem('robot_explorer'))).toBe(true)
-    expect(shipper.addInput(createItem('robot_explorer'))).toBe(true)
+    // WHEN — attempt to deliver three items while disabled.
+    expect(shipper.addInput(createItem('robot_explorer'))).toBe(false)
+    expect(shipper.addInput(createItem('robot_explorer'))).toBe(false)
+    expect(shipper.addInput(createItem('robot_explorer'))).toBe(false)
 
-    // Tick a few times — factory_output's tick is a no-op today; whatever it
-    // becomes, the consumption side must remain unconditional.
+    // Tick a few times — the machine must remain inert while disabled.
     for (let i = 0; i < 5; i++) {
       shipper.tick()
     }
 
-    // THEN — all three items counted, regardless of enabled.
-    expect(shipper.consumedItems).toBe(3)
+    // THEN — nothing consumed while disabled.
+    expect(shipper.consumedItems).toBe(0)
   })
 })

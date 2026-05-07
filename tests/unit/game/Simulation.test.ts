@@ -666,6 +666,7 @@ describe('Simulation', () => {
     it('should track items delivered to factory_output', () => {
       // GIVEN
       const output = new Machine('out1', 'factory_output')
+      output.start()
       sim.addMachine(output)
       sim.setMachinePosition('out1', 1, 0)
       const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
@@ -685,6 +686,7 @@ describe('Simulation', () => {
       const events: SimulationEvent[] = []
       sim.on('output_delivered', (e) => events.push(e))
       const output = new Machine('out1', 'factory_output')
+      output.start()
       sim.addMachine(output)
       sim.setMachinePosition('out1', 1, 0)
       const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
@@ -704,6 +706,7 @@ describe('Simulation', () => {
     it('should count multiple deliveries to factory_output', () => {
       // GIVEN
       const output = new Machine('out1', 'factory_output')
+      output.start()
       sim.addMachine(output)
       sim.setMachinePosition('out1', 1, 0)
       const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
@@ -742,6 +745,7 @@ describe('Simulation', () => {
     it('should increment robotsProduced when a robot reaches factory_output', () => {
       // GIVEN — factory_output at the end of a 1-cell belt
       const output = new Machine('out1', 'factory_output')
+      output.start()
       sim.addMachine(output)
       sim.setMachinePosition('out1', 1, 0)
       const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
@@ -759,6 +763,7 @@ describe('Simulation', () => {
     it('should NOT increment robotsProduced for non-robot items at factory_output', () => {
       // GIVEN — same setup, but the delivered item is a part, not a robot
       const output = new Machine('out1', 'factory_output')
+      output.start()
       sim.addMachine(output)
       sim.setMachinePosition('out1', 1, 0)
       const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
@@ -776,6 +781,7 @@ describe('Simulation', () => {
     it('should increment robotsProduced once per delivered robot (not per tick)', () => {
       // GIVEN — factory_output at the end of a belt
       const output = new Machine('out1', 'factory_output')
+      output.start()
       sim.addMachine(output)
       sim.setMachinePosition('out1', 1, 0)
       const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)

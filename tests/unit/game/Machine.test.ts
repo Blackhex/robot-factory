@@ -325,6 +325,7 @@ describe('Machine', () => {
     it('should still accept input after receiving items', () => {
       // GIVEN
       const output = new Machine('out1', 'factory_output')
+      output.start()
 
       // WHEN
       output.addInput(createItem('wheel_small'))
@@ -340,6 +341,7 @@ describe('Machine', () => {
     it('should consume items on addInput (not store them)', () => {
       // GIVEN
       const output = new Machine('out1', 'factory_output')
+      output.start()
 
       // WHEN
       const accepted = output.addInput(createItem('wheel_small'))
@@ -363,6 +365,7 @@ describe('Machine', () => {
     it('should always remain idle', () => {
       // GIVEN
       const output = new Machine('out1', 'factory_output')
+      output.start()
 
       // WHEN
       output.addInput(createItem('wheel_small'))

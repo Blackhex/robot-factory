@@ -1,12 +1,22 @@
 import i18next from 'i18next'
-import type { GameOverInfo } from '../game/types'
+import type { GameOverInfo, MachineType } from '../game/types'
+import { getLocalizedItemName, getLocalizedMachineName } from './localizedNames'
+import { isMeaningfulMachineName } from './machineLabels'
+
+type GameOverCause = 'machine_disabled'
+
+export type GameOverModalInfo = GameOverInfo & {
+  machineType?: MachineType
+  machineName?: string
+  cause?: GameOverCause
+}
 
 export class GameOverModal {
   private container: HTMLDivElement
   private titleEl: HTMLHeadingElement
   private messageEl: HTMLParagraphElement
   private retryBtn: HTMLButtonElement
-  private _lastInfo: GameOverInfo | null = null
+  private _lastInfo: GameOverModalInfo | null = null
 
   onRetry: () => void = () => {}
 
@@ -40,7 +50,7 @@ export class GameOverModal {
     i18next.on('languageChanged', this.updateLabels)
   }
 
-  show(info: GameOverInfo): void {
+  show(info: GameOverModalInfo): void {
     this._lastInfo = info
     this.updateLabels()
     this.container.style.display = 'flex'
@@ -59,11 +69,27 @@ export class GameOverModal {
     this.titleEl.textContent = i18next.t('game_over.title')
     this.retryBtn.textContent = i18next.t('game_over.restart')
     if (this._lastInfo) {
-      const key = `game_over.reason.${this._lastInfo.reason}`
+      const key = this.getMessageKey(this._lastInfo)
       this.messageEl.textContent = i18next.t(key, {
-        machine: this._lastInfo.machineId,
-        item: this._lastInfo.itemType,
+        machine: this.getDisplayMachineName(this._lastInfo),
+        item: getLocalizedItemName(this._lastInfo.itemType),
       })
     }
+  }
+
+  private getDisplayMachineName(info: GameOverModalInfo): string {
+    if (isMeaningfulMachineName(info.machineName, info.machineType)) {
+      return info.machineName.trim()
+    }
+
+    return getLocalizedMachineName(info.machineType)
+  }
+
+  private getMessageKey(info: GameOverModalInfo): string {
+    if (info.reason === 'unconsumable_input' && info.cause === 'machine_disabled') {
+      return 'game_over.reason.unconsumable_input_machine_disabled'
+    }
+
+    return `game_over.reason.${info.reason}`
   }
 }

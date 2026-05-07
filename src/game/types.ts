@@ -229,9 +229,11 @@ export interface SimulationEvent {
 }
 
 export type GameOverReason = 'unconsumable_input'
+export type GameOverCause = 'machine_disabled'
 
 export interface GameOverInfo {
   reason: GameOverReason
+  cause?: GameOverCause
   machineId: string
   itemId: string
   itemType: ItemType

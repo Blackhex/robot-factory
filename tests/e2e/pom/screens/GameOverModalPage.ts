@@ -7,11 +7,13 @@ import { expect } from '@playwright/test'
 export class GameOverModalPage {
   private readonly root: Locator
   private readonly title: Locator
+  private readonly message: Locator
   private readonly restartBtn: Locator
 
   constructor(page: Page) {
     this.root = page.locator('.ui-game-over-modal')
     this.title = page.locator('.ui-game-over-title')
+    this.message = page.locator('.ui-game-over-message')
     this.restartBtn = page.locator('.ui-game-over-btn')
   }
 
@@ -25,6 +27,14 @@ export class GameOverModalPage {
 
   async expectTitleText(text: string): Promise<void> {
     await expect(this.title).toHaveText(text)
+  }
+
+  async expectMessageText(text: string): Promise<void> {
+    await expect(this.message).toHaveText(text)
+  }
+
+  async expectMessageTextMatching(pattern: RegExp): Promise<void> {
+    await expect(this.message).toHaveText(pattern)
   }
 
   async expectRestartButtonVisible(): Promise<void> {

@@ -335,6 +335,10 @@ function canConsumeAlways(_m: Machine, _t: ItemType): boolean {
   return true
 }
 
+function canConsumeWhenEnabled(m: Machine, _t: ItemType): boolean {
+  return m.enabled
+}
+
 /**
  * Recipe-driven canConsume used by part_fabricator / assembler / painter.
  * Accepts only item types listed in the currently-set recipe inputs. With
@@ -374,7 +378,7 @@ const painterBehavior: MachineBehavior = {
 }
 const qualityCheckerBehavior: MachineBehavior = {
   tick: tickQualityChecker,
-  canConsume: canConsumeAlways,
+  canConsume: canConsumeWhenEnabled,
 }
 const splitterBehavior: MachineBehavior = {
   tick: tickSplitter,
@@ -386,7 +390,7 @@ const recyclerBehavior: MachineBehavior = {
 }
 const factoryOutputBehavior: MachineBehavior = {
   tick: (_m, _rng) => {},
-  canConsume: canConsumeAlways,
+  canConsume: canConsumeWhenEnabled,
 }
 
 export const MACHINE_BEHAVIORS: Record<MachineType, MachineBehavior> = {

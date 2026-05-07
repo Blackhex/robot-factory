@@ -29,25 +29,46 @@ function paintRobotExplorerRecipe(): Recipe {
 
 describe('Machine.canConsume', () => {
   describe('factory_output', () => {
-    it('accepts any item type', () => {
+    it('accepts any item type when enabled', () => {
       // GIVEN
       const m = new Machine('out1', 'factory_output')
+      m.start()
 
       // THEN
       expect(m.canConsume('wheel_small')).toBe(true)
       expect(m.canConsume('robot_guardian')).toBe(true)
       expect(m.canConsume('raw_material')).toBe(true)
     })
+
+    it('rejects every item type while disabled', () => {
+      // GIVEN
+      const m = new Machine('out1', 'factory_output')
+
+      // THEN
+      expect(m.canConsume('wheel_small')).toBe(false)
+      expect(m.canConsume('robot_guardian')).toBe(false)
+      expect(m.canConsume('raw_material')).toBe(false)
+    })
   })
 
   describe('pass-through machines', () => {
-    it('quality_checker accepts any item type', () => {
+    it('quality_checker accepts any item type when enabled', () => {
       // GIVEN
       const m = new Machine('qc1', 'quality_checker')
+      m.start()
 
       // THEN
       expect(m.canConsume('wheel_small')).toBe(true)
       expect(m.canConsume('chassis_heavy')).toBe(true)
+    })
+
+    it('quality_checker rejects every item type while disabled', () => {
+      // GIVEN
+      const m = new Machine('qc1', 'quality_checker')
+
+      // THEN
+      expect(m.canConsume('wheel_small')).toBe(false)
+      expect(m.canConsume('chassis_heavy')).toBe(false)
     })
 
     it('splitter accepts any item type', () => {

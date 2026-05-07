@@ -224,7 +224,34 @@ export class PxtEditorPage {
         const ws = win.Blockly.mainWorkspace
         const block = ws.getBlockById(id)
         if (!block) throw new Error(`Block ${id} not found on workspace`)
-        const field = block.getField('machine')
+        const resolveMachineField = (hostBlock: any) => {
+          const directField = hostBlock.getField?.('machine')
+          if (directField) {
+            return directField
+          }
+
+          const inputNames = ['machine', 'MACHINE']
+          for (const inputName of inputNames) {
+            const input = hostBlock.getInput?.(inputName)
+            const targetBlock = input?.connection?.targetBlock?.()
+            const targetField = targetBlock?.getField?.('machine')
+            if (targetField) {
+              return targetField
+            }
+          }
+
+          for (const input of hostBlock.inputList ?? []) {
+            const targetBlock = input?.connection?.targetBlock?.()
+            const targetField = targetBlock?.getField?.('machine')
+            if (targetField) {
+              return targetField
+            }
+          }
+
+          return null
+        }
+
+        const field = resolveMachineField(block)
         if (!field) throw new Error(`machine field not found on block ${id}`)
         let raw: any[] = []
         try {
@@ -265,8 +292,35 @@ export class PxtEditorPage {
         if (!flyoutWs) throw new Error('flyout workspace not available')
         const all: any[] = flyoutWs.getAllBlocks?.(false) ?? []
         const matches = all.filter((b: any) => types.includes(b.type))
+        const resolveMachineField = (hostBlock: any) => {
+          const fieldNames = ['machine', 'MACHINE']
+          const queue = [hostBlock]
+          const visited = new Set<any>()
+
+          while (queue.length > 0) {
+            const block = queue.shift()
+            if (!block || visited.has(block)) continue
+            visited.add(block)
+
+            for (const fieldName of fieldNames) {
+              const field = block.getField?.(fieldName)
+              if (field) return field
+            }
+
+            for (const input of block.inputList ?? []) {
+              const targetBlock =
+                input?.connection?.targetBlock?.() ?? block.getInputTargetBlock?.(input?.name)
+              if (targetBlock && !visited.has(targetBlock)) {
+                queue.push(targetBlock)
+              }
+            }
+          }
+
+          return null
+        }
+
         return matches.map((b: any) => {
-          const field = b.getField?.('machine')
+          const field = resolveMachineField(b)
           const apiText =
             field && typeof field.getText === 'function' ? String(field.getText() ?? '') : ''
           const apiValue =

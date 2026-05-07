@@ -52,6 +52,7 @@ function buildShipperFactory(sim: Simulation): {
   belt: ConveyorBelt
 } {
   const output = new Machine('out1', 'factory_output')
+  output.start()
   sim.addMachine(output)
   sim.setMachinePosition('out1', 1, 0)
   const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
@@ -325,6 +326,7 @@ describe('Shipper (factory_output) discards defective items', () => {
     sim.setMachinePosition('qc1', 1, 0)
 
     const output = new Machine('out1', 'factory_output')
+    output.start()
     sim.addMachine(output)
     sim.setMachinePosition('out1', 3, 0)
 

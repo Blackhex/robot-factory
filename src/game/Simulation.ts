@@ -193,7 +193,7 @@ export class Simulation {
       this._paused = true
     }
     for (const event of result.events) {
-      this.emit(event.type, event.data)
+      this.emit(event.type, event.data, event.tick)
     }
   }
 
@@ -322,8 +322,8 @@ export class Simulation {
     }
   }
 
-  private emit(type: SimulationEventType, data: Record<string, unknown>): void {
-    const event: SimulationEvent = { type, tick: this.currentTick, data }
+  private emit(type: SimulationEventType, data: Record<string, unknown>, tick = this.currentTick): void {
+    const event: SimulationEvent = { type, tick, data }
     const list = this.handlers.get(type)
     if (list) {
       for (const handler of list) {

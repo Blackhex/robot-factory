@@ -94,12 +94,29 @@
   "items": {
     "current_item": "aktuální položka",
     "wheel_small": "Malé kolo",
+    "wheel_medium": "Střední kolo",
+    "wheel_large": "Velké kolo",
     "sensor_proximity": "Senzor přiblížení",
+    "sensor_camera": "Kamerový senzor",
+    "sensor_lidar": "LiDAR senzor",
+    "battery_standard": "Standardní baterie",
+    "battery_high_capacity": "Vysokokapacitní baterie",
+    "chassis_light": "Lehký podvozek",
+    "chassis_heavy": "Těžký podvozek",
+    "circuit_basic": "Základní obvod",
+    "circuit_advanced": "Pokročilý obvod",
+    "drivetrain_basic": "Základní pohon",
+    "drivetrain_advanced": "Pokročilý pohon",
+    "sensor_array_basic": "Základní senzorové pole",
+    "sensor_array_advanced": "Pokročilé senzorové pole",
+    "power_unit_standard": "Standardní napájecí jednotka",
+    "power_unit_high": "Výkonná napájecí jednotka",
     "frame_basic": "Základní rám",
     "motor_standard": "Standardní motor",
     "robot_explorer": "Robot Průzkumník",
     "robot_worker": "Robot Dělník",
-    "robot_guardian": "Robot Strážce"
+    "robot_guardian": "Robot Strážce",
+    "raw_material": "Surovina"
   },
   "belts": {
     "belt_1": "Pás 1",
@@ -120,7 +137,7 @@
   "levels": {
     "level_1": {
       "name": "První díl",
-        "description": "Umísti Vyráběč, propoj ho s Odesílačem pásem a vyrobte svá první kola."
+        "description": "Umísti Vyráběč, propoj ho s Odesílačem pásem a nezapomeň Odesílač spustit, než do něj dorazí díly."
     },
     "level_2": {
       "name": "Montážní linka",
@@ -201,8 +218,11 @@
   },
   "game_over": {
     "title": "Konec hry",
+    "machine_fallback": "stroj",
+    "item_fallback": "{{item}}",
     "reason": {
-      "unconsumable_input": "Stroj {{machine}} nemůže zpracovat předmět {{item}}."
+      "unconsumable_input": "{{machine}} neumí použít {{item}}. Zkontroluj recept nebo kam pás vede.",
+      "unconsumable_input_machine_disabled": "{{machine}} je zastavený, takže nemůže přijmout {{item}}. Spusť {{machine}} a zkus to znovu."
     },
     "restart": "Restartovat"
   },
@@ -225,13 +245,13 @@
     "next": "Další",
     "finish": "Hotovo",
     "level1_step1": "Vítej! Dvojklikem na mřížku umísti svůj první stroj — Vyráběč.",
-    "level1_step2": "Odesílač už je na mřížce — tam musí dorazit hotové díly. Najdi ho!",
+    "level1_step2": "Odesílač už je na mřížce. Najdi ho — než přijme díly, musíš ho spustit.",
     "level1_step3": "Propoj je pásem — přetáhni z výstupního slotu Vyráběče na vstupní slot Odesílače.",
     "level1_step4": "Otevři Editor a napiš svůj program. Klikni na ikonu kódu nebo stiskni E.",
-    "level1_step5": "Použij blok 'nastavit recept' k nastavení výroby stroje. Přetáhni ho z kategorie Machines.",
-    "level1_step6": "Stiskni Spustit a sleduj, jak díly putují po pásu do Odesílače!",
+    "level1_step5": "Použij blok 'nastavit recept' k nastavení výroby stroje. Přetáhni ho z kategorie Stroje.",
+    "level1_step6": "Stiskni Spustit a potom spusť Vyráběč i Odesílač, aby díly mohly jet po pásu.",
     "level2_step1": "Tentokrát potřebuješ více strojů. Dvojklikem umísti Vyráběč a Montážní stroj.",
-  "level2_step2": "Propoj stroje pásy a směřuj díly do Odesílače.",
+  "level2_step2": "Propoj stroje pásy a směřuj díly do Odesílače. Než čekáš dodávky, spusť ho.",
     "level2_step3": "Otevři Editor a použij bloky 'nastavit recept', aby každý stroj věděl, co má vyrábět.",
     "level3_step1": "Otevři Editor — máš nové bloky Smyčky! Použij 'opakuj' k efektivní výrobě mnoha dílů.",
     "level3_step2": "Smyčky opakují tvé instrukce automaticky, takže nemusíš psát stejné bloky znovu a znovu.",

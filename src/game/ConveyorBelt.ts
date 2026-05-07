@@ -1,6 +1,11 @@
 import type { Item } from './Item.ts'
 import type { BeltInfo } from './types.ts'
 import { beltPathSegmentLengths } from '../utils/BeltGeometry.ts'
+import {
+  BELT_CELL_CAPACITY,
+  BELT_FP_DRIFT_EPS,
+  BELT_MIN_ITEM_SPACING,
+} from '../utils/BeltFlowInvariants.ts'
 
 export class ConveyorBelt {
   /**
@@ -9,8 +14,8 @@ export class ConveyorBelt {
    * `MIN_ITEM_SPACING` apart (so visuals never overlap and back-pressure
    * is well-defined).
    */
-  static readonly CELL_CAPACITY = 2
-  static readonly MIN_ITEM_SPACING = 1 / ConveyorBelt.CELL_CAPACITY
+  static readonly CELL_CAPACITY = BELT_CELL_CAPACITY
+  static readonly MIN_ITEM_SPACING = BELT_MIN_ITEM_SPACING
 
   /**
    * Float-drift tolerance for "at end of cell" / "spacing boundary"
@@ -20,7 +25,7 @@ export class ConveyorBelt {
    * accumulating IEEE-754 drift (e.g. `10 × 0.1 = 0.9999999999999999`,
    * `0.6 - 0.5 = 0.09999999999999998`).
    */
-  static readonly FP_DRIFT_EPS = 1e-9
+  static readonly FP_DRIFT_EPS = BELT_FP_DRIFT_EPS
 
   readonly id: string
   readonly fromX: number

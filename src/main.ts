@@ -10,6 +10,7 @@ import { GridInteraction, type PausableSimulation } from './rendering/GridIntera
 import { CameraController } from './rendering/CameraController'
 import { EditorViewportController } from './rendering/EditorViewportController'
 import { ParticleEffects } from './rendering/ParticleEffects'
+import { createTerminalDrainGraceDecider } from './rendering/TerminalDrainGraceAcceptability'
 import { MainMenu } from './ui/MainMenu'
 import { LevelSelect } from './ui/LevelSelect'
 import { HUD } from './ui/HUD'
@@ -17,13 +18,15 @@ import { ScoreScreen } from './ui/ScoreScreen'
 import { LevelFailedScreen } from './ui/LevelFailedScreen'
 import { LangButton } from './ui/LangButton'
 import { GameOverModal } from './ui/GameOverModal'
-import type { GameOverInfo } from './game/types'
 import { ALL_MACHINE_TYPES, type MachineType } from './game/types'
 import { TutorialOverlay } from './ui/TutorialOverlay'
 import { Toolbar } from './ui/Toolbar'
 import { MachinePanel } from './ui/MachinePanel'
 import { BeltPanel } from './ui/BeltPanel'
 import { LevelBrief } from './ui/LevelBrief'
+import { createFactoryBackedGameOverFallbackResolvers } from './ui/createFactoryBackedGameOverFallbackResolvers'
+import { wireGameOverModal } from './ui/wireGameOverModal'
+import { wireOutcomeScreens } from './ui/wireOutcomeScreens'
 import { PxtEditor } from './editor/PxtEditor'
 import { AudioManager } from './audio/AudioManager'
 import {
@@ -36,6 +39,7 @@ import {
   exportFactoryWithProgram,
   importFactoryWithProgram,
 } from './utils/AutoSave'
+import { wireWindowEvents } from './utils/wireWindowEvents'
 import { getTutorialSteps } from './game/Tutorials'
 
 const PROGRESS_KEY = 'rf_progress'
@@ -252,6 +256,10 @@ async function main(): Promise<void> {
     factoryRenderer = new FactoryRenderer(factory, sceneManager)
     factoryRenderer.renderGrid()
     itemRenderer = new ItemRenderer(sceneManager.getScene())
+    itemRenderer.setTerminalDrainGraceDecider(createTerminalDrainGraceDecider({
+      getMachineAt: (x, z) => gameManager.factory?.getMachineAt(x, z),
+      getMachineById: (id) => gameManager.simulation?.getMachine(id),
+    }))
     particleEffects = new ParticleEffects(sceneManager.getScene())
 
     gridInteraction = new GridInteraction(sceneManager, factory, () => {
@@ -503,20 +511,18 @@ async function main(): Promise<void> {
   const retry = click(() => gameManager.retryCurrentLevel())
   const goToLevelSelectWithSfx = click(() => gameManager.enterLevelSelect())
 
-  // --- ScoreScreen / LevelFailed / GameOver callbacks ---
-
-  scoreScreen.onNextLevel = click(() => {
-    const nextId = getNextLevelId()
-    if (nextId) gameManager.startLevel(nextId)
-    else gameManager.enterLevelSelect()
-  })
-  scoreScreen.onRetry = retry
-  scoreScreen.onBackToMenu = goToLevelSelectWithSfx
-  levelFailedScreen.onRetry = retry
-  levelFailedScreen.onBackToLevelSelect = goToLevelSelectWithSfx
-  gameOverModal.onRetry = click(() => {
-    gameOverModal.hide()
-    restartCurrentSession()
+  wireOutcomeScreens({
+    scoreScreen,
+    levelFailedScreen,
+    gameOverModal,
+    onNextLevel: click(() => {
+      const nextId = getNextLevelId()
+      if (nextId) gameManager.startLevel(nextId)
+      else gameManager.enterLevelSelect()
+    }),
+    onRetryLevel: retry,
+    onBackToLevelSelect: goToLevelSelectWithSfx,
+    onRestartSession: click(restartCurrentSession),
   })
 
   // --- Tutorial callback ---
@@ -597,8 +603,10 @@ async function main(): Promise<void> {
     if (!sim || sim === wiredSim) return
     wiredSim = sim
 
-    sim.on('game_over', (event) => {
-      gameOverModal.show(event.data as unknown as GameOverInfo)
+    wireGameOverModal({
+      simulation: sim,
+      modal: gameOverModal,
+      ...createFactoryBackedGameOverFallbackResolvers(() => gameManager.factory),
     })
 
     sim.on('machine_state_changed', (event) => {
@@ -618,26 +626,12 @@ async function main(): Promise<void> {
     })
   }
 
-  // --- Keyboard: E to toggle editor ---
-
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'e' || e.key === 'E') {
-      const tag = (e.target as HTMLElement).tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-      const state = gameManager.getCurrentState()
-      if (state === 'build_phase' || state === 'sandbox') {
-        toggleEditor()
-      }
-    }
-  })
-
-  // --- Window resize ---
-
-  window.addEventListener('resize', () => {
-    const { clientWidth, clientHeight } = canvasContainer
-    sceneManager.resize(clientWidth, clientHeight)
-    // The editor panel may shift (40% width is viewport-relative) so refit.
-    editorViewport.refitCameraToCurrentLevel()
+  wireWindowEvents({
+    canvasContainer,
+    getState: () => gameManager.getCurrentState(),
+    toggleEditor,
+    resizeScene: (width, height) => sceneManager.resize(width, height),
+    refitCamera: () => editorViewport.refitCameraToCurrentLevel(),
   })
 
   // --- Initial state ---

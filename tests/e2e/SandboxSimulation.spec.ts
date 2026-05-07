@@ -1,7 +1,10 @@
 import { test, expect } from './pom'
 import {
+  FABRICATOR_TO_SHIPPER_PROGRAM,
+  buildFabricatorToDestinationLayout,
   buildAndRunSandboxFactory,
   enterSandbox,
+  setProgramAndStart,
 } from './pom/scenarios/SandboxFactoryScenario'
 
 // Use a wide viewport so the PXT editor has enough room for the toolbox + workspace
@@ -49,9 +52,7 @@ test.describe('Sandbox Simulation — Full Factory Flow (UI-only)', () => {
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
 
-    const programCode =
-      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
-      'machines.startMachine(Machine.A)'
+    const programCode = FABRICATOR_TO_SHIPPER_PROGRAM
 
     const isPxtLoaded = await pxt.isPxtIframeVisible(8000)
 
@@ -123,9 +124,7 @@ test.describe('Sandbox — Restart clears in-flight items and resets machines', 
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
 
-    const programCode =
-      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
-      'machines.startMachine(Machine.A)'
+    const programCode = FABRICATOR_TO_SHIPPER_PROGRAM
 
     await editorPanel.expectFallbackTextareaAttached()
     await editorPanel.setFallbackProgramViaValueAssignment(programCode)
@@ -391,12 +390,16 @@ test.describe('Sandbox — Game Over modal', () => {
     // wireSimulationEffects() is not called in sandbox mode
     await gameOverModal.expectVisible(30_000)
     await gameOverModal.expectTitleText('Game Over')
+    await gameOverModal.expectMessageText(
+      "The Fabricator can't use Small Wheel. Check its recipe or where the belt leads.",
+    )
     await gameOverModal.expectRestartButtonVisible()
 
     // Click Restart, assert modal hides
     await gameOverModal.clickRestart()
     await gameOverModal.expectHidden()
   })
+
 })
 
 // ----------------------------------------------------------------------------
@@ -416,63 +419,20 @@ test.describe('Sandbox — Game Over modal', () => {
 // shared scenario helper.
 // ----------------------------------------------------------------------------
 
-async function buildFabricatorToShipperLayout(
-  mainMenu: import('./pom/screens/MainMenuPage').MainMenuPage,
-  toolbar: import('./pom/screens/ToolbarPage').ToolbarPage,
-  grid: import('./pom/canvas/FactoryGridPage').FactoryGridPage,
-  machinePanel: import('./pom/screens/MachinePanelPage').MachinePanelPage,
-  probe: import('./pom/canvas/SimulationProbe').SimulationProbe,
-) {
-  await enterSandbox(mainMenu, toolbar)
-  await grid.expectCanvasVisible()
-
-  // Fabricator at (10,10) — default machine type from double-click placement.
-  await grid.dblClickCell({ x: 10, z: 10 })
-
-  // Shipper (factory_output) at (13,10).
-  await grid.dblClickCell({ x: 13, z: 10 })
-  await grid.clickCell({ x: 13, z: 10 })
-  await machinePanel.expectVisible()
-  await machinePanel.selectType('factory_output')
-  await machinePanel.expectTypeValue('factory_output')
-  await machinePanel.clickClose()
-  await machinePanel.expectHidden()
-
-  const machines = await probe.getMachines()
-  const fabricator = machines.find((m) => m.type === 'part_fabricator')
-  const shipper = machines.find((m) => m.type === 'factory_output')
-  expect(fabricator, 'Fabricator must exist before belt placement').toBeTruthy()
-  expect(shipper, 'Shipper (factory_output) must exist before belt placement').toBeTruthy()
-
-  const beltPlaced = await probe.placeBeltViaTestApi(
-    fabricator!.x, fabricator!.z, shipper!.x, shipper!.z,
-  )
-  expect(beltPlaced).toBe(true)
-}
-
-async function setProgramAndStart(
-  toolbar: import('./pom/screens/ToolbarPage').ToolbarPage,
-  editorPanel: import('./pom/screens/EditorPanelPage').EditorPanelPage,
-  programCode: string,
-) {
-  await toolbar.clickEditor()
-  await editorPanel.expectOpen()
-  await editorPanel.expectFallbackTextareaAttached()
-  await editorPanel.setFallbackProgramViaValueAssignment(programCode)
-  await toolbar.clickEditor()
-  await editorPanel.expectClosed()
-
-  await toolbar.expectStartButtonVisible()
-  await toolbar.clickStart()
-}
-
 test.describe('Sandbox — Explicit machine start contract', () => {
   test('Fabricator with a recipe but NO startMachine call produces zero items', async ({
     mainMenu, toolbar, grid, machinePanel, editorPanel, probe,
   }) => {
     test.setTimeout(90000)
 
-    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+    await buildFabricatorToDestinationLayout(
+      mainMenu,
+      toolbar,
+      grid,
+      machinePanel,
+      probe,
+      'factory_output',
+    )
 
     // Program contains ONLY a recipe assignment — no `startMachine` call.
     // Under the new contract, the Fabricator must remain idle and produce
@@ -519,11 +479,16 @@ test.describe('Sandbox — Explicit machine start contract', () => {
   }) => {
     test.setTimeout(90000)
 
-    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+    await buildFabricatorToDestinationLayout(
+      mainMenu,
+      toolbar,
+      grid,
+      machinePanel,
+      probe,
+      'factory_output',
+    )
 
-    const recipeAndStartProgram =
-      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
-      'machines.startMachine(Machine.A)'
+    const recipeAndStartProgram = FABRICATOR_TO_SHIPPER_PROGRAM
 
     await probe.resetOutputDeliveryRecording()
     await probe.startOutputDeliveryRecording()
@@ -572,7 +537,14 @@ test.describe('Sandbox — wait block', () => {
   }) => {
     test.setTimeout(120000)
 
-    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+    await buildFabricatorToDestinationLayout(
+      mainMenu,
+      toolbar,
+      grid,
+      machinePanel,
+      probe,
+      'factory_output',
+    )
 
     // setRecipe + startMachine fire immediately (tick 0).
     // wait(2000) blocks the command queue for ~2s.
@@ -580,6 +552,7 @@ test.describe('Sandbox — wait block', () => {
     const waitThenStopProgram =
       'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)\n' +
+      'machines.startMachine(Machine.B)\n' +
       'loops.wait(2000)\n' +
       'machines.stopMachine(Machine.A)'
 
@@ -626,7 +599,14 @@ test.describe('Sandbox — wait block', () => {
   }) => {
     test.setTimeout(90000)
 
-    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+    await buildFabricatorToDestinationLayout(
+      mainMenu,
+      toolbar,
+      grid,
+      machinePanel,
+      probe,
+      'factory_output',
+    )
 
     // Same wait+stop program — but here we sample DURING the 2s wait window
     // to prove the simulation keeps ticking (the wait only gates the command
@@ -634,6 +614,7 @@ test.describe('Sandbox — wait block', () => {
     const waitThenStopProgram =
       'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)\n' +
+      'machines.startMachine(Machine.B)\n' +
       'loops.wait(2000)\n' +
       'machines.stopMachine(Machine.A)'
 
@@ -679,12 +660,17 @@ test.describe('Sandbox — wait block', () => {
   }) => {
     test.setTimeout(90000)
 
-    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+    await buildFabricatorToDestinationLayout(
+      mainMenu,
+      toolbar,
+      grid,
+      machinePanel,
+      probe,
+      'factory_output',
+    )
 
     // Plain setRecipe + startMachine — Fabricator runs uninterrupted.
-    const recipeAndStartProgram =
-      'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
-      'machines.startMachine(Machine.A)'
+    const recipeAndStartProgram = FABRICATOR_TO_SHIPPER_PROGRAM
 
     await probe.resetOutputDeliveryRecording()
     await probe.startOutputDeliveryRecording()
@@ -715,7 +701,14 @@ test.describe('Sandbox — wait block', () => {
   }) => {
     test.setTimeout(120000)
 
-    await buildFabricatorToShipperLayout(mainMenu, toolbar, grid, machinePanel, probe)
+    await buildFabricatorToDestinationLayout(
+      mainMenu,
+      toolbar,
+      grid,
+      machinePanel,
+      probe,
+      'factory_output',
+    )
 
     // setRecipe + startMachine fire immediately (tick 0).
     // waitTicks(20) blocks the command queue for 20 simulation ticks
@@ -724,6 +717,7 @@ test.describe('Sandbox — wait block', () => {
     const waitTicksThenStopProgram =
       'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
       'machines.startMachine(Machine.A)\n' +
+      'machines.startMachine(Machine.B)\n' +
       'loops.waitTicks(20)\n' +
       'machines.stopMachine(Machine.A)'
 

@@ -94,12 +94,29 @@
   "items": {
     "current_item": "current item",
     "wheel_small": "Small Wheel",
+    "wheel_medium": "Medium Wheel",
+    "wheel_large": "Large Wheel",
     "sensor_proximity": "Proximity Sensor",
+    "sensor_camera": "Camera Sensor",
+    "sensor_lidar": "LiDAR Sensor",
+    "battery_standard": "Standard Battery",
+    "battery_high_capacity": "High-Capacity Battery",
+    "chassis_light": "Light Chassis",
+    "chassis_heavy": "Heavy Chassis",
+    "circuit_basic": "Basic Circuit",
+    "circuit_advanced": "Advanced Circuit",
+    "drivetrain_basic": "Basic Drivetrain",
+    "drivetrain_advanced": "Advanced Drivetrain",
+    "sensor_array_basic": "Basic Sensor Array",
+    "sensor_array_advanced": "Advanced Sensor Array",
+    "power_unit_standard": "Standard Power Unit",
+    "power_unit_high": "High-Power Unit",
     "frame_basic": "Basic Frame",
     "motor_standard": "Standard Motor",
     "robot_explorer": "Explorer Robot",
     "robot_worker": "Worker Robot",
-    "robot_guardian": "Guardian Robot"
+    "robot_guardian": "Guardian Robot",
+    "raw_material": "Raw Material"
   },
   "belts": {
     "belt_1": "Belt 1",
@@ -120,7 +137,7 @@
   "levels": {
     "level_1": {
       "name": "First Part",
-      "description": "Place a Fabricator, connect it to the Shipper with a belt, and produce your first wheels."
+      "description": "Place a Fabricator, connect it to the Shipper with a belt, and remember to start the Shipper before parts can be delivered."
     },
     "level_2": {
       "name": "Assembly Line",
@@ -201,8 +218,11 @@
   },
   "game_over": {
     "title": "Game Over",
+    "machine_fallback": "machine",
+    "item_fallback": "{{item}}",
     "reason": {
-      "unconsumable_input": "Machine {{machine}} cannot consume item {{item}}."
+      "unconsumable_input": "The {{machine}} can't use {{item}}. Check its recipe or where the belt leads.",
+      "unconsumable_input_machine_disabled": "The {{machine}} is stopped, so it can't accept {{item}}. Start the {{machine}} and try again."
     },
     "restart": "Restart"
   },
@@ -225,13 +245,13 @@
     "next": "Next",
     "finish": "Finish",
     "level1_step1": "Welcome! Double-click on the grid to place your first machine — a Fabricator.",
-    "level1_step2": "The Shipper is already on the grid — that's where finished parts must go. Find it!",
+    "level1_step2": "The Shipper is already on the grid. Find it — you'll need to start it before it can accept parts.",
     "level1_step3": "Connect them with a belt — drag from the Fabricator's output slot to the Shipper's input slot.",
     "level1_step4": "Open the Editor to write your program. Click the code button or press E.",
     "level1_step5": "Use the 'set recipe' block to choose what your machine produces. Drag it from the Machines category.",
-    "level1_step6": "Press Play and watch parts flow along the belt to the Shipper!",
+    "level1_step6": "Press Play, then start your Fabricator and the Shipper so the parts can travel along the belt.",
     "level2_step1": "This time you need multiple machines. Double-click to place a Fabricator and an Assembler.",
-    "level2_step2": "Connect machines with belts and route parts to the Shipper.",
+    "level2_step2": "Connect machines with belts and route parts to the Shipper. Start the Shipper before you expect deliveries.",
     "level2_step3": "Open the Editor and use 'set recipe' blocks to tell each machine what to produce.",
     "level3_step1": "Open the Editor — you now have Loop blocks! Use 'repeat' to produce many parts efficiently.",
     "level3_step2": "Loops repeat your instructions automatically, so you don't have to write the same blocks over and over.",

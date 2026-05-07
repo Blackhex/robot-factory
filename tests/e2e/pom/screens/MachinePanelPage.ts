@@ -46,6 +46,15 @@ export class MachinePanelPage {
     await expect(this.typeSelect).toHaveValue(type)
   }
 
+  async setName(name: string): Promise<void> {
+    await this.nameInput.fill(name)
+    await expect(this.nameInput).toHaveValue(name)
+  }
+
+  async expectNameValue(name: string): Promise<void> {
+    await expect(this.nameInput).toHaveValue(name)
+  }
+
   async expectNamePlaceholder(text: string): Promise<void> {
     await expect(this.nameInput).toHaveAttribute('placeholder', text)
   }

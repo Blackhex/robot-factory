@@ -45,8 +45,8 @@
  *
  * Test design:
  *   - Test A is a macro / black-box flow check: it runs a real Sim +
- *     real ItemRenderer with a `factory_output` SINK (deliveries always
- *     succeed → no back-pressure) and a tight injection cadence that
+ *     real ItemRenderer with a started `factory_output` SINK
+ *     (deliveries always succeed → no back-pressure) and a tight injection cadence that
  *     produces cap-2 packing. It captures per-frame world-space
  *     chain-arc deltas and asserts uniformity.
  *   - Tests B1 / B2 are micro / white-box predicate checks: they
@@ -68,7 +68,7 @@ import {
   ItemRenderer,
   type BeltRenderData,
 } from '../../../src/rendering/ItemRenderer'
-import { resetItemIdCounter } from '../../../src/game/Item'
+import { createItem, resetItemIdCounter } from '../../../src/game/Item'
 import {
   SIM_TICK_INTERVAL,
 } from '../../../src/rendering/ItemArcResolver'
@@ -77,6 +77,7 @@ import {
   SPEED, RENDER_DT, FRAMES_PER_TICK,
   ITEM_TYPE,
   readItemStates, chainOffsetsByKey,
+  enableStartedSinkTerminalDrainGrace,
   buildSinkChainHarness, runChainStream,
   simChainArc,
   type ItemStateView,
@@ -131,8 +132,8 @@ describe('ItemRenderer — uniform flow at cap-2 packing (no back-pressure)', ()
     'per-frame chain-arc advance is uniform in normal cap-2 flow with no back-pressure',
     () => {
       // GIVEN: 200 ticks of cap-2 stream (one item every 5 ticks at
-      // SPEED 1.0 along a 5-cell chain) terminating in a `factory_output`
-      // sink. Sink always accepts → deliveries never stall → no
+      // SPEED 1.0 along a 5-cell chain) terminating in a started
+      // `factory_output` sink. Deliveries never stall → no
       // back-pressure ever. Steady-state per-cell occupancy is 2 items
       // spaced 0.5 cells apart, with the front item still flowing
       // (positions slide from ~0.5 → 1.0 over 5 ticks before handover).
@@ -298,6 +299,77 @@ describe('ItemRenderer — uniform flow at cap-2 packing (no back-pressure)', ()
     return { ratio: deltaArc / expectedDelta, deltaArc, expectedDelta }
   }
 
+  /**
+   * Real-sim sink boundary harness for the terminal-belt bug: the last
+   * belt feeds a `factory_output`, the terminal cell temporarily holds
+   * two items, and the front item is parked at the cell end awaiting the
+   * next delivery pass. This is healthy flow because the sink accepts on
+   * the next sim tick; the renderer must therefore stay in the normal
+   * full-speed regime rather than the cascade-blocked slowdown/stall
+   * regime.
+   */
+  function measureTerminalSinkAdjacentAdvance(): {
+    ratio: number
+    deltaArc: number
+    expectedDelta: number
+  } {
+    const chainId = 'terminal_sink_boundary'
+    const harness = buildSinkChainHarness(chainId, 2)
+    const terminalBelt = harness.belts[1]
+    const target = createItem(ITEM_TYPE)
+    const front = createItem(ITEM_TYPE)
+
+    expect(harness.outputMachine.machineType).toBe('factory_output')
+    expect(harness.outputMachine.canAcceptInput()).toBe(true)
+
+    // Healthy sink-adjacent flow: terminal belt is momentarily full,
+    // but the front item is accepted on the next delivery pass.
+    expect(terminalBelt.insertItemAt(target, 0.5)).toBe(true)
+    expect(terminalBelt.insertItemAt(front, 1.0)).toBe(true)
+    expect(terminalBelt.getItems().map((item) => item.positionOnBelt)).toEqual([0.5, 1.0])
+
+    const sanityHarness = buildSinkChainHarness(`${chainId}_sanity`, 2)
+    const sanityTerminal = sanityHarness.belts[1]
+    const sanityTarget = createItem(ITEM_TYPE)
+    const sanityFront = createItem(ITEM_TYPE)
+    expect(sanityTerminal.insertItemAt(sanityTarget, 0.5)).toBe(true)
+    expect(sanityTerminal.insertItemAt(sanityFront, 1.0)).toBe(true)
+    sanityHarness.sim.tick()
+    expect(
+      sanityTerminal.getItems().some((item) => item.id === sanityFront.id),
+    ).toBe(false)
+
+  enableStartedSinkTerminalDrainGrace(renderer, harness)
+    renderer.cacheBeltTopology(harness.sim.getBelts())
+    const belts = renderer.buildRenderData(harness.sim.getBelts())
+    renderer.update(belts, GRID_W, GRID_H, 0)
+
+    const states = readItemStates(renderer) as Map<
+      string,
+      ItemStateView & { timeSinceCarry: number }
+    >
+    const seeded = states.get(target.id)
+    if (!seeded) throw new Error('seed failed: terminal target not in itemStates')
+    const beforeArc = seeded.renderedArc
+    const L = seeded.pathLength
+
+    states.set(target.id, {
+      renderedArc: seeded.renderedArc,
+      beltKey: seeded.beltKey,
+      pathLength: seeded.pathLength,
+      timeSinceCarry: 0.05,
+    })
+    expect(0.05).toBeLessThan(SIM_TICK_INTERVAL)
+
+    renderer.update(belts, GRID_W, GRID_H, RENDER_DT)
+
+    const after = states.get(target.id)
+    if (!after) throw new Error('update failed: terminal target missing after step')
+    const deltaArc = after.renderedArc - beforeArc
+    const expectedDelta = SPEED * RENDER_DT * L
+    return { ratio: deltaArc / expectedDelta, deltaArc, expectedDelta }
+  }
+
   it(
     'B1: does NOT slow rendering when the downstream cell has only 1 item still flowing',
     () => {
@@ -342,6 +414,22 @@ describe('ItemRenderer — uniform flow at cap-2 packing (no back-pressure)', ()
       // 0.5 (i.e. ±0.05) to absorb FP noise.
       expect(ratio).toBeGreaterThanOrEqual(0.45)
       expect(ratio).toBeLessThanOrEqual(0.55)
+    },
+  )
+
+  it(
+    'B3: does NOT slow rendering on a terminal belt that feeds an accepting sink',
+    () => {
+      // Terminal sink-adjacent healthy flow boundary: the LAST belt of a
+      // chain temporarily has two items, with the front parked at the
+      // cell end, but the `factory_output` sink at that belt's end will
+      // consume on the next sim tick. This must stay in normal flow — if
+      // the renderer classifies the terminal belt as cascade-blocked, it
+      // enters the post-carry slowdown/stall regime and visibly distorts
+      // the final gap before the sink.
+      const { ratio } = measureTerminalSinkAdjacentAdvance()
+      expect(ratio).toBeGreaterThanOrEqual(0.95)
+      expect(ratio).toBeLessThanOrEqual(1.05)
     },
   )
 })

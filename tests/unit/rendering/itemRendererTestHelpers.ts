@@ -109,7 +109,7 @@ export function injectItem(harness: BeltChainHarness): string | null {
 /**
  * Build a real Simulation with a straight chain of `cellCount`
  * ConveyorBelt segments laid along (0,0) → (cellCount,0) and a
- * `factory_output` (always-accepts) sink at the chain end. Belt ids
+ * started `factory_output` sink at the chain end. Belt ids
  * follow `<chainId>_seg<N>` so the renderer's `cacheBeltTopology`
  * recognises the chain and populates prev/next/prevPrev links.
  *
@@ -136,11 +136,13 @@ export function buildSinkChainHarness(
     sim.addBelt(belt)
     belts.push(belt)
   }
-  // Always-accepts sink: deliveries succeed every tick, so back-pressure
-  // never builds — items stream through at full belt speed indefinitely.
   const outputMachine = new Machine('output', 'factory_output')
+  outputMachine.start()
   sim.addMachine(outputMachine)
   sim.setMachinePosition(outputMachine.id, cellCount, 0)
+
+  // Started sink: deliveries succeed every tick, so back-pressure
+  // never builds — items stream through at full belt speed indefinitely.
 
   // Per-cell arc length matching the renderer's path builder.
   const cellLengths: number[] = []
@@ -167,6 +169,19 @@ export function buildSinkChainHarness(
   return { sim, belts, outputMachine, cellLengths, chainOffsets }
 }
 
+export function enableStartedSinkTerminalDrainGrace(
+  renderer: ItemRenderer,
+  harness: SinkChainHarness,
+): void {
+  renderer.setTerminalDrainGraceDecider((belt, frontItem) => {
+    if (!frontItem) return false
+    return belt.toX === harness.chainOffsets.length &&
+      belt.toZ === 0 &&
+      harness.outputMachine.canAcceptInput() &&
+      harness.outputMachine.canConsume(frontItem.type)
+  })
+}
+
 /**
  * Run the sim+render loop for `totalTicks` sim ticks. Every
  * `cadenceTicks` ticks (starting at tick 0) injects one item onto
@@ -180,6 +195,7 @@ export function runChainStream(
   cadenceTicks: number,
   onFrame: (frameIdx: number) => void,
 ): void {
+  enableStartedSinkTerminalDrainGrace(renderer, harness)
   renderer.cacheBeltTopology(harness.sim.getBelts())
   // Seed (dt = 0) so first sight of any item snaps to truth.
   renderer.update(

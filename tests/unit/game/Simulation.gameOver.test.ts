@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { resetItemIdCounter } from '../../../src/game/Item'
+import { createItem } from '../../../src/game/Item'
 import { Machine } from '../../../src/game/Machine'
 import { ConveyorBelt } from '../../../src/game/ConveyorBelt'
 import { getRecipeById } from '../../../src/game/Recipe'
@@ -80,6 +81,35 @@ function buildPipeline(
   return { sim, src, dst, belt, events }
 }
 
+function expectDisabledDestinationGameOver(handles: PipelineHandles): void {
+  const { sim, dst, belt, events } = handles
+
+  expect(sim.gameOver).not.toBeNull()
+  expect(sim.gameOver!.reason).toBe('unconsumable_input')
+  expect(sim.gameOver!.cause).toBe('machine_disabled')
+  expect(sim.gameOver!.machineId).toBe(dst.id)
+  expect(sim.gameOver!.itemType).toBe('wheel_small')
+  expect(sim.paused).toBe(true)
+
+  expect(dst.inputSlots).toHaveLength(0)
+  expect(dst.consumedItems).toBe(0)
+  expect(sim.itemsDelivered).toBe(0)
+  expect(sim.outputsDelivered).toBe(0)
+
+  const gameOverEvents = events.filter((e) => e.type === 'game_over')
+  expect(gameOverEvents).toHaveLength(1)
+  expect(gameOverEvents[0].event.data['reason']).toBe('unconsumable_input')
+  expect(gameOverEvents[0].event.data['cause']).toBe('machine_disabled')
+  expect(gameOverEvents[0].event.data['machineId']).toBe(dst.id)
+
+  const itemsOnBelt = belt.getItems()
+  expect(itemsOnBelt.length).toBeGreaterThanOrEqual(1)
+  const offending = itemsOnBelt.find((item) => item.id === sim.gameOver!.itemId)
+  expect(offending).toBeDefined()
+  expect(offending!.type).toBe('wheel_small')
+  expect(offending!.positionOnBelt).toBeGreaterThanOrEqual(1.0 - 1e-9)
+}
+
 // --- Tests ---
 
 describe('Simulation game-over on unconsumable delivery', () => {
@@ -107,6 +137,7 @@ describe('Simulation game-over on unconsumable delivery', () => {
     // THEN — game-over has been recorded.
     expect(sim.gameOver).not.toBeNull()
     expect(sim.gameOver!.reason).toBe('unconsumable_input')
+    expect(sim.gameOver!.cause).toBeUndefined()
     expect(sim.gameOver!.machineId).toBe(dst.id)
     expect(sim.gameOver!.itemType).toBe('wheel_small')
     expect(typeof sim.gameOver!.itemId).toBe('string')
@@ -146,25 +177,102 @@ describe('Simulation game-over on unconsumable delivery', () => {
     // THEN
     expect(sim.gameOver).not.toBeNull()
     expect(sim.gameOver!.reason).toBe('unconsumable_input')
+    expect(sim.gameOver!.cause).toBeUndefined()
     expect(sim.gameOver!.machineId).toBe(dst.id)
     expect(sim.gameOver!.itemType).toBe('wheel_small')
     expect(sim.paused).toBe(true)
   })
 
-  it('does NOT fire game_over when the destination is factory_output', () => {
-    // GIVEN
+  it('fires game_over when a disabled quality_checker is the belt destination', () => {
+    // GIVEN — quality_checker defaults to enabled === false and must reject
+    // the first delivered item until explicitly started.
+    const handles = buildPipeline('quality_checker', null)
+
+    // WHEN
+    tickN(handles.sim, 50)
+
+    // THEN
+    expectDisabledDestinationGameOver(handles)
+  })
+
+  it('fires game_over when a disabled factory_output is the belt destination', () => {
+    // GIVEN — intentional requirement change: Shipper is no longer a passive
+    // always-on sink while disabled.
+    const handles = buildPipeline('factory_output', null)
+
+    // WHEN
+    tickN(handles.sim, 50)
+
+    // THEN
+    expectDisabledDestinationGameOver(handles)
+  })
+
+  it('keeps Simulation.gameOver.tick aligned with the emitted game_over event tick for a disabled factory_output destination', () => {
+    // GIVEN — the same disabled-destination path should report one tick
+    // consistently in both the stored fatal state and the event stream.
     const { sim, events } = buildPipeline('factory_output', null)
 
     // WHEN
-    tickN(sim, 200)
+    tickN(sim, 50)
 
     // THEN
-    expect(sim.gameOver).toBeNull()
-    expect(sim.paused).toBe(false)
-    expect(events.filter((e) => e.type === 'game_over')).toHaveLength(0)
+    expect(sim.gameOver).not.toBeNull()
 
-    // SANITY — at least one item should have been delivered to the output.
-    expect(sim.outputsDelivered).toBeGreaterThan(0)
+    const gameOverEvents = events.filter((event) => event.type === 'game_over')
+    expect(gameOverEvents).toHaveLength(1)
+    expect(gameOverEvents[0].event.tick).toBe(sim.gameOver!.tick)
+  })
+
+  it('fires game_over for a defective item at a disabled factory_output instead of taking the enabled-shipper discard path', () => {
+    // GIVEN — contrast with ShipperDiscardsDefective.test.ts: there the
+    // shipper is explicitly started before a defective item arrives. Here the
+    // shipper stays disabled, so the disabled-destination contract must win.
+    const sim = new Simulation()
+    const output = new Machine('out1', 'factory_output')
+    sim.addMachine(output)
+    sim.setMachinePosition('out1', 1, 0)
+
+    const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
+    sim.addBelt(belt)
+
+    const item = createItem('robot_worker')
+    item.isDefective = true
+    belt.addItem(item)
+
+    const discardEvents: SimulationEvent[] = []
+    const gameOverEvents: SimulationEvent[] = []
+    sim.on('item_discarded', (event) => discardEvents.push(event))
+    sim.on('game_over' as SimulationEventType, (event) => gameOverEvents.push(event))
+
+    // WHEN — belt needs 10 ticks at dt=0.1 to reach the destination; use 11
+    // so the first delivery attempt has definitely happened.
+    tickN(sim, 11)
+
+    // THEN — the first arriving item triggers the disabled-destination
+    // failure, stays parked at the belt end, and is NOT discarded.
+    expect(output.enabled).toBe(false)
+    expect(sim.gameOver).not.toBeNull()
+    expect(sim.gameOver).toEqual({
+      reason: 'unconsumable_input',
+      cause: 'machine_disabled',
+      machineId: 'out1',
+      itemId: item.id,
+      itemType: 'robot_worker',
+      tick: 10,
+    })
+    expect(sim.paused).toBe(true)
+    expect(gameOverEvents).toHaveLength(1)
+    expect(gameOverEvents[0].data).toEqual(sim.gameOver)
+
+    const parked = belt.getItems().find((beltItem) => beltItem.id === item.id)
+    expect(parked).toBeDefined()
+    expect(parked!.positionOnBelt).toBeGreaterThanOrEqual(1.0 - 1e-9)
+    expect(output.consumedItems).toBe(0)
+    expect(sim.itemsDelivered).toBe(0)
+    expect(sim.outputsDelivered).toBe(0)
+    expect(sim.robotsProduced).toBe(0)
+    expect(sim.defects).toBe(0)
+    expect(discardEvents).toEqual([])
   })
 
   it('does NOT fire game_over when the destination accepts the item type', () => {
@@ -209,8 +317,8 @@ describe('Simulation game-over on unconsumable delivery', () => {
     expect(sim.outputsDelivered).toBe(0)
   })
 
-  describe('pass-through machines never trigger game_over', () => {
-    const passThroughTypes: MachineType[] = ['quality_checker', 'splitter', 'recycler']
+  describe('disabled pass-through machines that still accept input do not trigger game_over', () => {
+    const passThroughTypes: MachineType[] = ['splitter', 'recycler']
     for (const type of passThroughTypes) {
       it(`destination=${type} does not fire game_over`, () => {
         // GIVEN

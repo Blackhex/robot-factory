@@ -15,28 +15,51 @@ import type { GridSize } from './pom/types'
 
 test.use({ viewport: { width: 1920, height: 1080 } })
 
-const PROGRAM_BASIC =
-  'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
-  'machines.startMachine(Machine.A)'
+function buildProgram(lines: string[]): string {
+  return lines.join('\n')
+}
+
+function buildStartCommands(...machines: Array<'A' | 'B' | 'C' | 'D'>): string[] {
+  return machines.map((machine) => `machines.startMachine(Machine.${machine})`)
+}
+
+const PROGRAM_BASIC = buildProgram([
+  'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)',
+  ...buildStartCommands('A', 'B'),
+])
 
 // Level 1 starts with a pre-placed factory_output (the Shipper) declared by
 // `LevelDefinition.startingMachines`. Because the Shipper is added to the
 // factory before the player places anything, it occupies dropdown slot
-// `Machine.A` — the first user-placed fabricator becomes `Machine.B`.
-const PROGRAM_BASIC_LEVEL_1 =
-  'machines.setRecipe(Machine.B, Recipe.WheelPressSmall)\n' +
-  'machines.startMachine(Machine.B)'
+// `Machine.A` — the first user-placed fabricator becomes `Machine.B` and the
+// user-placed destination at (5,5) becomes `Machine.C`.
+const PROGRAM_BASIC_LEVEL_1 = buildProgram([
+  'machines.setRecipe(Machine.B, Recipe.WheelPressSmall)',
+  ...buildStartCommands('B', 'C'),
+])
 
 // Same as PROGRAM_BASIC, but also configures Machine.B with a recipe that
 // consumes wheel_small. Used in chains where Machine.B is an intermediate
 // recipe-driven machine (e.g. assembler) that would otherwise trigger the
 // `unconsumable_input` game-over rule on the first incoming wheel.
-const PROGRAM_BASIC_WITH_DRIVETRAIN =
-  'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
-  'machines.setRecipe(Machine.B, Recipe.AssembleDrivetrainBasic)\n' +
-  'machines.startMachine(Machine.A)'
+const PROGRAM_PASS_THROUGH_CHAIN = buildProgram([
+  'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)',
+  ...buildStartCommands('A', 'B', 'C'),
+])
+
+const PROGRAM_BASIC_WITH_DRIVETRAIN = buildProgram([
+  'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)',
+  'machines.setRecipe(Machine.B, Recipe.AssembleDrivetrainBasic)',
+  ...buildStartCommands('A', 'B', 'C'),
+])
+
+const PROGRAM_FOUR_MACHINE_CHAIN = buildProgram([
+  'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)',
+  ...buildStartCommands('A', 'B', 'C', 'D'),
+])
 
 const PROGRAM_LOOP =
+  'machines.startMachine(Machine.B)\n' +
   'loops.repeatTimes(10, () => {\n' +
   '  machines.setRecipe(Machine.A, Recipe.WheelPressSmall)\n' +
   '  machines.startMachine(Machine.A)\n' +
@@ -120,6 +143,7 @@ test.describe('Level 1 — First Part', () => {
     await tutorial.expectTooltipVisible()
 
     await tutorial.expectCounter('1 / 6')
+
 
     await tutorial.clickNext()
     await tutorial.expectCounter('2 / 6')
@@ -496,8 +520,8 @@ test.describe('Level 4 — Quality Matters', () => {
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
 
-    await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC)
-    await editorPanel.expectFallbackValue(PROGRAM_BASIC)
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_PASS_THROUGH_CHAIN)
+    await editorPanel.expectFallbackValue(PROGRAM_PASS_THROUGH_CHAIN)
 
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
@@ -579,8 +603,8 @@ test.describe('Level 5 — Smart Routing', () => {
     // ===================== STEP 8: Open editor & write program ==============
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
-    await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC)
-    await editorPanel.expectFallbackValue(PROGRAM_BASIC)
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_PASS_THROUGH_CHAIN)
+    await editorPanel.expectFallbackValue(PROGRAM_PASS_THROUGH_CHAIN)
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
 
@@ -738,8 +762,8 @@ test.describe('Level 7 — Rush Order!', () => {
 
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
-    await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC)
-    await editorPanel.expectFallbackValue(PROGRAM_BASIC)
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_PASS_THROUGH_CHAIN)
+    await editorPanel.expectFallbackValue(PROGRAM_PASS_THROUGH_CHAIN)
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
 
@@ -748,7 +772,7 @@ test.describe('Level 7 — Rush Order!', () => {
     await hud.expectVisible()
 
     // Level 7 requires 10 robot_worker outputs. Restarting before the goal
-    // is met routes to Level Failed (B1 contract). PROGRAM_BASIC produces
+    // is met routes to Level Failed (B1 contract). PROGRAM_PASS_THROUGH_CHAIN produces
     // wheel_small but `outputsDelivered` (the GameManager fail check input)
     // counts every delivered item, so wait for the raw threshold.
     await hud.expectItemsDeliveredAtLeast(10, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
@@ -812,8 +836,8 @@ test.describe('Level 8 — Optimize Everything', () => {
 
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
-    await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC)
-    await editorPanel.expectFallbackValue(PROGRAM_BASIC)
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_PASS_THROUGH_CHAIN)
+    await editorPanel.expectFallbackValue(PROGRAM_PASS_THROUGH_CHAIN)
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
 
@@ -1038,8 +1062,8 @@ test.describe('Level 10 — Factory Tycoon', () => {
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
 
-    await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC)
-    await editorPanel.expectFallbackValue(PROGRAM_BASIC)
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_FOUR_MACHINE_CHAIN)
+    await editorPanel.expectFallbackValue(PROGRAM_FOUR_MACHINE_CHAIN)
 
     await toolbar.clickEditor()
     await editorPanel.expectClosed()

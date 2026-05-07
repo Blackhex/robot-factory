@@ -1,12 +1,15 @@
 import * as THREE from 'three'
 import type { ItemType } from '../game/types'
+import type { TerminalDrainGraceDecider } from './TerminalDrainGraceAcceptability'
 import { sampleBeltPath, buildBeltPath, type PathPoint } from './BeltPath'
 import { BeltTopologyCache, type BeltLike } from './BeltTopologyCache'
 import { DEFECTIVE_ITEM_COLOR, ITEM_COLORS } from './ItemColors'
 import {
+  analyzeItemRendererFlow,
+  type TerminalEndHoldState,
+} from './ItemRendererFlowAnalysis'
+import {
   beltKeyOf,
-  RENDER_CELL_CAPACITY,
-  RENDER_FP_EPS,
   resolveCrossBeltCarry,
   resolvePausedArc,
   resolvePausedHold,
@@ -35,8 +38,19 @@ export class ItemRenderer {
   private tempColor = new THREE.Color()
   private outPoint: PathPoint = { x: 0, z: 0 }
   private readonly topologyCache: BeltTopologyCache = new BeltTopologyCache()
+  private terminalDrainGraceDecider: TerminalDrainGraceDecider | null = null
   /** Per-item render state keyed by `Item.id`; pruned each `update`. */
   private itemStates: Map<string, ItemRenderState> = new Map()
+  /**
+    * Terminal belts treat a front item parked at cell end as a jam only
+    * after that SAME front item survives a simulation-truth change.
+    * Healthy accepting sinks drain on the next delivery pass, so their
+    * parked front item disappears before this flips true.
+   */
+  private terminalEndHoldStates: Map<string, TerminalEndHoldState> = new Map()
+  private previousCascadeBlockedByKey: Map<string, boolean> = new Map()
+  private truthEpoch = 0
+  private lastTruthSignature = ''
   private seenIds: Set<string> = new Set()
   /**
    * Whether the previous `update()` call ran with `paused === true`.
@@ -58,16 +72,10 @@ export class ItemRenderer {
       const mesh = new THREE.InstancedMesh(this.geometry, material, MAX_INSTANCES)
       mesh.count = 0
       mesh.castShadow = true
-      // InstancedMesh auto-computes its bounding sphere from the BASE
-      // geometry only — a tiny sphere near origin (~0.15 r). With
-      // `frustumCulled = true` (default), Three.js culls the entire
-      // instanced mesh whenever that origin sphere is offscreen, even
-      // though the actual instances are spread across the grid. The
-      // shadow pass uses a different frustum (the directional light's),
-      // so shadows still rasterise — items disappear, shadows linger.
-      // Disabling frustum culling is the simplest correct fix; the cost
-      // is one extra draw call per item type when no instances are on
-      // screen, which is negligible for a 20×20 grid.
+      // InstancedMesh culls against the base sphere at the origin, not
+      // the spread-out instances, so offscreen-origin views can hide
+      // every item while shadows still render. Disable culling for this
+      // tiny fixed grid instead of recomputing bounds per frame.
       mesh.frustumCulled = false
       this.scene.add(mesh)
       this.meshes.set(type, mesh)
@@ -77,6 +85,8 @@ export class ItemRenderer {
   cacheBeltTopology(belts: ReadonlyMap<string, BeltLike>): void {
     this.topologyCache.cache(belts)
   }
+
+  setTerminalDrainGraceDecider(decider: TerminalDrainGraceDecider | null): void { this.terminalDrainGraceDecider = decider }
 
   buildRenderData(belts: ReadonlyMap<string, BeltLike>): BeltRenderData[] {
     // Self-heal: mid-simulation Factory edits (machine move/rotate) cause
@@ -90,20 +100,28 @@ export class ItemRenderer {
     }
 
     const result: BeltRenderData[] = []
+    const beltStarts = new Set(Array.from(belts.values(), (belt) => `${belt.fromX},${belt.fromZ}`))
+
     for (const cached of this.topologyCache.getSegments()) {
       const belt = belts.get(cached.beltId)
       if (!belt) continue
+      const items = belt.getItems().map((item) => ({
+        id: item.id,
+        type: item.type,
+        position: item.positionOnBelt,
+        isDefective: item.isDefective,
+      }))
+      const frontItem = items[items.length - 1]
+      const isTerminal = !beltStarts.has(`${belt.toX},${belt.toZ}`)
       result.push({
         from: { x: belt.fromX, z: belt.fromZ },
         to: { x: belt.toX, z: belt.toZ },
         prevSegmentFrom: cached.prevFrom,
+        allowsTerminalDrainGrace:
+          isTerminal &&
+          this.terminalDrainGraceDecider?.(belt, frontItem) === true,
         speed: belt.speed,
-        items: belt.getItems().map((item) => ({
-          id: item.id,
-          type: item.type,
-          position: item.positionOnBelt,
-          isDefective: item.isDefective,
-        })),
+        items,
       })
     }
     return result
@@ -161,6 +179,17 @@ export class ItemRenderer {
     dt: number = 0,
     paused: boolean = false,
   ): void {
+    const flow = analyzeItemRendererFlow(belts, {
+      truthEpoch: this.truthEpoch,
+      lastTruthSignature: this.lastTruthSignature,
+      terminalEndHoldStates: this.terminalEndHoldStates,
+      previousCascadeBlockedByKey: this.previousCascadeBlockedByKey,
+    })
+    this.truthEpoch = flow.truthEpoch
+    this.lastTruthSignature = flow.lastTruthSignature
+    this.terminalEndHoldStates = flow.terminalEndHoldStates
+    this.previousCascadeBlockedByKey = flow.previousCascadeBlockedByKey
+
     // Pause-entry: TRUE for the first paused frame after a running
     // frame, FALSE for the second-and-subsequent paused frames. Drives
     // the two-stage paused dispatch in the per-item loop below.
@@ -197,44 +226,7 @@ export class ItemRenderer {
       beltByKey.set(beltKeyOf(b), b)
     }
 
-    // Pre-build "from-cell" → belt lookup so each iteration can decide
-    // whether the current belt is followed by a downstream chain
-    // segment AND, if so, whether ANY belt in the chain (this belt or
-    // any belt downstream) is "self-blocked" — at capacity AND its
-    // front item is parked at cell end. The recursion is what catches
-    // sparsely-populated upstream belts in a back-pressure jam (e.g.
-    // a game-over freeze leaving one item per belt at pos 0): without
-    // it, the direct-only check would leave them extrapolating toward
-    // `truthArc + tickAdvance` because their direct downstream isn't
-    // cap-2 yet. `resolveSameBeltAdvance` and `resolveCrossBeltCarry`
-    // both consume this flag — the same-belt branch uses it to gate
-    // the post-carry slowdown and the post-stall freeze, the cross-
-    // belt branch uses it to snap-to-truth instead of carrying over.
-    const beltsByFromCell = new Map<string, BeltRenderData>()
-    for (const b of belts) {
-      beltsByFromCell.set(`${b.from.x},${b.from.z}`, b)
-    }
-    const isBeltSelfBlocked = (b: BeltRenderData): boolean => {
-      if (b.items.length < RENDER_CELL_CAPACITY) return false
-      const frontPos = b.items[b.items.length - 1].position
-      return frontPos >= 1.0 - RENDER_FP_EPS
-    }
-    // Cache cascade-blocked status per belt-key so each item lookup is
-    // O(1) and the recursion runs at most once per belt per frame.
-    const cascadeBlockedByKey = new Map<string, boolean>()
-    const computeCascadeBlocked = (
-      b: BeltRenderData,
-      maxDepth: number,
-    ): boolean => {
-      if (isBeltSelfBlocked(b)) return true
-      if (maxDepth <= 0) return false
-      const downstream = beltsByFromCell.get(`${b.to.x},${b.to.z}`)
-      if (!downstream) return false
-      return computeCascadeBlocked(downstream, maxDepth - 1)
-    }
-    for (const b of belts) {
-      cascadeBlockedByKey.set(beltKeyOf(b), computeCascadeBlocked(b, belts.length))
-    }
+    const cascadeBlockedByKey = flow.cascadeBlockedByKey
 
     for (const belt of belts) {
       const key = beltKeyOf(belt)
@@ -309,7 +301,7 @@ export class ItemRenderer {
             dt,
             isCascadeBlocked,
           )
-          nextTimeSinceCarry = 0
+          nextTimeSinceCarry = isCascadeBlocked ? Number.POSITIVE_INFINITY : 0
         } else {
           resolution = resolveSameBeltAdvance(
             prev,
@@ -369,6 +361,7 @@ export class ItemRenderer {
     mesh.setColorAt(idx, this.tempColor.setHex(isDefective ? DEFECTIVE_ITEM_COLOR : ITEM_COLORS[type]))
     counts.set(type, idx + 1)
   }
+
   /** Prune state for items not seen this frame (delivered/destroyed). */
   private pruneOrphanedInstances(): void {
     for (const id of this.itemStates.keys()) {
@@ -396,6 +389,10 @@ export class ItemRenderer {
       mesh.instanceMatrix.needsUpdate = true
     }
     this.itemStates.clear()
+    this.terminalEndHoldStates.clear()
+    this.previousCascadeBlockedByKey.clear()
+    this.truthEpoch = 0
+    this.lastTruthSignature = ''
   }
 
   dispose(): void {
@@ -412,5 +409,9 @@ export class ItemRenderer {
     }
     this.materials.clear()
     this.itemStates.clear()
+    this.terminalEndHoldStates.clear()
+    this.previousCascadeBlockedByKey.clear()
+    this.truthEpoch = 0
+    this.lastTruthSignature = ''
   }
 }
