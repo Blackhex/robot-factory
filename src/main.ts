@@ -88,7 +88,10 @@ async function main(): Promise<void> {
   const hud = new HUD(uiOverlay)
   const scoreScreen = new ScoreScreen(uiOverlay)
   const levelFailedScreen = new LevelFailedScreen(uiOverlay)
-  const gameOverModal = new GameOverModal(uiOverlay)
+  // Mount on document.body (not #ui-overlay) so the modal escapes the
+  // overlay's stacking context and renders above #editor-container when
+  // the PXT editor panel is open.
+  const gameOverModal = new GameOverModal(document.body)
   // Global language toggle: must be visible on every screen including the
   // Main Menu and Level Select where the toolbar is hidden (UX blocker B2).
   // The toolbar no longer renders its own copy of `.ui-lang-btn` — this is

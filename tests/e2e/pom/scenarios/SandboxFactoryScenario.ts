@@ -114,6 +114,57 @@ export async function setProgramAndStart(
   await toolbar.clickStart()
 }
 
+/**
+ * Place a single Fabricator at (10,10) in sandbox mode and program it to
+ * call `startMachine(Machine.A)` WITHOUT setting a recipe — an isolated
+ * setup for testing no-recipe game-over behavior. The test that calls this
+ * is responsible for clicking Start and asserting modal behavior.
+ *
+ * When `closeEditorBeforeStart` is true, the editor panel is closed after
+ * the program is set; when false, the editor is left open so the test can
+ * verify how other UI (e.g. the game-over modal) renders over it.
+ */
+export async function setupSingleFabricatorNoRecipeProgram(
+  fixtures: {
+    mainMenu: MainMenuPage
+    toolbar: ToolbarPage
+    grid: FactoryGridPage
+    editorPanel: EditorPanelPage
+    probe: SimulationProbe
+  },
+  options: { closeEditorBeforeStart: boolean },
+): Promise<void> {
+  const { mainMenu, toolbar, grid, editorPanel, probe } = fixtures
+
+  await enterSandbox(mainMenu, toolbar)
+  await grid.expectCanvasVisible()
+
+  // Single Fabricator at (10,10). NO belt, NO second machine — this
+  // isolates the rule from the existing unconsumable_input flow because
+  // no items can ever be produced or transported.
+  await grid.dblClickCell({ x: 10, z: 10 })
+
+  const machines = await probe.getMachines()
+  const fabricator = machines.find((m) => m.x === 10 && m.z === 10)
+  expect(fabricator, 'Fabricator must exist at (10,10)').toBeTruthy()
+  expect(fabricator!.type).toBe('part_fabricator')
+  expect(machines.length).toBe(1)
+
+  // Program: start Machine A WITHOUT setting a recipe
+  await toolbar.clickEditor()
+  await editorPanel.expectOpen()
+  const programCode = 'machines.startMachine(Machine.A)'
+  await editorPanel.expectFallbackTextareaAttached()
+  await editorPanel.setFallbackProgramViaValueAssignment(programCode)
+
+  if (options.closeEditorBeforeStart) {
+    await toolbar.clickEditor()
+    await editorPanel.expectClosed()
+  } else {
+    await editorPanel.expectOpen()
+  }
+}
+
 export async function waitForRenderedBeltItems(
   probe: SimulationProbe,
   // One-item-per-cell contract: a 3-cell belt can carry at most 3 items,

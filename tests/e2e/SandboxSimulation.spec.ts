@@ -5,6 +5,7 @@ import {
   buildAndRunSandboxFactory,
   enterSandbox,
   setProgramAndStart,
+  setupSingleFabricatorNoRecipeProgram,
 } from './pom/scenarios/SandboxFactoryScenario'
 
 // Use a wide viewport so the PXT editor has enough room for the toolbox + workspace
@@ -405,28 +406,10 @@ test.describe('Sandbox — Game Over modal', () => {
   }) => {
     test.setTimeout(90000)
 
-    await enterSandbox(mainMenu, toolbar)
-    await grid.expectCanvasVisible()
-
-    // Single Fabricator at (10,10). NO belt, NO second machine — this
-    // isolates the rule from the existing unconsumable_input flow because
-    // no items can ever be produced or transported.
-    await grid.dblClickCell({ x: 10, z: 10 })
-
-    const machines = await probe.getMachines()
-    const fabricator = machines.find((m) => m.x === 10 && m.z === 10)
-    expect(fabricator, 'Fabricator must exist at (10,10)').toBeTruthy()
-    expect(fabricator!.type).toBe('part_fabricator')
-    expect(machines.length).toBe(1)
-
-    // Program: start Machine A WITHOUT setting a recipe
-    await toolbar.clickEditor()
-    await editorPanel.expectOpen()
-    const programCode = 'machines.startMachine(Machine.A)'
-    await editorPanel.expectFallbackTextareaAttached()
-    await editorPanel.setFallbackProgramViaValueAssignment(programCode)
-    await toolbar.clickEditor()
-    await editorPanel.expectClosed()
+    await setupSingleFabricatorNoRecipeProgram(
+      { mainMenu, toolbar, grid, editorPanel, probe },
+      { closeEditorBeforeStart: true },
+    )
 
     await toolbar.expectStartButtonVisible()
     await toolbar.clickStart()
@@ -450,6 +433,28 @@ test.describe('Sandbox — Game Over modal', () => {
       messageText,
       'Game-over message must reference the machine name (Fabricator)',
     ).toContain('Fabricator')
+  })
+
+  test('game-over modal renders above the open editor panel', async ({
+    mainMenu, toolbar, grid, editorPanel, probe, gameOverModal,
+  }) => {
+    test.setTimeout(90000)
+
+    await setupSingleFabricatorNoRecipeProgram(
+      { mainMenu, toolbar, grid, editorPanel, probe },
+      { closeEditorBeforeStart: false },
+    )
+
+    await toolbar.expectStartButtonVisible()
+    await toolbar.clickStart()
+
+    await gameOverModal.expectVisible(15_000)
+    await gameOverModal.expectTitleText('Game Over')
+
+    // Regression guard: previously the modal was trapped beneath
+    // #editor-container (z=20) because #ui-overlay (z=10) created a
+    // stacking context. Fixed by mounting the modal on document.body.
+    await gameOverModal.expectTopmostAtSampledPoints()
   })
 
 })
