@@ -5,7 +5,6 @@
     "load": "Načíst",
     "export": "Exportovat",
     "back_to_menu": "Nabídka",
-    "sandbox_badge": "Pískoviště",
     "reset_view": "Pohled"
   },
   "machines": {
@@ -22,7 +21,24 @@
     "pause": "Pozastavit",
     "resume": "Pokračovat",
     "restart": "Restartovat",
-    "open_editor": "Otevřít editor"
+    "open_editor": "Kód",
+    "open_projects": "Projekty"
+  },
+  "projects": {
+    "save": "Uložit",
+    "import": "Importovat",
+    "export": "Exportovat",
+    "delete": "Smazat",
+    "empty_placeholder": "+ Nový projekt",
+    "new_project_title": "Pojmenuj svůj projekt",
+    "autosave_name": "Automatické uložení",
+    "confirm_delete_title": "Smazat projekt?",
+    "confirm_delete_message": "Opravdu chcete smazat projekt \"{{name}}\"?"
+  },
+  "modal": {
+    "ok": "OK",
+    "cancel": "Zrušit",
+    "confirm": "Potvrdit"
   },
   "machine_panel": {
     "type": "Typ",

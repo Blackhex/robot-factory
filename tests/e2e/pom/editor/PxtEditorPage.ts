@@ -474,6 +474,28 @@ export class PxtEditorPage {
   }
 
   /**
+   * Normalize the live Blockly workspace by serializing it to XML and
+   * re-deserializing in place. Forces any default/shadow blocks declared on
+   * a block definition's input slots to be materialized — matching the
+   * post-load workspace state. Use this before taking a "BEFORE" snapshot
+   * for a save/reload round-trip so the snapshot is stable across the
+   * persistence boundary.
+   */
+  async normalizeWorkspaceShadows(): Promise<void> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    await this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      if (!win || !win.Blockly) throw new Error('Blockly not available on PXT iframe window')
+      const ws = win.Blockly.mainWorkspace
+      if (!ws) throw new Error('Blockly main workspace not available')
+      const dom = win.Blockly.Xml.workspaceToDom(ws)
+      ws.clear()
+      win.Blockly.Xml.domToWorkspace(dom, ws)
+    }, iframeEl!)
+  }
+
+  /**
    * Snapshot of the live Blockly workspace contents — used for save/reload
    * round-trip assertions. `count` is the number of blocks on the main
    * workspace (excluding the flyout). `xml` is the full

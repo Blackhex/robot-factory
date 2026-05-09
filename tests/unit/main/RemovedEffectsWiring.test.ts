@@ -182,9 +182,6 @@ describe('extracted removed audio and celebration wiring', () => {
       getNextLevelId: () => null,
       toggleEditor: vi.fn(),
       resetView: vi.fn(),
-      autoSaveFactory: vi.fn(async () => {}),
-      importFactory: vi.fn(async () => {}),
-      exportFactory: vi.fn(async () => {}),
     })
 
     toolbar.onStart()
@@ -295,9 +292,6 @@ describe('extracted removed audio and celebration wiring', () => {
       getNextLevelId: () => null,
       toggleEditor: vi.fn(),
       resetView: vi.fn(),
-      autoSaveFactory: vi.fn(async () => {}),
-      importFactory: vi.fn(async () => {}),
-      exportFactory: vi.fn(async () => {}),
     })
 
     toolbar.onPause()

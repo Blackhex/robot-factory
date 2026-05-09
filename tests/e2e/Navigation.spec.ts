@@ -56,11 +56,11 @@ test.describe('Navigation — Smoke Tests', () => {
 
     await tutorial.dismissIfPresent()
 
-    await toolbar.expectEditorButtonText('Open Editor')
+    await toolbar.expectEditorButtonText('Code')
     await toolbar.expectLanguageButtonText('CS')
     await toolbar.clickLanguageToggle()
 
-    await toolbar.expectEditorButtonText('Otevřít editor')
+    await toolbar.expectEditorButtonText('Kód')
     await toolbar.expectLanguageButtonText('EN')
   })
 

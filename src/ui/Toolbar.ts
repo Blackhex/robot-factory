@@ -11,7 +11,8 @@ export type ToolbarSimulationState = 'idle' | 'running' | 'paused' | 'stopped'
 export class Toolbar {
   private container: HTMLDivElement
   private pauseBtn: HTMLButtonElement
-  private sandboxBadge: HTMLSpanElement
+  private editorBtn!: HTMLButtonElement
+  private projectsBtn: HTMLButtonElement
   private buttons = new Map<string, HTMLButtonElement>()
   private handleLangChange = () => this.updateLabels()
 
@@ -20,9 +21,7 @@ export class Toolbar {
   onPause: () => void = () => {}
   onResume: () => void = () => {}
   onRestart: () => void = () => {}
-  onSave: () => void = () => {}
-  onLoad: () => void = () => {}
-  onExport: () => void = () => {}
+  onOpenProjects: () => void = () => {}
   onBackToMenu: () => void = () => {}
   onResetView: () => void = () => {}
 
@@ -36,7 +35,19 @@ export class Toolbar {
       onClick: () => this.onBackToMenu(),
     })
 
-    this.makeButton(this.container, {
+    // Projects button: visible only in Sandbox mode. The button always
+    // exists in the DOM (so unit tests can grab a stable reference) and
+    // is hidden via display:none by default. setSandboxMode(true/false)
+    // controls visibility AND DOM attachment — campaign mode fully detaches
+    // it so e2e `expectProjectsButtonHidden` (toHaveCount(0)) passes.
+    this.projectsBtn = this.makeButton(this.container, {
+      key: 'actions.open_projects',
+      className: 'ui-toolbar-btn--projects',
+      onClick: () => this.onOpenProjects(),
+    })
+    this.projectsBtn.style.display = 'none'
+
+    this.editorBtn = this.makeButton(this.container, {
       key: 'actions.open_editor',
       className: 'ui-toolbar-btn--editor',
       onClick: () => this.onToggleEditor(),
@@ -68,41 +79,11 @@ export class Toolbar {
 
     this.container.appendChild(simGroup)
 
-    const fileGroup = document.createElement('div')
-    fileGroup.className = 'ui-toolbar-group'
-
-    this.makeButton(fileGroup, {
-      key: 'toolbar.save',
-      className: '',
-      onClick: () => this.onSave(),
-    })
-
-    this.makeButton(fileGroup, {
-      key: 'toolbar.load',
-      className: '',
-      onClick: () => this.onLoad(),
-    })
-
-    this.makeButton(fileGroup, {
-      key: 'toolbar.export',
-      className: '',
-      onClick: () => this.onExport(),
-    })
-
-    this.container.appendChild(fileGroup)
-
     this.makeButton(this.container, {
       key: 'toolbar.reset_view',
       className: 'ui-toolbar-btn--reset-view',
       onClick: () => this.onResetView(),
     })
-
-    this.sandboxBadge = document.createElement('span')
-    this.sandboxBadge.className = 'ui-toolbar-sandbox-badge'
-    this.sandboxBadge.dataset.i18nKey = 'toolbar.sandbox_badge'
-    this.sandboxBadge.textContent = i18next.t('toolbar.sandbox_badge')
-    this.sandboxBadge.style.display = 'none'
-    this.container.appendChild(this.sandboxBadge)
 
     parent.appendChild(this.container)
 
@@ -124,9 +105,14 @@ export class Toolbar {
     for (const btn of this.buttons.values()) {
       btn.textContent = i18next.t(btn.dataset.i18nKey!)
     }
-    if (this.sandboxBadge.dataset.i18nKey) {
-      this.sandboxBadge.textContent = i18next.t(this.sandboxBadge.dataset.i18nKey)
-    }
+  }
+
+  setEditorPanelOpen(open: boolean): void {
+    this.editorBtn.classList.toggle('is-panel-open', open)
+  }
+
+  setProjectsPanelOpen(open: boolean): void {
+    this.projectsBtn.classList.toggle('is-panel-open', open)
   }
 
   setPaused(paused: boolean): void {
@@ -138,10 +124,18 @@ export class Toolbar {
 
   setSandboxMode(enabled: boolean): void {
     if (enabled) {
-      this.sandboxBadge.textContent = i18next.t('toolbar.sandbox_badge')
-      this.sandboxBadge.style.display = 'inline-block'
+      this.projectsBtn.style.display = ''
+      if (!this.projectsBtn.isConnected) {
+        // Re-attach in original position (immediately before the editor button).
+        if (this.editorBtn.parentElement === this.container) {
+          this.container.insertBefore(this.projectsBtn, this.editorBtn)
+        } else {
+          this.container.appendChild(this.projectsBtn)
+        }
+      }
     } else {
-      this.sandboxBadge.style.display = 'none'
+      this.projectsBtn.style.display = 'none'
+      this.projectsBtn.remove()
     }
   }
 

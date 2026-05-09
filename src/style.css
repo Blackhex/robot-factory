@@ -20,7 +20,8 @@
   --rf-radius: 8px;
   --rf-radius-lg: 12px;
   --rf-transition: 150ms ease;
-  --rf-toolbar-h: calc(3rem + 1px);
+  --rf-toolbar-h: calc(3.5rem + 1px);
+  --rf-btn-h: 2.5rem;
 }
 
 /* ─── Reset ─── */
@@ -31,6 +32,14 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-weight: 600;
 }
 
 html,
@@ -85,15 +94,15 @@ canvas {
   align-items: center;
   justify-content: center;
   min-width: 3rem;
-  height: 2rem;
-  padding: 0.25rem 1rem;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 1rem;
   border: 1px solid var(--rf-border);
   border-radius: var(--rf-radius);
   background: var(--rf-surface);
   color: var(--rf-text);
   font-family: var(--rf-font);
   font-size: 0.875rem;
-  font-weight: 500;
   cursor: pointer;
   transition: background var(--rf-transition), border-color var(--rf-transition);
   user-select: none;
@@ -111,12 +120,23 @@ canvas {
 }
 
 .ui-toolbar-btn--editor {
-  background: var(--rf-accent);
-  color: var(--rf-bg);
+  background: transparent;
+  color: var(--rf-accent);
+  border: 1px solid var(--rf-accent);
   font-weight: 600;
 }
 
 .ui-toolbar-btn--editor:hover {
+  background: var(--rf-accent-glow);
+}
+
+.ui-toolbar-btn--editor.is-panel-open {
+  background: var(--rf-accent);
+  color: var(--rf-bg);
+  border-color: var(--rf-accent);
+}
+
+.ui-toolbar-btn--editor.is-panel-open:hover {
   background: var(--rf-accent-hover);
 }
 
@@ -163,19 +183,201 @@ canvas {
 }
 
 .ui-toolbar-btn--back-to-menu {
+  background: transparent;
+  color: var(--rf-accent);
+  border: 1px solid var(--rf-accent);
   font-weight: 600;
 }
 
-.ui-toolbar-sandbox-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  background: rgba(245, 158, 11, 0.2);
-  color: #f59e0b;
-  font-size: 12px;
+.ui-toolbar-btn--back-to-menu:hover {
+  background: var(--rf-accent-glow);
+}
+
+.ui-toolbar-btn--reset-view {
+  background: transparent;
+  color: var(--rf-accent);
+  border: 1px solid var(--rf-accent);
   font-weight: 600;
-  letter-spacing: 0.5px;
+}
+
+.ui-toolbar-btn--reset-view:hover {
+  background: var(--rf-accent-glow);
+}
+
+/* ─── Projects Panel (Sandbox-only) ─── */
+
+.ui-toolbar-btn--projects {
+  background: transparent;
+  color: var(--rf-accent);
+  border: 1px solid var(--rf-accent);
+  font-weight: 600;
+}
+
+.ui-toolbar-btn--projects:hover {
+  background: var(--rf-accent-glow);
+}
+
+.ui-toolbar-btn--projects.is-panel-open {
+  background: var(--rf-accent);
+  color: var(--rf-bg);
+  border-color: var(--rf-accent);
+}
+
+.ui-toolbar-btn--projects.is-panel-open:hover {
+  background: var(--rf-accent-hover);
+}
+
+.ui-projects-panel {
+  position: fixed;
+  top: var(--rf-toolbar-h);
+  left: 0;
+  width: max(320px, 28%);
+  height: calc(100dvh - var(--rf-toolbar-h));
+  background: var(--rf-surface);
+  border-right: 1px solid var(--rf-border);
+  border-radius: 0;
+  z-index: 20;
+  padding: 0.75rem;
+  display: none;
+  flex-direction: column;
+  gap: 0.5rem;
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.ui-projects-panel.open {
+  display: flex;
+}
+
+.ui-projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  border: 1px solid var(--rf-border);
+  border-radius: var(--rf-radius);
+  padding: 0.25rem;
+  background: var(--rf-bg);
+}
+
+.ui-projects-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: var(--rf-btn-h);
+  padding: 0.5rem;
+  border-radius: var(--rf-radius);
+  background: var(--rf-surface);
+  border: 1px solid transparent;
+  color: var(--rf-text);
+  font-size: 0.875rem;
+  cursor: pointer;
   user-select: none;
+}
+
+.ui-projects-slot:hover {
+  background: var(--rf-surface-hover);
+}
+
+.ui-projects-slot.is-selected {
+  border-color: var(--rf-accent);
+  background: var(--rf-accent-glow);
+}
+
+.ui-projects-slot--empty {
+  justify-content: center;
+}
+
+.ui-projects-slot--empty .ui-projects-slot-name {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.ui-projects-slot-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-projects-slot-delete {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 0.625rem;
+  border: 1px solid var(--rf-danger);
+  border-radius: var(--rf-radius);
+  background: transparent;
+  color: var(--rf-danger);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.ui-projects-slot-delete:hover {
+  background: rgba(239, 83, 80, 0.15);
+}
+
+.ui-projects-slot-save {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 0.625rem;
+  border: 1px solid var(--rf-accent);
+  border-radius: var(--rf-radius);
+  background: transparent;
+  color: var(--rf-accent);
+  font-family: var(--rf-font);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.ui-projects-slot-save:hover {
+  background: var(--rf-accent-glow);
+}
+
+.ui-projects-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ui-projects-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 0.75rem;
+  border: 1px solid var(--rf-accent);
+  border-radius: var(--rf-radius);
+  background: transparent;
+  color: var(--rf-accent);
+  font-family: var(--rf-font);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ui-projects-btn:hover {
+  background: var(--rf-accent-glow);
+}
+
+.ui-projects-btn--import {
+  height: var(--rf-btn-h);
+}
+
+.ui-projects-btn--export {
+  height: var(--rf-btn-h);
 }
 
 /* ─── Main Menu Overlay ─── */
@@ -221,14 +423,15 @@ canvas {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 36px;
-  padding: 8px;
-  border: 1px solid var(--rf-border);
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 0.75rem;
+  border: 1px solid var(--rf-accent);
   border-radius: var(--rf-radius);
-  background: var(--rf-surface);
-  color: var(--rf-text);
+  background: transparent;
+  color: var(--rf-accent);
   font-family: var(--rf-font);
-  font-size: 18px;
+  font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   transition: background var(--rf-transition), border-color var(--rf-transition),
@@ -237,7 +440,7 @@ canvas {
 }
 
 .ui-main-menu-btn:hover {
-  background: var(--rf-surface-hover);
+  background: var(--rf-accent-glow);
   border-color: var(--rf-accent);
   transform: translateY(-2px);
 }
@@ -398,8 +601,9 @@ canvas {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 32px;
-  padding: 4px 16px;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 1rem;
   border: 1px solid var(--rf-danger);
   border-radius: var(--rf-radius);
   background: transparent;
@@ -517,8 +721,9 @@ canvas {
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 32px;
-  padding: 4px 16px;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 1rem;
   border: 1px solid var(--rf-danger);
   border-radius: var(--rf-radius);
   background: transparent;
@@ -591,6 +796,47 @@ canvas {
 
 #editor-resize-handle:hover::after,
 #editor-resize-handle.dragging::after {
+  opacity: 1;
+}
+
+/* ─── Projects Panel Resize Handle ─── */
+
+#projects-resize-handle {
+  position: fixed;
+  top: var(--rf-toolbar-h);
+  width: 6px;
+  height: calc(100dvh - var(--rf-toolbar-h));
+  z-index: 21;
+  cursor: col-resize;
+  display: none;
+  background: transparent;
+  transition: background var(--rf-transition);
+  /* Initial offset mirrors the panel's default `max(320px, 28%)` width.
+     JS keeps `left` in sync during open/drag. */
+  left: calc(max(320px, 28%) - 3px);
+}
+
+#projects-resize-handle:hover,
+#projects-resize-handle.dragging {
+  background: var(--rf-accent);
+}
+
+#projects-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 32px;
+  border-radius: 1px;
+  background: var(--rf-text-muted);
+  opacity: 0;
+  transition: opacity var(--rf-transition);
+}
+
+#projects-resize-handle:hover::after,
+#projects-resize-handle.dragging::after {
   opacity: 1;
 }
 
@@ -857,8 +1103,9 @@ canvas {
 
 .ui-level-select-back {
   margin-top: 4px;
-  min-height: 32px;
-  padding: 6px 32px;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 2rem;
   border: 1px solid var(--rf-border);
   border-radius: var(--rf-radius);
   background: var(--rf-surface);
@@ -1018,8 +1265,9 @@ canvas {
 
 .ui-score-btn {
   flex: 1;
-  min-height: 32px;
-  padding: 6px 16px;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 1rem;
   border: 1px solid var(--rf-border);
   border-radius: var(--rf-radius);
   background: var(--rf-surface);
@@ -1169,8 +1417,12 @@ canvas {
 }
 
 .ui-tutorial-btn {
-  min-height: 26px;
-  padding: 4px 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 1rem;
   border: 1px solid var(--rf-border);
   border-radius: var(--rf-radius);
   background: var(--rf-surface);
@@ -1246,7 +1498,12 @@ canvas {
 }
 
 .ui-game-over-btn {
-  padding: 12px 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 1.5rem;
   font-size: 16px;
   font-weight: 600;
   color: var(--rf-text);
@@ -1254,7 +1511,6 @@ canvas {
   border: none;
   border-radius: var(--rf-radius);
   cursor: pointer;
-  min-height: 48px;
   min-width: 120px;
 }
 
@@ -1283,12 +1539,11 @@ canvas {
 
   .ui-toolbar-btn {
     min-width: 48px;
-    min-height: 32px;
-    padding: 4px 12px;
+    padding: 0 0.75rem;
     font-size: 13px;
   }
 
-  .ui-lang-btn {
+  .ui-lang-btn:where(*) {
     margin-left: 0;
   }
 
@@ -1309,7 +1564,6 @@ canvas {
 
   .ui-main-menu-btn {
     width: 100%;
-    min-height: 48px;
     font-size: 16px;
   }
 
@@ -1342,8 +1596,7 @@ canvas {
 
   .ui-toolbar-btn {
     min-width: 56px;
-    min-height: 52px;
-    padding: 10px 20px;
+    padding: 0 1.25rem;
     font-size: 16px;
   }
 
@@ -1375,7 +1628,6 @@ canvas {
 
   .ui-main-menu-btn {
     width: 300px;
-    min-height: 56px;
     font-size: 20px;
   }
 
@@ -1415,8 +1667,7 @@ canvas {
 
   .ui-toolbar-btn {
     min-width: 60px;
-    min-height: 56px;
-    padding: 12px 24px;
+    padding: 0 1.5rem;
     font-size: 18px;
   }
 
@@ -1431,19 +1682,13 @@ canvas {
 
   .ui-main-menu-btn {
     width: 340px;
-    min-height: 60px;
     font-size: 22px;
   }
 }
 
-/* ─── Touch targets — ensure minimum 48px on all interactive elements ─── */
+/* ─── Touch targets — unified via --rf-btn-h on each button rule above ─── */
 
-.ui-toolbar-btn,
-.ui-main-menu-btn,
-.ui-level-card,
-.ui-level-select-back,
-.ui-score-btn,
-.ui-tutorial-btn {
+.ui-level-card {
   min-height: 32px;
   min-width: 48px;
 }
@@ -1470,12 +1715,13 @@ canvas {
   align-items: center;
   justify-content: center;
   min-width: 48px;
-  height: 2rem;
-  padding: 0.25rem 0.75rem;
-  border: 1px solid var(--rf-border);
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 0.75rem;
+  border: 1px solid var(--rf-accent);
   border-radius: var(--rf-radius);
-  background: var(--rf-surface);
-  color: var(--rf-text);
+  background: transparent;
+  color: var(--rf-accent);
   font-family: var(--rf-font);
   font-size: 0.875rem;
   font-weight: 700;
@@ -1488,7 +1734,7 @@ canvas {
 }
 
 .ui-lang-btn:hover {
-  background: var(--rf-surface-hover);
+  background: var(--rf-accent-glow);
   border-color: var(--rf-accent);
 }
 
@@ -1552,8 +1798,9 @@ canvas {
 
 .ui-level-failed-btn {
   flex: 1;
-  min-height: 40px;
-  padding: 8px 16px;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  padding: 0 1rem;
   border: 1px solid var(--rf-border);
   border-radius: var(--rf-radius);
   background: var(--rf-surface);
@@ -1624,3 +1871,145 @@ canvas {
   }
 }
 
+
+/* ─── Modal Dialog ─── */
+
+#rf-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.ui-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  animation: rf-modal-fade-in 120ms ease;
+}
+
+@keyframes rf-modal-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.ui-modal {
+  min-width: 320px;
+  max-width: min(480px, calc(100vw - 2rem));
+  background: var(--rf-surface);
+  border: 1px solid var(--rf-border);
+  border-radius: var(--rf-radius-lg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  color: var(--rf-text);
+}
+
+.ui-modal-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--rf-text);
+}
+
+.ui-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ui-modal-message {
+  margin: 0;
+  color: var(--rf-text);
+  font-size: 0.95rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.ui-modal-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--rf-bg);
+  border: 1px solid var(--rf-border);
+  border-radius: var(--rf-radius);
+  color: var(--rf-text);
+  font-family: var(--rf-font);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color var(--rf-transition);
+}
+
+.ui-modal-input:focus {
+  border-color: var(--rf-accent);
+  box-shadow: 0 0 0 3px var(--rf-accent-glow);
+}
+
+.ui-modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+
+.ui-modal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--rf-btn-h);
+  min-height: var(--rf-btn-h);
+  min-width: 5rem;
+  padding: 0 1rem;
+  border: 1px solid var(--rf-border);
+  border-radius: var(--rf-radius);
+  background: var(--rf-surface);
+  color: var(--rf-text);
+  font-family: var(--rf-font);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background var(--rf-transition), border-color var(--rf-transition);
+}
+
+.ui-modal-cancel {
+  height: var(--rf-btn-h);
+}
+
+.ui-modal-btn:hover {
+  background: var(--rf-surface-hover);
+  border-color: var(--rf-accent);
+}
+
+.ui-modal-btn:focus-visible {
+  outline: 2px solid var(--rf-accent);
+  outline-offset: 2px;
+}
+
+.ui-modal-confirm {
+  height: var(--rf-btn-h);
+  background: var(--rf-accent);
+  border-color: var(--rf-accent);
+  color: var(--rf-bg);
+  font-weight: 600;
+}
+
+.ui-modal-confirm:hover {
+  background: var(--rf-accent-hover);
+  border-color: var(--rf-accent-hover);
+}
+
+.ui-modal-confirm--danger {
+  background: var(--rf-danger);
+  border-color: var(--rf-danger);
+  color: #fff;
+}
+
+.ui-modal-confirm--danger:hover {
+  background: #d84545;
+  border-color: #d84545;
+}

@@ -39,14 +39,18 @@ describe('Toolbar', () => {
       expect(text).not.toMatch(/\bremove\b/)
       expect(text).not.toMatch(/\bselect\b/)
     }
-    // THEN only: back-to-menu, editor, start, pause, restart, save, load, export, reset-view (9 non-lang buttons)
+    // THEN only: back-to-menu, editor, projects (initially hidden via display:none),
+    // start, pause, restart, reset-view (7 non-lang buttons in DOM presence).
+    // Save/Load/Export moved into the Projects panel; Projects button is in
+    // the DOM by default but hidden, and is removed entirely from the DOM by
+    // setSandboxMode(false). Default toolbar (no setSandboxMode call) → 7.
     const nonLangButtons = Array.from(buttons).filter(
       (b) => !b.classList.contains('ui-lang-btn'),
     )
-    expect(nonLangButtons.length).toBe(9) // back-to-menu, editor, start, pause, restart, save, load, export, reset-view
+    expect(nonLangButtons.length).toBe(7)
   })
 
-  it('should have editor, save, load, export buttons', () => {
+  it('should have editor and projects buttons (Save/Load/Export moved to Projects panel)', () => {
     // WHEN we collect i18n keys from toolbar buttons
     const buttons = parent.querySelectorAll<HTMLButtonElement>('.ui-toolbar-btn')
     const keys = Array.from(buttons)
@@ -55,9 +59,7 @@ describe('Toolbar', () => {
 
     // THEN the expected action keys are present
     expect(keys).toContain('actions.open_editor')
-    expect(keys).toContain('toolbar.save')
-    expect(keys).toContain('toolbar.load')
-    expect(keys).toContain('toolbar.export')
+    expect(keys).toContain('actions.open_projects')
   })
 
   it('should have Start button with correct i18n key and CSS class', () => {
@@ -264,16 +266,12 @@ describe('Toolbar', () => {
       expect(value.length).toBeGreaterThan(0)
     })
 
-    it('should define toolbar.sandbox_badge as a non-empty string in en.json', () => {
-      const value = (enLocale as any).toolbar?.sandbox_badge
-      expect(typeof value).toBe('string')
-      expect(value.length).toBeGreaterThan(0)
+    it('should NOT define toolbar.sandbox_badge in en.json', () => {
+      expect((enLocale as any).toolbar?.sandbox_badge).toBeUndefined()
     })
 
-    it('should define toolbar.sandbox_badge as a non-empty string in cs.json', () => {
-      const value = (csLocale as any).toolbar?.sandbox_badge
-      expect(typeof value).toBe('string')
-      expect(value.length).toBeGreaterThan(0)
+    it('should NOT define toolbar.sandbox_badge in cs.json', () => {
+      expect((csLocale as any).toolbar?.sandbox_badge).toBeUndefined()
     })
   })
 
@@ -346,50 +344,25 @@ describe('Toolbar', () => {
     })
   })
 
-  describe('Sandbox badge', () => {
-    function isHidden(el: HTMLElement): boolean {
-      if (el.style.display === 'none') return true
-      return getComputedStyle(el).display === 'none'
-    }
-
-    it('should render a sandbox badge that is hidden by default', () => {
-      // WHEN we query for the badge
-      const badge = parent.querySelector<HTMLElement>('.ui-toolbar-sandbox-badge')
-
-      // THEN it exists but is hidden
-      expect(badge).not.toBeNull()
-      expect(isHidden(badge!)).toBe(true)
+  describe('Sandbox badge removal', () => {
+    it('should NOT render a sandbox badge by default', () => {
+      const badge = parent.querySelector('.ui-toolbar-sandbox-badge')
+      expect(badge).toBeNull()
     })
 
-    it('should show the sandbox badge with localized text after setSandboxMode(true)', async () => {
-      // GIVEN english locale and a toolbar
-      await switchLanguage('en')
+    it('should NOT render a sandbox badge after setSandboxMode(true)', () => {
       const toolbar = new Toolbar(document.createElement('div'))
       const container = (toolbar as any).container as HTMLDivElement
-      const badge = container.querySelector<HTMLElement>('.ui-toolbar-sandbox-badge')!
-
-      // WHEN sandbox mode is enabled
       toolbar.setSandboxMode(true)
-
-      // THEN the badge is visible with the localized text
-      expect(isHidden(badge)).toBe(false)
-      const { i18next } = await import('../../../src/i18n/i18n')
-      expect(badge.textContent).toBe(i18next.t('toolbar.sandbox_badge'))
+      expect(container.querySelector('.ui-toolbar-sandbox-badge')).toBeNull()
     })
 
-    it('should hide the sandbox badge again after setSandboxMode(false)', () => {
-      // GIVEN a toolbar with sandbox mode initially enabled
+    it('should NOT render a sandbox badge after setSandboxMode(false)', () => {
       const toolbar = new Toolbar(document.createElement('div'))
       const container = (toolbar as any).container as HTMLDivElement
-      const badge = container.querySelector<HTMLElement>('.ui-toolbar-sandbox-badge')!
       toolbar.setSandboxMode(true)
-      expect(isHidden(badge)).toBe(false)
-
-      // WHEN sandbox mode is disabled
       toolbar.setSandboxMode(false)
-
-      // THEN the badge is hidden again
-      expect(isHidden(badge)).toBe(true)
+      expect(container.querySelector('.ui-toolbar-sandbox-badge')).toBeNull()
     })
   })
 

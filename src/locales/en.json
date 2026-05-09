@@ -5,7 +5,6 @@
     "load": "Load",
     "export": "Export",
     "back_to_menu": "Menu",
-    "sandbox_badge": "Sandbox",
     "reset_view": "View"
   },
   "machines": {
@@ -22,7 +21,24 @@
     "pause": "Pause",
     "resume": "Resume",
     "restart": "Restart",
-    "open_editor": "Open Editor"
+    "open_editor": "Code",
+    "open_projects": "Projects"
+  },
+  "projects": {
+    "save": "Save",
+    "import": "Import",
+    "export": "Export",
+    "delete": "Delete",
+    "empty_placeholder": "+ New project",
+    "new_project_title": "Name your project",
+    "autosave_name": "Autosave",
+    "confirm_delete_title": "Delete project?",
+    "confirm_delete_message": "Are you sure you want to delete \"{{name}}\"?"
+  },
+  "modal": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
   },
   "machine_panel": {
     "type": "Type",

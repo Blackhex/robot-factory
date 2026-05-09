@@ -23,7 +23,7 @@ test.describe('PXT Editor — MakeCode Block Editor', () => {
 
   test('"Open Editor" button is visible in toolbar', async ({ toolbar }) => {
     await toolbar.expectEditorButtonVisible()
-    await toolbar.expectEditorButtonText('Open Editor')
+    await toolbar.expectEditorButtonText('Code')
   })
 
   test('clicking "Open Editor" opens the editor panel', async ({ toolbar, editorPanel }) => {
@@ -90,9 +90,9 @@ test.describe('PXT Editor — MakeCode Block Editor', () => {
   // --- Language Toggle ---
 
   test('language toggle updates editor button text to Czech', async ({ toolbar }) => {
-    await toolbar.expectEditorButtonText('Open Editor')
+    await toolbar.expectEditorButtonText('Code')
     await toolbar.clickLanguageToggle()
-    await toolbar.expectEditorButtonText('Otevřít editor')
+    await toolbar.expectEditorButtonText('Kód')
   })
 
   // --- PXT iframe exists ---
@@ -510,17 +510,39 @@ test.describe('flyout updates on machine placement', () => {
 test.describe('Save / Reload Round-Trip', () => {
   test.use({ viewport: { width: 1280, height: 800 } })
 
+  test.beforeEach(async ({ page }) => {
+    // Start the round-trip with empty localStorage so the Projects list and
+    // PXT workspace are deterministic. We clear AFTER an initial navigation
+    // (avoiding `addInitScript`) so the PXT iframe's localStorage isn't wiped
+    // each time it loads — that would break its workspace persistence and
+    // the round-trip we're trying to verify.
+    await page.goto('/')
+    await page.evaluate(() => {
+      try {
+        localStorage.clear()
+      } catch {
+        /* ignore */
+      }
+    })
+  })
+
   test('blocks added to the editor survive an explicit Save + page reload', async ({
     mainMenu,
-    levelSelect,
     toolbar,
     tutorial,
     editorPanel,
+    projectsPanel,
     pxt,
     page,
   }) => {
-    // 1. Reach build phase on the first level.
-    await enterBuildPhase(mainMenu, levelSelect, toolbar, tutorial)
+    const PROJECT_NAME = 'RoundTripTest'
+
+    // 1. Enter Sandbox mode (explicit Save is only available there).
+    await mainMenu.open()
+    await mainMenu.clickSandbox()
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent(500)
+    await toolbar.waitForCameraSettle()
 
     // 2. Open the PXT editor and wait for Blockly to become interactive.
     await toolbar.clickEditor()
@@ -532,6 +554,10 @@ test.describe('Save / Reload Round-Trip', () => {
 
     // 3. Add a non-trivial program on top of the default `on start`.
     await pxt.addNonTrivialProgram()
+    // Materialize any default shadow blocks so the BEFORE snapshot matches
+    // the post-load workspace state (PXT instantiates declared shadows when
+    // a block is loaded from XML, but `ws.newBlock` does not).
+    await pxt.normalizeWorkspaceShadows()
 
     // 4. Capture the BEFORE snapshot.
     const before = await pxt.getWorkspaceBlocksSnapshot()
@@ -542,23 +568,38 @@ test.describe('Save / Reload Round-Trip', () => {
     ).toBeGreaterThan(1)
     expect(before.xml).not.toEqual('')
 
-    // 5. Trigger autosave via the toolbar Save button.
-    await toolbar.clickSave()
+    // 5. Save via the Projects panel (Sandbox-only). Close the editor first
+    // so the panel layout is unobstructed, then click empty placeholder,
+    // accept the prompt with the project name, click Save.
+    await toolbar.clickEditor()
+    await editorPanel.expectClosed()
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm(PROJECT_NAME)
+    await projectsPanel.expectSlotPresent(PROJECT_NAME)
     // Allow the async PXT workspace flush + localStorage write to settle.
     await page.waitForTimeout(500)
 
     // 6. Full browser reload.
     await mainMenu.reload()
 
-    // 7. Navigate back to the same level.
+    // 7. Navigate back to Sandbox mode.
     await mainMenu.expectVisible()
-    await mainMenu.clickStartGame()
-    await levelSelect.expectVisible()
-    await levelSelect.clickFirstUnlocked()
+    await mainMenu.clickSandbox()
     await toolbar.expectVisible()
-    await tutorial.dismissIfPresent()
+    await tutorial.dismissIfPresent(500)
+    await toolbar.waitForCameraSettle()
 
-    // 8. Re-open the PXT editor and wait for Blockly to load the restored project.
+    // 8. Open the Projects panel and load the saved slot via double-click.
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    await projectsPanel.expectSlotPresent(PROJECT_NAME)
+    await projectsPanel.doubleClickSlot(PROJECT_NAME)
+    // Close the panel before re-opening the editor so it doesn't overlap.
+    await toolbar.expectVisible()
+
+    // 9. Re-open the PXT editor and wait for Blockly to load the restored project.
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
     await editorPanel.expectIframeVisible()
@@ -568,7 +609,7 @@ test.describe('Save / Reload Round-Trip', () => {
     // Give PXT a beat to import the saved project into the workspace.
     await page.waitForTimeout(1000)
 
-    // 9. Capture the AFTER snapshot and assert round-trip equality.
+    // 10. Capture the AFTER snapshot and assert round-trip equality.
     const after = await pxt.getWorkspaceBlocksSnapshot()
 
     expect(

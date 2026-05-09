@@ -12,6 +12,7 @@ export class ToolbarPage {
   private readonly restartBtn: Locator
   private readonly langBtn: Locator
   private readonly saveBtn: Locator
+  private readonly projectsBtn: Locator
   private readonly toolbarSelect: Locator
   private readonly selectToolBtn: Locator
   private readonly placeMachineToolBtn: Locator
@@ -27,6 +28,7 @@ export class ToolbarPage {
     this.restartBtn = page.locator('.ui-toolbar-btn--restart')
     this.langBtn = page.locator('.ui-lang-btn')
     this.saveBtn = page.locator('.ui-toolbar button[data-i18n-key="toolbar.save"]')
+    this.projectsBtn = page.locator('.ui-toolbar-btn--projects')
     this.toolbarSelect = page.locator('.ui-toolbar-select')
     this.selectToolBtn = page.locator('.ui-toolbar-btn[data-tool="select"]')
     this.placeMachineToolBtn = page.locator('.ui-toolbar-btn[data-tool="place_machine"]')
@@ -107,6 +109,19 @@ export class ToolbarPage {
   /** Press the global "E" key shortcut for the editor. */
   async pressEditorShortcut(): Promise<void> {
     await this.page.keyboard.press('e')
+  }
+
+  async clickProjects(): Promise<void> {
+    await expect(this.projectsBtn).toBeVisible()
+    await this.projectsBtn.click()
+  }
+
+  async expectProjectsButtonVisible(): Promise<void> {
+    await expect(this.projectsBtn).toBeVisible()
+  }
+
+  async expectProjectsButtonHidden(): Promise<void> {
+    await expect(this.projectsBtn).toHaveCount(0)
   }
 
   /** Wait for the camera zoom-to-fit animation that runs after entering a level/sandbox. */

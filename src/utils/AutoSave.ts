@@ -6,6 +6,12 @@ import {
   loadFromLocalStorage,
   type FactorySave,
 } from './SaveLoad'
+import {
+  getLastLoadedId,
+  loadSlot,
+  migrateLegacyAutosave,
+  overwriteSlot,
+} from './SandboxProjects'
 
 export const FACTORY_SAVE_PREFIX = 'rf_factory_'
 
@@ -33,6 +39,20 @@ export async function autoSaveFactory(
   await pxtEditor.flushPendingSaveAsync()
   const workspace = pxtEditor.getWorkspaceXml()
   const save = saveFactory(factory, workspace, levelId)
+  if (levelId === undefined) {
+    // Sandbox: autosave overwrites the slot the user most recently loaded
+    // (or saved) in the Projects panel. Until the user explicitly saves a
+    // project once, autosave is a no-op — we don't want to silently
+    // resurrect a sandbox state on top of an unrelated session.
+    const lastId = getLastLoadedId()
+    if (lastId === null) return
+    try {
+      overwriteSlot(lastId, save)
+    } catch {
+      // Slot was deleted between load and autosave — silently drop.
+    }
+    return
+  }
   saveToLocalStorage(getFactorySaveKey(levelId), save)
 }
 
@@ -41,9 +61,24 @@ export function autoRestoreFactory(
   pxtEditor: PxtEditorLike,
   levelId?: string,
 ): boolean {
+  if (!factory) return false
+  if (levelId === undefined) {
+    // Sandbox: migrate any legacy single-slot autosave into the named-slot
+    // index, then restore from the user's most recently loaded slot.
+    try { migrateLegacyAutosave() } catch { /* ignore migration failure */ }
+    const lastId = getLastLoadedId()
+    if (lastId === null) return false
+    const save = loadSlot(lastId)
+    if (!save) return false
+    try {
+      importFactoryWithProgram(save, factory, pxtEditor)
+      return true
+    } catch {
+      return false
+    }
+  }
   const save = loadFromLocalStorage(getFactorySaveKey(levelId))
   if (!save) return false
-  if (!factory) return false
   try {
     importFactoryWithProgram(save, factory, pxtEditor)
     return true

@@ -100,9 +100,168 @@ export function loadFromLocalStorage(key: string): FactorySave | null {
   }
 }
 
+interface XmlJsonNode {
+  tag: string
+  attrs?: Record<string, string>
+  children?: (XmlJsonNode | string)[]
+}
+
+/**
+ * Convert an XML string into a generic JSON tree of `{ tag, attrs?, children? }`
+ * nodes. Element and text nodes are preserved; other node types are skipped.
+ */
+function xmlStringToJsonTree(xml: string): XmlJsonNode {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  const parserError = doc.querySelector('parsererror')
+  if (parserError) {
+    throw new Error(`Invalid XML: ${parserError.textContent ?? 'parse error'}`)
+  }
+  const root = doc.documentElement
+  if (!root) {
+    throw new Error('Invalid XML: no root element')
+  }
+  return elementToJsonTree(root)
+}
+
+function elementToJsonTree(el: Element): XmlJsonNode {
+  const node: XmlJsonNode = { tag: el.tagName }
+  if (el.attributes.length > 0) {
+    const attrs: Record<string, string> = {}
+    for (let i = 0; i < el.attributes.length; i++) {
+      const a = el.attributes.item(i)!
+      attrs[a.name] = a.value
+    }
+    node.attrs = attrs
+  }
+  if (el.childNodes.length > 0) {
+    const children: (XmlJsonNode | string)[] = []
+    el.childNodes.forEach((n) => {
+      if (n.nodeType === 1) {
+        children.push(elementToJsonTree(n as Element))
+      } else if (n.nodeType === 3) {
+        children.push(n.nodeValue ?? '')
+      }
+    })
+    if (children.length > 0) {
+      node.children = children
+    }
+  }
+  return node
+}
+
+/**
+ * Convert a JSON tree back to an XML string. Validates the tree shape
+ * strictly and throws a descriptive error on any violation.
+ */
+function jsonTreeToXmlString(node: unknown): string {
+  const doc = document.implementation.createDocument(null, null, null)
+  const root = jsonTreeToElement(node, doc)
+  doc.appendChild(root)
+  return new XMLSerializer().serializeToString(doc)
+}
+
+function jsonTreeToElement(node: unknown, doc: Document): Element {
+  if (node === null || typeof node !== 'object' || Array.isArray(node)) {
+    throw new Error('JSON tree node must be an object with a string "tag"')
+  }
+  const n = node as { tag?: unknown; attrs?: unknown; children?: unknown }
+  if (typeof n.tag !== 'string') {
+    throw new Error('JSON tree node must have a string "tag"')
+  }
+  const el = doc.createElement(n.tag)
+  if (n.attrs !== undefined) {
+    if (n.attrs === null || typeof n.attrs !== 'object' || Array.isArray(n.attrs)) {
+      throw new Error(`JSON tree node "${n.tag}": attrs must be a plain object`)
+    }
+    for (const [k, v] of Object.entries(n.attrs as Record<string, unknown>)) {
+      if (typeof v !== 'string') {
+        throw new Error(`JSON tree node "${n.tag}": attr "${k}" must be a string`)
+      }
+      el.setAttribute(k, v)
+    }
+  }
+  if (n.children !== undefined) {
+    if (!Array.isArray(n.children)) {
+      throw new Error(`JSON tree node "${n.tag}": children must be an array`)
+    }
+    for (const child of n.children) {
+      if (typeof child === 'string') {
+        el.appendChild(doc.createTextNode(child))
+      } else if (child !== null && typeof child === 'object') {
+        el.appendChild(jsonTreeToElement(child, doc))
+      } else {
+        throw new Error(
+          `JSON tree node "${n.tag}": child must be a string or a node object`,
+        )
+      }
+    }
+  }
+  return el
+}
+
+/**
+ * Return a shallow clone of `save` with `pxtWorkspace` expanded to a
+ * `{ ts, blocks }` object when the stored string is parseable into that
+ * shape. `blocks` is converted to a JSON-tree form. Defensive: never
+ * throws — falls back to the raw string on any error.
+ */
+function expandPxtWorkspaceForExport(save: FactorySave): unknown {
+  let expanded: unknown = save.pxtWorkspace
+  try {
+    const parsed: unknown = JSON.parse(save.pxtWorkspace)
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      typeof (parsed as { ts?: unknown }).ts === 'string' &&
+      typeof (parsed as { blocks?: unknown }).blocks === 'string'
+    ) {
+      const p = parsed as { ts: string; blocks: string }
+      try {
+        expanded = { ts: p.ts, blocks: xmlStringToJsonTree(p.blocks) }
+      } catch {
+        expanded = { ts: p.ts, blocks: p.blocks }
+      }
+    }
+  } catch {
+    // leave as raw string
+  }
+  return { ...save, pxtWorkspace: expanded }
+}
+
+/**
+ * If `parsed.pxtWorkspace` is an object with string `ts` and string `blocks`,
+ * collapse it back to a JSON-stringified workspace so the rest of the
+ * pipeline (validateSave, in-memory FactorySave) keeps working with strings.
+ * Throws on a malformed object form (wrong/missing fields).
+ */
+function normalizePxtWorkspaceForImport(parsed: unknown): unknown {
+  if (parsed === null || typeof parsed !== 'object') return parsed
+  const obj = parsed as Record<string, unknown>
+  const ws = obj.pxtWorkspace
+  if (ws === null || typeof ws !== 'object') return parsed
+
+  const wsObj = ws as { ts?: unknown; blocks?: unknown }
+  if (typeof wsObj.ts !== 'string') {
+    throw new Error(
+      'Save data: pxtWorkspace.ts must be a string',
+    )
+  }
+  let blocksString: string
+  if (typeof wsObj.blocks === 'string') {
+    blocksString = wsObj.blocks
+  } else if (wsObj.blocks !== null && typeof wsObj.blocks === 'object' && !Array.isArray(wsObj.blocks)) {
+    blocksString = jsonTreeToXmlString(wsObj.blocks)
+  } else {
+    throw new Error(
+      'Save data: pxtWorkspace.blocks must be a string (XML) or a JSON tree object',
+    )
+  }
+  return { ...obj, pxtWorkspace: JSON.stringify({ ts: wsObj.ts, blocks: blocksString }) }
+}
+
 /** Trigger a JSON file download of the save data. */
 export function exportToFile(save: FactorySave): void {
-  const json = JSON.stringify(save, null, 2)
+  const json = JSON.stringify(expandPxtWorkspaceForExport(save), null, 2)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
 
@@ -133,14 +292,103 @@ export function importFromFile(): Promise<FactorySave> {
       reader.onload = () => {
         try {
           const parsed: unknown = JSON.parse(reader.result as string)
-          validateSave(parsed)
-          resolve(parsed as FactorySave)
+          const normalized = normalizePxtWorkspaceForImport(parsed)
+          validateSave(normalized)
+          resolve(normalized as FactorySave)
         } catch (err) {
           reject(err instanceof Error ? err : new Error('Invalid save file'))
         }
       }
       reader.onerror = () => reject(new Error('Failed to read file'))
       reader.readAsText(file)
+    })
+
+    input.click()
+  })
+}
+
+export interface BundleSave {
+  version: number
+  type: 'bundle'
+  projects: { name: string; save: FactorySave }[]
+}
+
+/** Trigger a JSON file download of a multi-project bundle. */
+export function exportBundleToFile(entries: { name: string; save: FactorySave }[]): void {
+  const bundle = {
+    version: 1,
+    type: 'bundle' as const,
+    projects: entries.map(e => ({ name: e.name, save: expandPxtWorkspaceForExport(e.save) })),
+  }
+  const json = JSON.stringify(bundle, null, 2)
+  const blob = new Blob([json], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `factory-bundle-${Date.now()}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Open a file picker (multi-select) and load saves from one or more JSON files.
+ * Each file may be a single FactorySave or a BundleSave; results are flattened
+ * preserving file order, then bundle-internal order. Rejects all-or-nothing on
+ * any parse error or invalid schema.
+ */
+export function importFilesFromUser(): Promise<{ name: string | null; save: FactorySave }[]> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json,application/json'
+    input.multiple = true
+
+    input.addEventListener('change', () => {
+      const files = input.files
+      if (!files || files.length === 0) {
+        reject(new Error('No file selected'))
+        return
+      }
+
+      const fileArray = Array.from(files)
+      Promise.all(fileArray.map(file => file.text()))
+        .then(texts => {
+          const entries: { name: string | null; save: FactorySave }[] = []
+          for (const text of texts) {
+            const parsed: unknown = JSON.parse(text)
+            if (
+              parsed !== null &&
+              typeof parsed === 'object' &&
+              (parsed as { type?: unknown }).type === 'bundle' &&
+              Array.isArray((parsed as { projects?: unknown }).projects)
+            ) {
+              const projects = (parsed as { projects: unknown[] }).projects
+              for (const proj of projects) {
+                if (proj === null || typeof proj !== 'object') {
+                  throw new Error('Bundle project entry must be an object')
+                }
+                const p = proj as { name?: unknown; save?: unknown }
+                if (typeof p.name !== 'string') {
+                  throw new Error('Bundle project entry must have a string name')
+                }
+                const normalizedSave = normalizePxtWorkspaceForImport(p.save)
+                validateSave(normalizedSave)
+                entries.push({ name: p.name, save: normalizedSave as FactorySave })
+              }
+            } else {
+              const normalized = normalizePxtWorkspaceForImport(parsed)
+              validateSave(normalized)
+              entries.push({ name: null, save: normalized as FactorySave })
+            }
+          }
+          resolve(entries)
+        })
+        .catch(err => {
+          reject(err instanceof Error ? err : new Error('Invalid save file'))
+        })
     })
 
     input.click()

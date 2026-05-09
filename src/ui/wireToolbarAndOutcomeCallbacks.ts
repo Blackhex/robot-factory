@@ -8,9 +8,6 @@ interface ToolbarLike {
   onToggleEditor: () => void
   onBackToMenu: () => void
   onResetView: () => void
-  onSave: () => void
-  onLoad: () => void
-  onExport: () => void
   setPaused(paused: boolean): void
   setSimulationState(state: 'idle' | 'running' | 'paused' | 'stopped'): void
 }
@@ -87,9 +84,6 @@ interface WireToolbarAndOutcomeCallbacksOptions {
   getNextLevelId: () => string | null
   toggleEditor: () => void
   resetView: () => void
-  autoSaveFactory: () => Promise<void>
-  importFactory: () => Promise<void>
-  exportFactory: () => Promise<void>
 }
 
 export interface WiredToolbarAndOutcomeCallbacks {
@@ -189,14 +183,6 @@ export function wireToolbarAndOutcomeCallbacks(
   options.toolbar.onToggleEditor = click(options.toggleEditor)
   options.toolbar.onBackToMenu = click(() => options.gameManager.enterMainMenu())
   options.toolbar.onResetView = click(options.resetView)
-  options.toolbar.onSave = click(() => { void options.autoSaveFactory() })
-  options.toolbar.onLoad = click(() => {
-    void options.importFactory().catch(() => options.audio.playError())
-  })
-  options.toolbar.onExport = () => {
-    options.audio.playUIClick()
-    void options.exportFactory()
-  }
 
   return { restartCurrentSession }
 }

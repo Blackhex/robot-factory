@@ -1,4 +1,8 @@
 import type { CameraController } from './CameraController'
+import {
+  attachHorizontalResizeDrag,
+  type HorizontalResizeDragHandle,
+} from '../utils/attachHorizontalResizeDrag'
 
 /**
  * Returns the current factory grid size, or `null` when no level is active.
@@ -55,8 +59,7 @@ export class EditorViewportController {
   private readonly cameraController: CameraController
   private readonly getFactorySize: GetFactorySize
   private readonly onResize: ((width: number, height: number) => void) | undefined
-  private dragging = false
-  private detachers: Array<() => void> = []
+  private dragHandle: HorizontalResizeDragHandle | null = null
 
   constructor(deps: EditorViewportDeps) {
     this.canvasContainer = deps.canvasContainer
@@ -109,52 +112,22 @@ export class EditorViewportController {
    * alignment is preserved while dragging.
    */
   attachResizeDrag(): void {
-    const onPointerDown = (e: PointerEvent): void => {
-      e.preventDefault()
-      this.dragging = true
-      this.resizeHandle.classList.add('dragging')
-      this.resizeHandle.setPointerCapture(e.pointerId)
-    }
-
-    const onPointerMove = (e: PointerEvent): void => {
-      if (!this.dragging) return
-      const viewportW = window.innerWidth
-      const minPct = (500 / viewportW) * 100
-      const pct = Math.min(
-        100,
-        Math.max(minPct, ((viewportW - e.clientX) / viewportW) * 100),
-      )
-      this.editorContainer.style.width = `${pct}%`
-      this.resizeHandle.style.right = `calc(${pct}% - 3px)`
-      // Keep machines visible while the user drags the editor wider/narrower.
-      // Use a near-instant tween so the camera tracks the drag.
-      this.refitCameraToCurrentLevel(0.1)
-    }
-
-    const stopDrag = (): void => {
-      if (!this.dragging) return
-      this.dragging = false
-      this.resizeHandle.classList.remove('dragging')
-    }
-
-    this.resizeHandle.addEventListener('pointerdown', onPointerDown)
-    this.resizeHandle.addEventListener('pointermove', onPointerMove)
-    this.resizeHandle.addEventListener('pointerup', stopDrag)
-    this.resizeHandle.addEventListener('pointercancel', stopDrag)
-
-    this.detachers.push(
-      () => this.resizeHandle.removeEventListener('pointerdown', onPointerDown),
-      () => this.resizeHandle.removeEventListener('pointermove', onPointerMove),
-      () => this.resizeHandle.removeEventListener('pointerup', stopDrag),
-      () => this.resizeHandle.removeEventListener('pointercancel', stopDrag),
-    )
+    this.dragHandle?.dispose()
+    this.dragHandle = attachHorizontalResizeDrag({
+      handle: this.resizeHandle,
+      panel: this.editorContainer,
+      edge: 'right',
+      minWidthPx: 500,
+      maxWidthFraction: 1,
+      onResize: () => this.refitCameraToCurrentLevel(0.1),
+    })
   }
 
   /**
    * Remove all pointer-event listeners attached by {@link attachResizeDrag}.
    */
   dispose(): void {
-    for (const detach of this.detachers) detach()
-    this.detachers = []
+    this.dragHandle?.dispose()
+    this.dragHandle = null
   }
 }

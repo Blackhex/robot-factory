@@ -8,6 +8,7 @@ interface CreateEditorVisibilityControllerOptions {
   resizeHandle: HTMLElement
   pxtEditor: PxtEditorLike
   refitCamera: () => void
+  onOpenChange?: (open: boolean) => void
 }
 
 export interface EditorVisibilityController {
@@ -31,6 +32,7 @@ export function createEditorVisibilityController(
       : 'calc(max(500px, 40%) - 3px)'
     options.pxtEditor.show()
     options.refitCamera()
+    options.onOpenChange?.(true)
   }
 
   const close = (): void => {
@@ -40,6 +42,7 @@ export function createEditorVisibilityController(
     options.resizeHandle.style.display = 'none'
     options.pxtEditor.hide()
     options.refitCamera()
+    options.onOpenChange?.(false)
   }
 
   const toggle = (): void => {
