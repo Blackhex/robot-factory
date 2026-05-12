@@ -1,6 +1,13 @@
 import { i18next } from '../i18n/i18n'
-import { PLACEABLE_MACHINE_TYPES, type MachineType } from '../game/types'
+import { PLACEABLE_MACHINE_TYPES, type MachineType, type ItemType } from '../game/types'
 import type { MachineInfo } from '../game/Factory'
+
+export interface MachineRuntimeInfo {
+  state: 'idle' | 'processing' | 'blocked'
+  recipeName: string | null
+  itemsProduced: number
+  inputs: ReadonlyArray<{ type: ItemType; quantity: number }>
+}
 
 /**
  * Floating panel that shows properties of a selected machine.
@@ -11,7 +18,20 @@ export class MachinePanel {
   private nameInput: HTMLInputElement
   private infoEl: HTMLSpanElement
   private typeSelect: HTMLSelectElement
+  private runtimeRecipeRow: HTMLDivElement
+  private runtimeStateRow: HTMLDivElement
+  private runtimeProducedRow: HTMLDivElement
+  private runtimeInputsRow: HTMLDivElement
+  private runtimeRecipeLabel: HTMLSpanElement
+  private runtimeStateLabel: HTMLSpanElement
+  private runtimeProducedLabel: HTMLSpanElement
+  private runtimeInputsLabel: HTMLSpanElement
+  private runtimeRecipeValue: HTMLSpanElement
+  private runtimeStateValue: HTMLSpanElement
+  private runtimeProducedValue: HTMLSpanElement
+  private runtimeInputsValue: HTMLSpanElement
   private currentMachine: MachineInfo | null = null
+  private currentRuntime: MachineRuntimeInfo | null = null
   private availableTypes: readonly MachineType[] = PLACEABLE_MACHINE_TYPES
   private handleLangChange = () => this.updateLabels()
 
@@ -82,6 +102,33 @@ export class MachinePanel {
     infoRow.appendChild(this.infoEl)
 
     props.appendChild(infoRow)
+
+    // Runtime info: each value on its own labeled row so long recipe names
+    // don't reflow the layout.
+    const recipeRow = this.createRuntimeRow('machine_panel.recipe')
+    this.runtimeRecipeRow = recipeRow.row
+    this.runtimeRecipeLabel = recipeRow.label
+    this.runtimeRecipeValue = recipeRow.value
+    props.appendChild(this.runtimeRecipeRow)
+
+    const stateRow = this.createRuntimeRow('machine_panel.state')
+    this.runtimeStateRow = stateRow.row
+    this.runtimeStateLabel = stateRow.label
+    this.runtimeStateValue = stateRow.value
+    props.appendChild(this.runtimeStateRow)
+
+    const producedRow = this.createRuntimeRow('machine_panel.produced')
+    this.runtimeProducedRow = producedRow.row
+    this.runtimeProducedLabel = producedRow.label
+    this.runtimeProducedValue = producedRow.value
+    props.appendChild(this.runtimeProducedRow)
+
+    const inputsRow = this.createRuntimeRow('machine_panel.inputs')
+    this.runtimeInputsRow = inputsRow.row
+    this.runtimeInputsLabel = inputsRow.label
+    this.runtimeInputsValue = inputsRow.value
+    props.appendChild(this.runtimeInputsRow)
+
     this.container.appendChild(props)
 
     // Delete button
@@ -103,10 +150,14 @@ export class MachinePanel {
 
   /** Show the panel with the selected machine's data. */
   setMachine(machine: MachineInfo | null): void {
+    const previousId = this.currentMachine?.id ?? null
     this.currentMachine = machine
     if (!machine) {
       this.hide()
       return
+    }
+    if (machine.id !== previousId) {
+      this.setRuntimeInfo(null)
     }
 
     this.nameInput.value = machine.name || ''
@@ -126,6 +177,7 @@ export class MachinePanel {
   hide(): void {
     this.container.style.display = 'none'
     this.currentMachine = null
+    this.setRuntimeInfo(null)
   }
 
   dispose(): void {
@@ -136,6 +188,76 @@ export class MachinePanel {
   setAvailableMachineTypes(types: readonly MachineType[]): void {
     this.availableTypes = types
     this.populateTypeOptions()
+  }
+
+  getCurrentMachine(): MachineInfo | null {
+    return this.currentMachine
+  }
+
+  setRuntimeInfo(info: MachineRuntimeInfo | null): void {
+    const prev = this.currentRuntime
+    if (info === null && prev === null) return
+    if (
+      info !== null &&
+      prev !== null &&
+      info.state === prev.state &&
+      info.recipeName === prev.recipeName &&
+      info.itemsProduced === prev.itemsProduced &&
+      inputsEqual(info.inputs, prev.inputs)
+    ) {
+      return
+    }
+    this.currentRuntime = info
+    if (!info) {
+      this.runtimeRecipeRow.style.display = 'none'
+      this.runtimeStateRow.style.display = 'none'
+      this.runtimeProducedRow.style.display = 'none'
+      this.runtimeInputsRow.style.display = 'none'
+      this.runtimeRecipeValue.textContent = ''
+      this.runtimeStateValue.textContent = ''
+      this.runtimeProducedValue.textContent = ''
+      this.runtimeInputsValue.textContent = ''
+      return
+    }
+    this.runtimeRecipeRow.style.display = ''
+    this.runtimeStateRow.style.display = ''
+    this.runtimeProducedRow.style.display = ''
+    this.runtimeInputsRow.style.display = ''
+    this.renderRuntime(info)
+  }
+
+  private renderRuntime(info: MachineRuntimeInfo): void {
+    this.runtimeRecipeLabel.textContent = i18next.t('machine_panel.recipe')
+    this.runtimeStateLabel.textContent = i18next.t('machine_panel.state')
+    this.runtimeProducedLabel.textContent = i18next.t('machine_panel.produced')
+    this.runtimeInputsLabel.textContent = i18next.t('machine_panel.inputs')
+    this.runtimeRecipeValue.textContent =
+      info.recipeName ?? i18next.t('machine_panel.no_recipe')
+    this.runtimeStateValue.textContent = i18next.t(`machine_panel.state_${info.state}`)
+    this.runtimeProducedValue.textContent = String(info.itemsProduced)
+    this.runtimeInputsValue.textContent = formatInputs(info.inputs)
+  }
+
+  private createRuntimeRow(labelKey: string): {
+    row: HTMLDivElement
+    label: HTMLSpanElement
+    value: HTMLSpanElement
+  } {
+    const row = document.createElement('div')
+    row.className = 'ui-machine-panel-row ui-machine-panel-runtime'
+    row.style.display = 'none'
+
+    const label = document.createElement('span')
+    label.className = 'ui-machine-panel-label'
+    label.dataset.i18nKey = labelKey
+    label.textContent = i18next.t(labelKey)
+    row.appendChild(label)
+
+    const value = document.createElement('span')
+    value.className = 'ui-machine-panel-value'
+    row.appendChild(value)
+
+    return { row, label, value }
   }
 
   private populateTypeOptions(): void {
@@ -158,5 +280,32 @@ export class MachinePanel {
       const key = el.dataset.i18nKey
       if (key) el.textContent = i18next.t(key)
     }
+    if (this.currentRuntime) {
+      this.renderRuntime(this.currentRuntime)
+    }
   }
+}
+
+function inputsEqual(
+  a: ReadonlyArray<{ type: ItemType; quantity: number }> | undefined,
+  b: ReadonlyArray<{ type: ItemType; quantity: number }> | undefined,
+): boolean {
+  if (a === b) return true
+  const aLen = a?.length ?? 0
+  const bLen = b?.length ?? 0
+  if (aLen !== bLen) return false
+  if (!a || !b) return aLen === 0
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].type !== b[i].type || a[i].quantity !== b[i].quantity) return false
+  }
+  return true
+}
+
+function formatInputs(
+  inputs: ReadonlyArray<{ type: ItemType; quantity: number }> | undefined,
+): string {
+  if (!inputs || inputs.length === 0) return i18next.t('machine_panel.inputs_empty')
+  return inputs
+    .map((g) => `${g.quantity}× ${i18next.t(`parts.${g.type}`)}`)
+    .join(', ')
 }

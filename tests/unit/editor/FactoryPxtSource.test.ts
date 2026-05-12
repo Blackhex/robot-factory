@@ -39,7 +39,7 @@ describe('pxt-target/libs/core/factory.ts — set machine speed block annotation
     expect(source).toContain('block="set %machine speed to %speed"')
   })
 
-  it('declares the function setMachineSpeed(machine: Machine, speed: number) inside namespace machines', () => {
+  it('declares the function setMachineSpeed(machine: number, speed: number) inside namespace machines', () => {
     // GIVEN
     const source = readFactoryPxtSource()
 
@@ -63,9 +63,13 @@ describe('pxt-target/libs/core/factory.ts — set machine speed block annotation
     expect(nsEnd, 'namespace machines must close').toBeGreaterThan(nsStart)
     const body = source.slice(nsStart, nsEnd + 1)
 
-    // THEN
+    // THEN — post-rollout the slot param is `number` (not the
+    // `Machine` enum) so PXT honours `//% machine.shadow="factory_pick_machine"`
+    // and renders the slot as a value input pre-populated with the
+    // reporter shadow. See LegacyPluggableMigrationRollout for the
+    // full contract.
     expect(body).toMatch(
-      /export\s+function\s+setMachineSpeed\s*\(\s*machine\s*:\s*Machine\s*,\s*speed\s*:\s*number\s*\)/,
+      /export\s+function\s+setMachineSpeed\s*\(\s*machine\s*:\s*number\s*,\s*speed\s*:\s*number\s*\)/,
     )
   })
 })

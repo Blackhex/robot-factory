@@ -115,6 +115,42 @@ export type ItemType =
   | 'raw_material'
 
 /**
+ * Single source of truth for all `ItemType` values. Pinned to the union
+ * by a compile-time exhaustiveness sentinel — if a new variant is added
+ * to `ItemType` without also being appended here, the sentinel resolves
+ * to `never` and `tsc --noEmit` fails.
+ */
+export const ALL_ITEM_TYPES = [
+  'wheel_small',
+  'wheel_medium',
+  'wheel_large',
+  'sensor_proximity',
+  'sensor_camera',
+  'sensor_lidar',
+  'battery_standard',
+  'battery_high_capacity',
+  'chassis_light',
+  'chassis_heavy',
+  'circuit_basic',
+  'circuit_advanced',
+  'drivetrain_basic',
+  'drivetrain_advanced',
+  'sensor_array_basic',
+  'sensor_array_advanced',
+  'power_unit_standard',
+  'power_unit_high',
+  'robot_explorer',
+  'robot_worker',
+  'robot_guardian',
+  'raw_material',
+] as const satisfies readonly ItemType[]
+
+type _ItemTypeExhaustive =
+  Exclude<ItemType, (typeof ALL_ITEM_TYPES)[number]> extends never ? true : never
+const _itemTypeExhaustive: _ItemTypeExhaustive = true
+void _itemTypeExhaustive
+
+/**
  * Single source of truth for the subset of ItemTypes that represent
  * fully-assembled robots. Used by Simulation to count `robotsProduced`
  * when an item reaches a factory_output. Pinned to the union by a
@@ -216,6 +252,7 @@ export type SimulationEventType =
   | 'output_delivered'
   | 'item_discarded'
   | 'machine_state_changed'
+  | 'machine_cycle_completed'
   | 'order_complete'
   | 'belt_jam'
   | 'machine_idle'
@@ -228,7 +265,7 @@ export interface SimulationEvent {
   data: Record<string, unknown>
 }
 
-export type GameOverReason = 'unconsumable_input' | 'no_recipe'
+export type GameOverReason = 'unconsumable_input' | 'no_recipe' | 'starvation'
 export type GameOverCause = 'machine_disabled'
 
 export interface GameOverInfo {

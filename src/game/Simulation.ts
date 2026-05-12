@@ -10,6 +10,7 @@ import { ItemDeliveryEngine } from './ItemDeliveryEngine.ts'
 import { SimulationCommandDispatcher } from './SimulationCommandDispatcher.ts'
 import { CommandQueueRunner } from './CommandQueueRunner.ts'
 import { detectNoRecipeStart } from './NoRecipeGuard.ts'
+import { detectStarvation, type StarvationContext } from './StarvationGuard.ts'
 
 type SimEventHandler = (event: SimulationEvent) => void
 
@@ -124,6 +125,12 @@ export class Simulation {
     this.updateMachines()
     this.advanceBelts()
     this.runDelivery()
+    this.checkStarvationGameOver()
+    if (this._gameOver !== null) {
+      this.emit('tick', { tick: this.currentTick })
+      this.currentTick++
+      return
+    }
     this.transferMachineOutputs()
     this.updateScoring()
     this.emit('tick', { tick: this.currentTick })
@@ -159,6 +166,23 @@ export class Simulation {
     }
   }
 
+  private checkStarvationGameOver(): void {
+    if (this._gameOver !== null) return
+    const context: StarvationContext = {
+      getOutputBelt: (id, port) =>
+        (port === 'primary' ? this.primaryOutputBelts : this.secondaryOutputBelts).get(id),
+      getBelt: (id) => this.belts.get(id),
+      findMachineAt: (x, z) => this.findMachineAt(x, z),
+      findBeltStartingAt: (x, z) => this.findBeltStartingAt(x, z),
+    }
+    const info = detectStarvation(this.machines.values(), context, this.currentTick)
+    if (info !== null) {
+      this._gameOver = info
+      this._paused = true
+      this.emit('game_over', { ...info })
+    }
+  }
+
   private updateMachines(): void {
     for (const machine of this.machines.values()) {
       const prevState = machine.state
@@ -172,30 +196,50 @@ export class Simulation {
           to: machine.state,
         })
       }
-      if (machine.outputSlot && machine.outputSlot !== prevOutput) {
+      const primaryProduced = machine.outputSlot !== null && machine.outputSlot !== prevOutput
+      const secondaryProduced =
+        machine.secondaryOutputSlot !== null && machine.secondaryOutputSlot !== prevSecondary
+      // Capture slot refs before emitting item_produced — handlers may
+      // synchronously call takeOutput() / takeSecondaryOutput() and clear them.
+      const newPrimary = primaryProduced ? machine.outputSlot! : null
+      const newSecondary = secondaryProduced ? machine.secondaryOutputSlot! : null
+      if (newPrimary !== null) {
         this.itemsProduced++
         this.emit('item_produced', {
           machineId: machine.id,
-          itemId: machine.outputSlot.id,
-          itemType: machine.outputSlot.type,
+          itemId: newPrimary.id,
+          itemType: newPrimary.type,
         })
       }
-      if (machine.secondaryOutputSlot && machine.secondaryOutputSlot !== prevSecondary) {
+      if (newSecondary !== null) {
         this.itemsProduced++
         if (
           machine.machineType === 'quality_checker' &&
-          !machine.secondaryOutputSlot.isDefective
+          !newSecondary.isDefective
         ) {
           // Defective items are counted once at the factory boundary (Shipper discard); skip here to avoid double-counting.
           this.defects++
         }
         this.emit('item_produced', {
           machineId: machine.id,
-          itemId: machine.secondaryOutputSlot.id,
-          itemType: machine.secondaryOutputSlot.type,
+          itemId: newSecondary.id,
+          itemType: newSecondary.type,
           output: 'secondary',
         })
       }
+      if (newPrimary !== null || newSecondary !== null) {
+        // One signal per cycle, even if a machine populates both ports in the same tick.
+        const slot = newPrimary ?? newSecondary!
+        this.emit('machine_cycle_completed', {
+          machineId: machine.id,
+          itemId: slot.id,
+          itemType: slot.type,
+        })
+      } else if (machine.firstIdleAfterStartPending && machine.state === 'idle' && prevState === 'idle') {
+        // Synthetic one-shot for a freshly-started machine with no work.
+        this.emit('machine_cycle_completed', { machineId: machine.id })
+      }
+      machine.firstIdleAfterStartPending = false
     }
   }
 

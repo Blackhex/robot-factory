@@ -22,28 +22,28 @@
 namespace machines {
     //% block="start %machine"
     //% blockId=factory_start_machine
-    //% weight=100
     //% machine.shadow="factory_pick_machine"
-    export function startMachine(machine: Machine): void { }
+    //% weight=100
+    export function startMachine(machine: number): void { }
 
     //% block="stop %machine"
     //% blockId=factory_stop_machine
-    //% weight=90
     //% machine.shadow="factory_pick_machine"
-    export function stopMachine(machine: Machine): void { }
+    //% weight=90
+    export function stopMachine(machine: number): void { }
 
     //% block="set recipe of %machine to %recipe"
     //% blockId=factory_set_recipe
-    //% weight=80
     //% machine.shadow="factory_pick_machine"
-    export function setRecipe(machine: Machine, recipe: Recipe): void { }
+    //% weight=80
+    export function setRecipe(machine: number, recipe: Recipe): void { }
 
     //% block="set %machine speed to %speed"
     //% blockId=factory_set_machine_speed
-    //% weight=70
     //% machine.shadow="factory_pick_machine"
+    //% weight=70
     //% speed.defl=1 speed.min=1 speed.max=10
-    export function setMachineSpeed(machine: Machine, speed: number): void { }
+    export function setMachineSpeed(machine: number, speed: number): void { }
 
     //% block="%machine"
     //% blockId=factory_pick_machine
@@ -62,10 +62,10 @@ namespace machines {
 namespace belts {
     //% block="set %belt speed to %speed"
     //% blockId=factory_set_belt_speed
-    //% weight=100
     //% belt.shadow="factory_pick_belt"
+    //% weight=100
     //% speed.defl=1 speed.min=0 speed.max=10
-    export function setBeltSpeed(belt: Belt, speed: number): void { }
+    export function setBeltSpeed(belt: number, speed: number): void { }
 
     //% block="%belt"
     //% blockId=factory_pick_belt
@@ -146,7 +146,8 @@ namespace events {
 
     //% block="on %machine idle"
     //% blockId=factory_on_machine_idle
-    //% weight=80
     //% machine.shadow="factory_pick_machine"
-    export function onMachineIdle(machine: Machine, handler: () => void): void { }
+    //% weight=80
+    //% handlerStatement=1
+    export function onMachineIdle(machine: number, handler: () => void): void { }
 }

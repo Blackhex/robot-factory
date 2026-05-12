@@ -71,6 +71,10 @@ export class SimulationProbe {
 
   async readSnapshot(): Promise<SimSnapshot> { return this.simulation.readSnapshot() }
 
+  async readDiagnosticSnapshot(): Promise<any> {
+    return (this.simulation as any).readDiagnosticSnapshot()
+  }
+
   async readSimItemIdsPerBelt(): Promise<string[][]> {
     return this.simulation.readSimItemIdsPerBelt()
   }

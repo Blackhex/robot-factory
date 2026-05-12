@@ -4,6 +4,7 @@ import type { TerminalDrainGraceDecider } from './TerminalDrainGraceAcceptabilit
 import { sampleBeltPath, buildBeltPath, type PathPoint } from './BeltPath'
 import { BeltTopologyCache, type BeltLike } from './BeltTopologyCache'
 import { DEFECTIVE_ITEM_COLOR, ITEM_COLORS } from './ItemColors'
+import { getItemScale } from './ItemScales'
 import {
   analyzeItemRendererFlow,
   type TerminalEndHoldState,
@@ -26,7 +27,7 @@ import {
 export type { BeltRenderData } from './ItemArcResolver'
 export type { BeltLike } from './BeltTopologyCache'
 
-const MAX_INSTANCES = 512
+const MAX_INSTANCES = 512; const IDENTITY_QUAT = new THREE.Quaternion(); const SCRATCH_SCALE = new THREE.Vector3()
 
 export class ItemRenderer {
   private scene: THREE.Scene
@@ -355,8 +356,8 @@ export class ItemRenderer {
     const { renderedArc, activePath, activePathLength } = resolution
     const p = activePathLength > 0 ? renderedArc / activePathLength : 0
     sampleBeltPath(activePath, p, this.outPoint)
-    this.tempPosition.set(this.outPoint.x, 0.15, this.outPoint.z)
-    this.tempMatrix.setPosition(this.tempPosition)
+    this.tempPosition.set(this.outPoint.x, 0.15 + (getItemScale(type) - 1.0) * 0.1, this.outPoint.z)
+    this.tempMatrix.compose(this.tempPosition, IDENTITY_QUAT, SCRATCH_SCALE.setScalar(getItemScale(type)))
     mesh.setMatrixAt(idx, this.tempMatrix)
     mesh.setColorAt(idx, this.tempColor.setHex(isDefective ? DEFECTIVE_ITEM_COLOR : ITEM_COLORS[type]))
     counts.set(type, idx + 1)

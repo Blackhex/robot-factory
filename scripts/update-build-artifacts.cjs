@@ -99,8 +99,13 @@ function expandSlots(byQName) {
 
 // Patch Events category + event blocks:
 //  • Events namespace color 35 → 50 (PXT hue 50 = yellow, per convention)
-//  • Remove `handlerStatement: true` from event-registration blocks so
-//    PXT renders them as hat blocks (no previous/next connections)
+//  • Remove `handlerStatement: true` from single-handler-only event blocks
+//    (`onOrderReceived`, `onBeltJam`) so PXT renders them as hats with no
+//    previous/next connections.
+//  • `events.onMachineIdle` keeps `handlerStatement: true` because its
+//    second parameter is the handler — without the directive PXT cannot
+//    materialize a HANDLER statement input on a block that has a
+//    preceding non-handler value input.
 //  • Move `machines.onMachineIdle` into the `events` namespace so it
 //    inherits the Events color and lives next to its siblings.
 function patchEventBlocks(byQName) {
@@ -115,19 +120,17 @@ function patchEventBlocks(byQName) {
       delete entry.attributes.handlerStatement;
     }
   }
-  // Move machines.onMachineIdle → events.onMachineIdle.
+  // Move machines.onMachineIdle → events.onMachineIdle (preserving
+  // `handlerStatement: true` from the source `//% handlerStatement=1`).
   const idle = byQName['machines.onMachineIdle'];
   if (idle) {
     const cloned = JSON.parse(JSON.stringify(idle));
     if (cloned.attributes) {
-      delete cloned.attributes.handlerStatement;
       cloned.attributes.weight = 80;
     }
     cloned.pyQName = 'events.on_machine_idle';
     byQName['events.onMachineIdle'] = cloned;
     delete byQName['machines.onMachineIdle'];
-  } else if (byQName['events.onMachineIdle'] && byQName['events.onMachineIdle'].attributes) {
-    delete byQName['events.onMachineIdle'].attributes.handlerStatement;
   }
 }
 
@@ -172,8 +175,11 @@ function addSimpleNumericLoopsBlock(byQName, spec) {
 }
 
 // Inject `machines.setMachineSpeed` block metadata if missing. Mirrors the
-// shape of `belts.setBeltSpeed` (Machine enum dropdown + numeric speed
-// param with min/max bounds). Idempotent — returns early if already set.
+// shape of the post-rollout `machines.setRecipe` entry: the `machine`
+// param carries no `type`/`isEnum` so PXT honors the `_shadowOverrides`
+// directive and renders the slot as a value input pre-populated with the
+// `factory_pick_machine` reporter shadow. Idempotent — returns early if
+// already set.
 function addMachineSpeedBlock(byQName) {
   if (!byQName || byQName['machines.setMachineSpeed']) return;
   byQName['machines.setMachineSpeed'] = {
@@ -182,6 +188,7 @@ function addMachineSpeedBlock(byQName) {
       paramDefl: { speed: '1' },
       block: 'set %machine speed to %speed',
       blockId: 'factory_set_machine_speed',
+      _shadowOverrides: { machine: 'factory_pick_machine' },
       weight: 70,
       explicitDefaults: ['speed'],
       paramMin: { speed: '1' },
@@ -189,18 +196,18 @@ function addMachineSpeedBlock(byQName) {
       _def: {
         parts: [
           { kind: 'label', text: 'set ', style: [] },
-          { kind: 'param', name: 'machine', ref: false },
+          { kind: 'param', name: 'machine', shadowBlockId: 'factory_pick_machine', ref: false },
           { kind: 'label', text: ' speed to ', style: [] },
           { kind: 'param', name: 'speed', ref: false },
         ],
         parameters: [
-          { kind: 'param', name: 'machine', ref: false },
+          { kind: 'param', name: 'machine', shadowBlockId: 'factory_pick_machine', ref: false },
           { kind: 'param', name: 'speed', ref: false },
         ],
       },
     },
     parameters: [
-      { name: 'machine', type: 'Machine', isEnum: true },
+      { name: 'machine' },
       {
         name: 'speed',
         initializer: '1',

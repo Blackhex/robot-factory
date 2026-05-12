@@ -17,6 +17,7 @@ import { PxtEditorPage } from './editor/PxtEditorPage'
 import { GameOverModalPage } from './screens/GameOverModalPage'
 import { ProjectsPanelPage } from './screens/ProjectsPanelPage'
 import { SaveManager } from './data/saves'
+import { ConsoleMonitor } from './data/ConsoleMonitor'
 
 type Pages = {
   mainMenu: MainMenuPage
@@ -37,6 +38,7 @@ type Pages = {
   gameOverModal: GameOverModalPage
   projectsPanel: ProjectsPanelPage
   saves: SaveManager
+  consoleMonitor: ConsoleMonitor
 }
 
 export const test = base.extend<Pages>({
@@ -58,6 +60,7 @@ export const test = base.extend<Pages>({
   projectsPanel: async ({ page }, use) => { await use(new ProjectsPanelPage(page)) },
   gameOverModal: async ({ page }, use) => { await use(new GameOverModalPage(page)) },
   saves: async ({ page }, use) => { await use(new SaveManager(page)) },
+  consoleMonitor: async ({ page }, use) => { await use(new ConsoleMonitor(page)) },
 })
 
 // Centralized failure-screenshot hook.

@@ -117,6 +117,13 @@ export class ItemDeliveryEngine {
               }
               continue
             }
+            // Recipe-aware backpressure: right type for this machine, but
+            // its per-type quota is already met. Leave the item on the belt;
+            // it will retry next tick once `consumeInputs` frees space. No
+            // game-over — this is the same shape as "all input slots full".
+            if (!targetMachine.canAcceptItemType(item.type)) {
+              continue
+            }
             // Discard contract: defective items at the Shipper (factory_output)
             // are rejected at the dock — they count toward defect/quality
             // stats but not toward delivered outputs or robots produced.

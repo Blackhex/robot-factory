@@ -47,10 +47,14 @@ const PROGRAM_PASS_THROUGH_CHAIN = buildProgram([
   ...buildStartCommands('A', 'B', 'C'),
 ])
 
-const PROGRAM_BASIC_WITH_DRIVETRAIN = buildProgram([
+// Level 6 chain: two fabricators feed an assembler that requires both
+// wheel_small AND circuit_basic. Machine.A presses wheels, Machine.D prints
+// circuits, Machine.B assembles drivetrains, Machine.C ships the result.
+const PROGRAM_DRIVETRAIN_WITH_CIRCUITS = buildProgram([
   'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)',
+  'machines.setRecipe(Machine.D, Recipe.CircuitPrinterBasic)',
   'machines.setRecipe(Machine.B, Recipe.AssembleDrivetrainBasic)',
-  ...buildStartCommands('A', 'B', 'C'),
+  ...buildStartCommands('A', 'B', 'C', 'D'),
 ])
 
 const PROGRAM_FOUR_MACHINE_CHAIN = buildProgram([
@@ -661,29 +665,43 @@ test.describe('Level 6 — Custom Robots', () => {
     machines = await probe.getMachines()
     expect(machines.length).toBe(3)
 
-    const fabricator = machines.find((m) => m.type === 'part_fabricator')
+    // Second fabricator north of the assembler — will be configured as a
+    // circuit printer so the assembler has both required inputs.
+    await grid.dblClickCell({ x: 8, z: 4 })
+    machines = await probe.getMachines()
+    expect(machines.length).toBe(4)
+
+    const fabricators = machines.filter((m) => m.type === 'part_fabricator')
+    const wheelFabricator = fabricators.find((m) => m.x === 4 && m.z === 8)
+    const circuitFabricator = fabricators.find((m) => m.x === 8 && m.z === 4)
     const assembler = machines.find((m) => m.type === 'assembler')
     const factoryOutput = machines.find((m) => m.type === 'factory_output')
-    expect(fabricator).toBeTruthy()
+    expect(wheelFabricator).toBeTruthy()
+    expect(circuitFabricator).toBeTruthy()
     expect(assembler).toBeTruthy()
     expect(factoryOutput).toBeTruthy()
 
     expect(await probe.placeBeltViaTestApi(
-      fabricator!.x, fabricator!.z, assembler!.x, assembler!.z,
+      wheelFabricator!.x, wheelFabricator!.z, assembler!.x, assembler!.z,
+    )).toBe(true)
+    expect(await probe.placeBeltViaTestApi(
+      circuitFabricator!.x, circuitFabricator!.z, assembler!.x, assembler!.z,
     )).toBe(true)
     expect(await probe.placeBeltViaTestApi(
       assembler!.x, assembler!.z, factoryOutput!.x, factoryOutput!.z,
     )).toBe(true)
-    expect(await probe.getBeltCount()).toBeGreaterThanOrEqual(2)
+    expect(await probe.getBeltCount()).toBeGreaterThanOrEqual(3)
 
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
-    // The assembler in this chain would receive wheel_small with no recipe set
-    // and trigger the `unconsumable_input` game-over rule. Configure Machine.B
-    // with AssembleDrivetrainBasic, which lists wheel_small as an input, so
-    // the wheel is a legal (consumable) input and items keep flowing.
-    await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC_WITH_DRIVETRAIN)
-    await editorPanel.expectFallbackValue(PROGRAM_BASIC_WITH_DRIVETRAIN)
+    // The assembler needs both wheels and circuits; we place two fabricators
+    // (wheels via Machine.A, circuits via Machine.D) and route both into the
+    // assembler so the chain is genuinely productive under the new starvation
+    // game-over rule. Without the circuit producer the assembler would receive
+    // wheels but never be able to satisfy CircuitPrinterBasic input → the
+    // simulation would fire `reason: 'starvation'` immediately.
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_DRIVETRAIN_WITH_CIRCUITS)
+    await editorPanel.expectFallbackValue(PROGRAM_DRIVETRAIN_WITH_CIRCUITS)
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
 
@@ -692,8 +710,12 @@ test.describe('Level 6 — Custom Robots', () => {
     await hud.expectVisible()
 
     // Level 6 requires 6 outputs total (2 explorer + 2 worker + 2 guardian
-    // robots). Restarting before the goal is met routes to Level Failed
-    // (B1 contract).
+    // robots). Under the new starvation rule, ≥6 deliveries to factory_output
+    // is now a meaningful production assertion: the assembler must actually
+    // be productive (consuming wheels + circuits to emit drivetrains) for any
+    // item to flow past it. A stuck assembler now trips `reason: 'starvation'`
+    // instead of silently buffering wheels, so this assertion fails fast if
+    // the chain isn't truly producing.
     await hud.expectItemsDeliveredAtLeast(6, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     await hud.expectTimeAdvancing(10000)
 

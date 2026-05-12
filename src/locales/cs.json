@@ -42,7 +42,16 @@
   },
   "machine_panel": {
     "type": "Typ",
-    "delete": "Smazat"
+    "delete": "Smazat",
+    "recipe": "Recept",
+    "state": "Stav",
+    "state_idle": "nečinný",
+    "state_processing": "pracuje",
+    "state_blocked": "blokováno",
+    "no_recipe": "(bez receptu)",
+    "produced": "Vyrobeno",
+    "inputs": "Vstupy",
+    "inputs_empty": "(prázdné)"
   },
   "language": "Jazyk",
   "main_menu": {
@@ -140,15 +149,53 @@
     "belt_3": "Pás 3"
   },
   "parts": {
-    "wheel_small": "Malé kolo",
-    "sensor_proximity": "Senzor přiblížení",
-    "frame_basic": "Základní rám",
-    "motor_standard": "Standardní motor"
+    "wheel_small": "Malá kola",
+    "wheel_medium": "Střední kola",
+    "wheel_large": "Velká kola",
+    "sensor_proximity": "Senzory přiblížení",
+    "sensor_camera": "Kamerové senzory",
+    "sensor_lidar": "LiDAR senzory",
+    "battery_standard": "Standardní baterie",
+    "battery_high_capacity": "Vysokokapacitní baterie",
+    "chassis_light": "Lehké podvozky",
+    "chassis_heavy": "Těžké podvozky",
+    "circuit_basic": "Základní obvody",
+    "circuit_advanced": "Pokročilé obvody",
+    "drivetrain_basic": "Základní pohony",
+    "drivetrain_advanced": "Pokročilé pohony",
+    "sensor_array_basic": "Základní senzorová pole",
+    "sensor_array_advanced": "Pokročilá senzorová pole",
+    "power_unit_standard": "Standardní napájecí jednotky",
+    "power_unit_high": "Výkonné napájecí jednotky",
+    "robot_explorer": "Roboti Průzkumníci",
+    "robot_worker": "Roboti Dělníci",
+    "robot_guardian": "Roboti Strážci",
+    "raw_material": "Suroviny",
+    "frame_basic": "Základní rámy",
+    "motor_standard": "Standardní motory"
   },
   "recipes": {
-    "basic_wheel": "Základní kolo",
-    "sensor_unit": "Senzorová jednotka",
-    "robot_frame": "Rám robota"
+    "wheel_press_small": "Malá kola",
+    "wheel_press_medium": "Střední kola",
+    "wheel_press_large": "Velká kola",
+    "sensor_fab_proximity": "Senzory přiblížení",
+    "sensor_fab_camera": "Kamerové senzory",
+    "sensor_fab_lidar": "LiDAR senzory",
+    "battery_assembly_standard": "Standardní baterie",
+    "battery_assembly_high": "Vysokokapacitní baterie",
+    "chassis_stamper_light": "Lehký podvozek",
+    "chassis_stamper_heavy": "Těžký podvozek",
+    "circuit_printer_basic": "Základní obvody",
+    "circuit_printer_advanced": "Pokročilé obvody",
+    "assemble_drivetrain_basic": "Základní pohon",
+    "assemble_drivetrain_advanced": "Pokročilý pohon",
+    "assemble_sensor_array_basic": "Základní senzorové pole",
+    "assemble_sensor_array_advanced": "Pokročilé senzorové pole",
+    "assemble_power_unit_standard": "Standardní napájecí jednotka",
+    "assemble_power_unit_high": "Výkonná napájecí jednotka",
+    "assemble_robot_explorer": "Robot Průzkumník",
+    "assemble_robot_worker": "Robot Dělník",
+    "assemble_robot_guardian": "Robot Strážce"
   },
   "levels": {
     "level_1": {
@@ -239,7 +286,8 @@
     "reason": {
       "unconsumable_input": "{{machine}} neumí použít {{item}}. Zkontroluj recept nebo kam pás vede.",
       "unconsumable_input_machine_disabled": "{{machine}} je zastavený, takže nemůže přijmout {{item}}. Spusť {{machine}} a zkus to znovu.",
-      "no_recipe": "Spustil/a jsi {{machine}} bez receptu. Nastav recept před spuštěním."
+      "no_recipe": "Spustil/a jsi {{machine}} bez receptu. Nastav recept před spuštěním.",
+      "starvation": "Stroji {{machine}} chybí {{item}} pro recept."
     },
     "restart": "Restartovat"
   },

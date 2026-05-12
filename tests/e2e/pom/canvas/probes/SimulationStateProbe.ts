@@ -203,4 +203,71 @@ export class SimulationStateProbe {
     const segments = await this.readBeltPathSegments()
     expect(segments.length, message).toBeGreaterThan(0)
   }
+
+  async readDiagnosticSnapshot(): Promise<any> {
+    return this.page.evaluate(() => {
+      const gm = (window as any).__gameManager
+      const sim = gm?.simulation
+      const factory = gm?.factory
+      if (!sim || !factory) return { error: 'no sim/factory' }
+      const machines: any[] = []
+      const machineMap = sim.getMachines() as Map<string, any>
+      machineMap.forEach((m: any) => {
+        machines.push({
+          id: m.id,
+          machineType: m.machineType,
+          x: m.x,
+          z: m.z,
+          enabled: !!m.enabled,
+          state: m.state,
+          // `Machine.speed` is the per-machine processing-rate multiplier
+          // mutated by the `SET_MACHINE_SPEED` command. Defaults to 1.
+          speed: typeof m.speed === 'number' ? m.speed : null,
+          currentRecipeId: m.currentRecipe?.id ?? null,
+          processingTimer: m.processingTimer,
+          consumedItems: m.consumedItems,
+          inputSlotsCount: m.inputSlots.length,
+          inputSlotTypes: m.inputSlots.map((it: any) => it?.type),
+          outputSlotType: m.outputSlot?.type ?? null,
+          secondaryOutputSlotType: m.secondaryOutputSlot?.type ?? null,
+        })
+      })
+      // Augment with positions from factory (sim machine map may not carry x/z directly).
+      const factMachines = factory.getMachines() as any[]
+      for (const fm of factMachines) {
+        const found = machines.find((m) => m.id === fm.id)
+        if (found) {
+          found.x = fm.x
+          found.z = fm.z
+        }
+      }
+      const beltMap = sim.getBelts() as Map<string, any>
+      const belts: any[] = []
+      beltMap.forEach((b: any) => {
+        belts.push({
+          id: b.id,
+          fromX: b.fromX,
+          fromZ: b.fromZ,
+          toX: b.toX,
+          toZ: b.toZ,
+          // `ConveyorBelt.speed` is the per-belt transport-rate multiplier
+          // mutated by the `SET_BELT_SPEED` command. Defaults to 1.0.
+          speed: typeof b.speed === 'number' ? b.speed : null,
+          itemCount: b.getItems().length,
+          itemTypes: b.getItems().map((it: any) => it?.type),
+        })
+      })
+      return {
+        running: !!sim.running,
+        paused: !!sim.paused,
+        currentTick: sim.currentTick,
+        itemsProduced: sim.itemsProduced,
+        itemsDelivered: sim.itemsDelivered,
+        outputsDelivered: sim.outputsDelivered,
+        gameOver: sim.gameOver ?? null,
+        machines,
+        belts,
+      }
+    })
+  }
 }

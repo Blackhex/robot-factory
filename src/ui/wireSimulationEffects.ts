@@ -1,4 +1,4 @@
-import type { MachineType } from '../game/types'
+import type { MachineType, SimulationCommand } from '../game/types'
 import { wireGameOverModal, type GameOverModalFallbackResolvers } from './wireGameOverModal'
 
 interface MachineInfoLike {
@@ -22,13 +22,20 @@ interface SimulationEventLike {
 interface SimulationLike {
   on(event: 'game_over', listener: (event: SimulationEventLike) => void): void
   on(event: 'machine_state_changed', listener: (event: SimulationEventLike) => void): void
+  on(event: 'machine_cycle_completed', listener: (event: SimulationEventLike) => void): void
   getMachine(machineId: string): { machineType?: MachineType; name?: string } | undefined
+  enqueueCommands(commands: SimulationCommand[]): void
+}
+
+interface PxtEditorLike {
+  triggerEvent(eventType: string): SimulationCommand[]
 }
 
 interface CreateSimulationEffectsWireUpOptions extends GameOverModalFallbackResolvers {
   getSimulation: () => SimulationLike | null
   getFactory: () => FactoryLike | null
   getParticleEffects: () => ParticleEffectsLike | null
+  getPxtEditor?: () => PxtEditorLike | null
   modal: Parameters<typeof wireGameOverModal>[0]['modal']
 }
 
@@ -36,6 +43,17 @@ export function createSimulationEffectsWireUp(
   options: CreateSimulationEffectsWireUpOptions,
 ): () => void {
   let wiredSim: object | null = null
+
+  function dispatchMachineIdle(sim: SimulationLike, machineId: string): void {
+    const editor = options.getPxtEditor?.() ?? null
+    if (!editor) return
+    try {
+      const commands = editor.triggerEvent(`machine_idle_${machineId}`)
+      if (commands.length > 0) sim.enqueueCommands(commands)
+    } catch {
+      // A buggy on-idle handler must not crash the simulation tick loop.
+    }
+  }
 
   return (): void => {
     const sim = options.getSimulation()
@@ -51,16 +69,31 @@ export function createSimulationEffectsWireUp(
 
     sim.on('machine_state_changed', (event) => {
       const data = event.data as { to?: string; machineId?: string }
-      if (data.to !== 'processing' || !data.machineId) return
+      if (!data.machineId) return
 
-      const factory = options.getFactory()
-      const particleEffects = options.getParticleEffects()
-      if (!factory || !particleEffects) return
-
-      const info = factory.getMachines().find((machine) => machine.id === data.machineId)
-      if (info) {
-        particleEffects.emitSparksAt(info.x + 0.5, 0.5, info.z + 0.5)
+      if (data.to === 'processing') {
+        const factory = options.getFactory()
+        const particleEffects = options.getParticleEffects()
+        if (factory && particleEffects) {
+          const info = factory.getMachines().find((machine) => machine.id === data.machineId)
+          if (info) {
+            particleEffects.emitSparksAt(info.x + 0.5, 0.5, info.z + 0.5)
+          }
+        }
+        return
       }
+
+      if (data.to === 'idle') {
+        dispatchMachineIdle(sim, data.machineId)
+      }
+    })
+
+    // The cycle-completed signal lets the bridge fire for auto-restarting
+    // fabricators that never observably transition to 'idle'.
+    sim.on('machine_cycle_completed', (event) => {
+      const data = event.data as { machineId?: string }
+      if (!data.machineId) return
+      dispatchMachineIdle(sim, data.machineId)
     })
   }
 }

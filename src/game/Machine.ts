@@ -22,6 +22,7 @@ export class Machine {
   outputSlot: Item | null = null
   readonly maxInputSlots: number
   consumedItems = 0
+  itemsProduced = 0
   enabled = false
 
   // Multi-output support (QualityChecker, Splitter)
@@ -47,6 +48,18 @@ export class Machine {
    */
   pendingDefectFromInput = false
 
+  /**
+   * Set on the false→true edge of `enabled` (i.e., a real `start()` flip).
+   * Consumed by `Simulation.updateMachines` after the machine ticks: if
+   * the machine remained idle this tick (no real state change, no cycle
+   * produced), Simulation emits a synthetic `machine_cycle_completed` so
+   * "on machine idle" handlers fire for machines that boot enabled-but-
+   * stuck-idle (e.g., assembler started with no inputs). Cleared every
+   * tick that observes it, so the synthetic emit happens at most once
+   * per `start()` call.
+   */
+  firstIdleAfterStartPending = false
+
   constructor(id: string, machineType: MachineType, maxInputSlots = 4) {
     this.id = id
     this.machineType = machineType
@@ -59,12 +72,16 @@ export class Machine {
 
   /** Enable processing on this machine. Does not modify currentRecipe. */
   start(): void {
-    this.enabled = true
+    if (!this.enabled) {
+      this.enabled = true
+      this.firstIdleAfterStartPending = true
+    }
   }
 
   /** Disable processing on this machine. Does not modify currentRecipe. */
   stop(): void {
     this.enabled = false
+    this.firstIdleAfterStartPending = false
   }
 
   /**
@@ -78,9 +95,11 @@ export class Machine {
     this.state = 'idle'
     this.processingTimer = 0
     this.consumedItems = 0
+    this.itemsProduced = 0
     this.splitterCounter = 0
     this.enabled = false
     this.pendingDefectFromInput = false
+    this.firstIdleAfterStartPending = false
   }
 
   addInput(item: Item): boolean {
@@ -91,7 +110,7 @@ export class Machine {
       this.consumedItems++
       return true
     }
-    if (this.inputSlots.length >= this.maxInputSlots) return false
+    if (!this.canAcceptItemType(item.type)) return false
     this.inputSlots.push(item)
     return true
   }
@@ -117,6 +136,20 @@ export class Machine {
   canAcceptInput(): boolean {
     if (this.machineType === 'factory_output') return true
     return this.inputSlots.length < this.maxInputSlots
+  }
+
+  /**
+   * Recipe-aware: true iff the machine has at least one free input slot
+   * AND, for recipe-driven machines with a recipe set, accepting `itemType`
+   * would not exceed the recipe's required quantity for that type. For
+   * machines without a recipe, or non-recipe-driven machine types
+   * (factory_output, quality_checker, splitter, recycler), behaves like
+   * {@link canAcceptInput}.
+   *
+   * Dispatches to the per-type strategy in {@link MACHINE_BEHAVIORS}.
+   */
+  canAcceptItemType(itemType: ItemType): boolean {
+    return MACHINE_BEHAVIORS[this.machineType].canAcceptItemType(this, itemType)
   }
 
   /**

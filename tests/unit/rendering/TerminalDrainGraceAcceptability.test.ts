@@ -94,10 +94,14 @@ describe('createTerminalDrainGraceDecider', () => {
 
   it('returns false when the endpoint machine has no input capacity left', async () => {
     const machine = startedAssemblerThatConsumes('wheel_small')
-    expect(machine.addInput(createItem('wheel_small'))).toBe(true)
-    expect(machine.addInput(createItem('wheel_small'))).toBe(true)
-    expect(machine.addInput(createItem('wheel_small'))).toBe(true)
-    expect(machine.addInput(createItem('wheel_small'))).toBe(true)
+    // Force-fill all 4 input slots with wheels by raw push, bypassing
+    // addInput's per-type recipe quota (recipe asks for only 2 wheels).
+    // The decider under test only consults canAcceptInput, which is the
+    // cheap "any slot free?" predicate — see Machine.canAcceptItemType.test.ts.
+    machine.inputSlots.push(createItem('wheel_small'))
+    machine.inputSlots.push(createItem('wheel_small'))
+    machine.inputSlots.push(createItem('wheel_small'))
+    machine.inputSlots.push(createItem('wheel_small'))
     expect(machine.canAcceptInput()).toBe(false)
 
     const decider = await createDecider(machine)

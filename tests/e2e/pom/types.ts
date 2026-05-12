@@ -29,6 +29,74 @@ export interface BeltInfo {
 
 export type MachineState = 'idle' | 'processing' | 'blocked'
 
+/**
+ * Structured view of a single `factory_set_recipe` block on the live
+ * Blockly workspace. Computed from the workspace's serialized DOM so the
+ * spec never needs to parse XML directly.
+ */
+export interface SetRecipeBlockInfo {
+  /** Block id assigned by Blockly. */
+  id: string
+  /** True iff the block has a `<value name="machine">` input element. */
+  hasMachineValueInput: boolean
+  /**
+   * Type of the block/shadow connected to the machine value input, e.g.
+   * `'factory_pick_machine'`. Null when the input is missing or empty.
+   */
+  machineSlotChildType: string | null
+  /**
+   * Whether the connected child is rendered as a `<shadow>` (rather than
+   * a real `<block>`). Null when the slot is empty/missing.
+   */
+  machineSlotChildIsShadow: boolean | null
+  /**
+   * Value of the `<field name="machine">` field on the connected child,
+   * e.g. `'Machine.B'`. Null when the slot is empty/missing or the child
+   * has no such field.
+   */
+  machineFieldValue: string | null
+  /** Value of the `<field name="recipe">` field on the parent block. */
+  recipeFieldValue: string | null
+}
+
+/**
+ * Structured view of a single PXT consumer block on the live Blockly
+ * workspace whose machine/belt parameter is wired through a pluggable
+ * `<value name="…">` slot (`factory_pick_machine` or `factory_pick_belt`
+ * shadow). Generic counterpart of {@link SetRecipeBlockInfo}; produced
+ * by `PxtEditorPage.readPluggableConsumerBlocksFromLiveWorkspace`.
+ *
+ * `slotName` and `slotChildFieldName` are the same as the Blockly slot
+ * name on the parent block (e.g. `"machine"` or `"belt"`) and the
+ * `<field name="…">` name on the wired child shadow (also `"machine"`
+ * or `"belt"`). Tracked per-instance because the rollout flips 5
+ * different consumer blocks across two slot families.
+ */
+export interface PluggableConsumerBlockInfo {
+  /** Block id assigned by Blockly. */
+  id: string
+  /** Block type queried, echoed back for diagnostics. */
+  blockType: string
+  /** Slot name queried (e.g. `"machine"` or `"belt"`). */
+  slotName: string
+  /** True iff the block has a `<value name="${slotName}">` input element. */
+  hasValueInput: boolean
+  /**
+   * Type of the block/shadow connected to the slot value input, e.g.
+   * `'factory_pick_machine'` or `'factory_pick_belt'`. Null when the
+   * input is missing or empty.
+   */
+  slotChildType: string | null
+  /** Whether the connected child is rendered as a `<shadow>`. */
+  slotChildIsShadow: boolean | null
+  /**
+   * Value of `<field name="${slotChildFieldName}">` on the connected
+   * child (e.g. `'Machine.B'` or `'Belt.A'`). Null when the slot is
+   * empty/missing or the child has no such field.
+   */
+  slotChildFieldValue: string | null
+}
+
 export interface SimSnapshot {
   running: boolean
   machineCount: number

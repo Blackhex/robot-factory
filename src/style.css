@@ -570,6 +570,8 @@ canvas {
   font-size: 13px;
   color: var(--rf-text);
   text-align: right;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .ui-machine-panel-info {

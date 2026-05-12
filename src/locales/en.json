@@ -42,7 +42,16 @@
   },
   "machine_panel": {
     "type": "Type",
-    "delete": "Delete"
+    "delete": "Delete",
+    "recipe": "Recipe",
+    "state": "State",
+    "state_idle": "idle",
+    "state_processing": "processing",
+    "state_blocked": "blocked",
+    "no_recipe": "(no recipe)",
+    "produced": "Produced",
+    "inputs": "Inputs",
+    "inputs_empty": "(empty)"
   },
   "language": "Language",
   "main_menu": {
@@ -140,15 +149,53 @@
     "belt_3": "Belt 3"
   },
   "parts": {
-    "wheel_small": "Small Wheel",
-    "sensor_proximity": "Proximity Sensor",
-    "frame_basic": "Basic Frame",
-    "motor_standard": "Standard Motor"
+    "wheel_small": "Small Wheels",
+    "wheel_medium": "Medium Wheels",
+    "wheel_large": "Large Wheels",
+    "sensor_proximity": "Proximity Sensors",
+    "sensor_camera": "Camera Sensors",
+    "sensor_lidar": "LiDAR Sensors",
+    "battery_standard": "Standard Batteries",
+    "battery_high_capacity": "High-Capacity Batteries",
+    "chassis_light": "Light Chassis",
+    "chassis_heavy": "Heavy Chassis",
+    "circuit_basic": "Basic Circuits",
+    "circuit_advanced": "Advanced Circuits",
+    "drivetrain_basic": "Basic Drivetrains",
+    "drivetrain_advanced": "Advanced Drivetrains",
+    "sensor_array_basic": "Basic Sensor Arrays",
+    "sensor_array_advanced": "Advanced Sensor Arrays",
+    "power_unit_standard": "Standard Power Units",
+    "power_unit_high": "High-Power Units",
+    "robot_explorer": "Explorer Robots",
+    "robot_worker": "Worker Robots",
+    "robot_guardian": "Guardian Robots",
+    "raw_material": "Raw Materials",
+    "frame_basic": "Basic Frames",
+    "motor_standard": "Standard Motors"
   },
   "recipes": {
-    "basic_wheel": "Basic Wheel",
-    "sensor_unit": "Sensor Unit",
-    "robot_frame": "Robot Frame"
+    "wheel_press_small": "Small Wheels",
+    "wheel_press_medium": "Medium Wheels",
+    "wheel_press_large": "Large Wheels",
+    "sensor_fab_proximity": "Proximity Sensors",
+    "sensor_fab_camera": "Camera Sensors",
+    "sensor_fab_lidar": "LIDAR Sensors",
+    "battery_assembly_standard": "Standard Batteries",
+    "battery_assembly_high": "High-Cap Batteries",
+    "chassis_stamper_light": "Light Chassis",
+    "chassis_stamper_heavy": "Heavy Chassis",
+    "circuit_printer_basic": "Basic Circuits",
+    "circuit_printer_advanced": "Advanced Circuits",
+    "assemble_drivetrain_basic": "Basic Drivetrain",
+    "assemble_drivetrain_advanced": "Advanced Drivetrain",
+    "assemble_sensor_array_basic": "Basic Sensor Array",
+    "assemble_sensor_array_advanced": "Advanced Sensor Array",
+    "assemble_power_unit_standard": "Standard Power Unit",
+    "assemble_power_unit_high": "High Power Unit",
+    "assemble_robot_explorer": "Explorer Robot",
+    "assemble_robot_worker": "Worker Robot",
+    "assemble_robot_guardian": "Guardian Robot"
   },
   "levels": {
     "level_1": {
@@ -239,7 +286,8 @@
     "reason": {
       "unconsumable_input": "The {{machine}} can't use {{item}}. Check its recipe or where the belt leads.",
       "unconsumable_input_machine_disabled": "The {{machine}} is stopped, so it can't accept {{item}}. Start the {{machine}} and try again.",
-      "no_recipe": "You started the {{machine}} without a recipe. Set a recipe before starting it."
+      "no_recipe": "You started the {{machine}} without a recipe. Set a recipe before starting it.",
+      "starvation": "Machine {{machine}} is missing {{item}} for its recipe."
     },
     "restart": "Restart"
   },

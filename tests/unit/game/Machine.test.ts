@@ -423,4 +423,113 @@ describe('Machine', () => {
       expect(m.qualityThreshold).toBe(42)
     })
   })
+
+  describe('itemsProduced counter', () => {
+    it('starts at 0', () => {
+      expect(machine.itemsProduced).toBe(0)
+    })
+
+    it('increments when a fabricator produces output', () => {
+      // GIVEN
+      const recipe = wheelPressRecipe() // 5 ticks, no inputs
+      machine.setRecipe(recipe)
+      machine.start()
+
+      // WHEN — drive 3 production cycles, draining the output between cycles
+      const PROCESSING_TICKS = 5
+      for (let i = 0; i < 3; i++) {
+        for (let t = 0; t < PROCESSING_TICKS; t++) machine.tick()
+        // produceOutput happens on the tick AFTER timer reaches zero
+        machine.tick()
+        machine.takeOutput()
+      }
+
+      // THEN
+      expect(machine.itemsProduced).toBe(3)
+    })
+
+    it('increments when quality_checker routes to primary', () => {
+      // GIVEN
+      const qc = new Machine('qc1', 'quality_checker')
+      qc.start()
+      qc.qualityThreshold = 50
+      const item = createItem('wheel_small')
+      item.quality = 90 // >= threshold → primary
+      qc.addInput(item)
+
+      // WHEN
+      qc.tick() // idle → processing (timer=1)
+      qc.tick() // processing → route to primary
+
+      // THEN
+      expect(qc.outputSlot).not.toBeNull()
+      expect(qc.secondaryOutputSlot).toBeNull()
+      expect(qc.itemsProduced).toBe(1)
+    })
+
+    it('increments when quality_checker routes to secondary', () => {
+      // GIVEN
+      const qc = new Machine('qc2', 'quality_checker')
+      qc.start()
+      qc.qualityThreshold = 50
+      const item = createItem('wheel_small')
+      item.quality = 10 // < threshold → secondary
+      qc.addInput(item)
+
+      // WHEN
+      qc.tick()
+      qc.tick()
+
+      // THEN
+      expect(qc.secondaryOutputSlot).not.toBeNull()
+      expect(qc.outputSlot).toBeNull()
+      expect(qc.itemsProduced).toBe(1)
+    })
+
+    it('counts both primary and secondary routings together', () => {
+      // GIVEN
+      const qc = new Machine('qc3', 'quality_checker')
+      qc.start()
+      qc.qualityThreshold = 50
+
+      // Item 1: primary (high quality)
+      const a = createItem('wheel_small')
+      a.quality = 90
+      qc.addInput(a)
+      qc.tick(); qc.tick()
+      qc.takeOutput()
+
+      // Item 2: primary again
+      const b = createItem('wheel_small')
+      b.quality = 90
+      qc.addInput(b)
+      qc.tick(); qc.tick()
+      qc.takeOutput()
+
+      // Item 3: secondary (low quality)
+      const c = createItem('wheel_small')
+      c.quality = 10
+      qc.addInput(c)
+      qc.tick(); qc.tick()
+      qc.takeSecondaryOutput()
+
+      // THEN
+      expect(qc.itemsProduced).toBe(3)
+    })
+
+    it('resets to 0 in clearRuntimeState', () => {
+      // GIVEN
+      const recipe = wheelPressRecipe()
+      machine.setRecipe(recipe)
+      machine.start()
+      for (let t = 0; t < 6; t++) machine.tick()
+      expect(machine.itemsProduced).toBeGreaterThan(0)
+
+      // WHEN
+      machine.clearRuntimeState()
+
+      // THEN
+      expect(machine.itemsProduced).toBe(0)
+    })
+  })
 })

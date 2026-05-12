@@ -39,7 +39,6 @@ export interface PluggableReporterTransform {
 export const PLUGGABLE_CONSUMER_TRANSFORMS: PluggableSlotTransform[] = [
   { blockType: 'factory_start_machine',     fieldName: 'machine', check: 'Machine', shadow: 'factory_pick_machine' },
   { blockType: 'factory_stop_machine',      fieldName: 'machine', check: 'Machine', shadow: 'factory_pick_machine' },
-  { blockType: 'factory_set_recipe',        fieldName: 'machine', check: 'Machine', shadow: 'factory_pick_machine' },
   { blockType: 'factory_set_machine_speed', fieldName: 'machine', check: 'Machine', shadow: 'factory_pick_machine' },
   { blockType: 'factory_on_machine_idle',   fieldName: 'machine', check: 'Machine', shadow: 'factory_pick_machine' },
   { blockType: 'factory_set_belt_speed',    fieldName: 'belt',    check: 'Belt',    shadow: 'factory_pick_belt' },
@@ -403,7 +402,7 @@ export function migrateExistingWorkspaceBlocks(
   }
 
   for (const block of blocks) {
-    if (!block || block.__rfPluggableMigrated) continue
+    if (!block) continue
     const transform = transformsByType.get(block.type)
     if (!transform) continue
 
@@ -422,7 +421,9 @@ export function migrateExistingWorkspaceBlocks(
 
     // CASE 1: structural migration — the block is still in the
     // legacy dummy-input + FieldDropdown shape. Convert it in place.
-    if (needsMigration) {
+    // Gated on the per-block flag so we do not double-rebuild an
+    // already-migrated input.
+    if (!block.__rfPluggableMigrated && needsMigration) {
       try {
         // Capture the dropdown's current value BEFORE the structural
         // transform tears down the input (and disposes its fields).

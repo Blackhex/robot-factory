@@ -107,6 +107,24 @@ describe('Locales — game_over keys', () => {
     }
   })
 
+  it('reason.starvation has the expected EN/CS wording with {{machine}} and {{item}} placeholders', () => {
+    // GIVEN
+    const en = loadLocale('en')
+    const cs = loadLocale('cs')
+
+    // WHEN
+    const enValue = getNested(en, 'game_over.reason.starvation')
+    const csValue = getNested(cs, 'game_over.reason.starvation')
+
+    // THEN
+    expect(enValue).toBe('Machine {{machine}} is missing {{item}} for its recipe.')
+    expect(csValue).toBe('Stroji {{machine}} chybí {{item}} pro recept.')
+    expect(enValue as string).toMatch(/\{\{machine\}\}/)
+    expect(enValue as string).toMatch(/\{\{item\}\}/)
+    expect(csValue as string).toMatch(/\{\{machine\}\}/)
+    expect(csValue as string).toMatch(/\{\{item\}\}/)
+  })
+
   it('EN and CS expose the same set of game_over keys', () => {
     // GIVEN
     const en = loadLocale('en')

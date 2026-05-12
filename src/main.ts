@@ -351,6 +351,13 @@ async function main(): Promise<void> {
         if (!factory) return []
         return factory.getBelts().map(b => ({ id: b.id, sourceMachine: b.sourceMachine.id, path: b.path }))
       },
+      // PXT editor introspection seams. The PXT iframe loads asynchronously
+      // and PXT's post-install `loadHeaderAsync` runs another decompile
+      // pass that can clobber our directly-injected blocks, so Playwright
+      // specs need to wait on `pxtReady` AND assert against the live
+      // workspace XML to verify the load pipeline survived the round-trip.
+      getPxtEditorState: () => pxtEditor.getDevDiagnostics(),
+      getEditorWorkspaceXml: () => pxtEditor.getLiveWorkspaceXml(),
     }
   }
 
@@ -358,6 +365,7 @@ async function main(): Promise<void> {
     getSimulation: () => gameManager.simulation,
     getFactory: () => gameManager.factory,
     getParticleEffects: () => particleEffects,
+    getPxtEditor: () => pxtEditor,
     modal: gameOverModal,
     ...createFactoryBackedGameOverFallbackResolvers(() => gameManager.factory),
   })
@@ -511,6 +519,41 @@ async function main(): Promise<void> {
     const state = gameManager.getCurrentState()
     if (state === 'play_phase' || (state === 'sandbox' && gameManager.simulation?.running)) {
       hud.update(getHUDStats())
+    }
+
+    // Live runtime info for the currently selected machine
+    const selected = machinePanel.getCurrentMachine()
+    if (selected && sim) {
+      const m = sim.getMachine(selected.id)
+      if (m) {
+        const recipeId = m.currentRecipe?.id ?? null
+        let recipeName: string | null = null
+        if (recipeId) {
+          const key = `recipes.${recipeId}`
+          recipeName = i18next.exists(key) ? i18next.t(key) : recipeId
+        }
+        const inputs: { type: import('./game/types').ItemType; quantity: number }[] = []
+        for (const item of m.inputSlots) {
+          const last = inputs[inputs.length - 1]
+          if (last && last.type === item.type) {
+            last.quantity++
+          } else {
+            const existing = inputs.find((g) => g.type === item.type)
+            if (existing) existing.quantity++
+            else inputs.push({ type: item.type, quantity: 1 })
+          }
+        }
+        machinePanel.setRuntimeInfo({
+          state: m.state,
+          recipeName,
+          itemsProduced: m.itemsProduced,
+          inputs,
+        })
+      } else {
+        machinePanel.setRuntimeInfo(null)
+      }
+    } else if (selected) {
+      machinePanel.setRuntimeInfo(null)
     }
   })
 

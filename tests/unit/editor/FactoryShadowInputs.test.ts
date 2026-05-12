@@ -6,16 +6,20 @@ import { resolve } from 'node:path'
  * Source-level guard for shadow-input wiring in
  * `pxt-target/libs/core/factory.ts`.
  *
- * To make the `factory_pick_machine` and `factory_pick_belt` reporters
- * pluggable into the corresponding action/event blocks, PXT requires the
- * source to declare each parameter with a `<param>.shadow="<blockId>"`
- * directive. This causes PXT to render a value input (with a shadow
- * reporter block) instead of a non-pluggable FieldDropdown.
+ * REVERSION: the pluggable Machine/Belt slot pattern (driven by
+ * `//% machine.shadow="factory_pick_machine"` /
+ * `//% belt.shadow="factory_pick_belt"` directives on each consumer
+ * block) exposed a structural PXT compiler bug: blocks→TS compilation
+ * always emits the enum's default member (Machine.A === 0) for the
+ * shadow's argument, regardless of the field value carried by the
+ * shadow. Every program that referenced Machine.B/C/D/etc was
+ * silently broken at compile time.
  *
- * We assert these directives by inspecting the block annotation
- * (contiguous `//%` lines) immediately preceding each `export function`.
- * This mirrors the source-text approach used elsewhere in this folder
- * (PxtEditorMachineBlockTypes.test.ts, PxtEditorExtractions.test.ts).
+ * The fix is to revert each consumer block's slot to a plain enum
+ * FieldDropdown (which PXT compiles correctly), and to remove the
+ * `<param>.shadow="..."` directives from factory.ts. These guards
+ * assert the directives are GONE — if they ever come back, the
+ * compiler bug returns with them.
  */
 
 const FACTORY_TS_PATH = resolve(
@@ -61,34 +65,45 @@ function extractNamespaceBody(source: string, namespaceName: string): string {
   return match![0]
 }
 
-describe('factory.ts shadow-input wiring — Machine action/event blocks', () => {
-  const MACHINE_BLOCKS_WITH_SHADOW = [
+describe('factory.ts — pluggable Machine consumer blocks declare the shadow directive (post-rollout)', () => {
+  // After LegacyPluggableMigrationRollout, all 5 Machine consumer
+  // blocks take a `number`-typed slot (not the `Machine` enum), so
+  // PXT honours the `//% machine.shadow="factory_pick_machine"`
+  // directive and renders the slot as a value input pre-populated
+  // with the reporter. The PXT enum-shadow compiler bug only fires
+  // when the parameter is enum-typed, so flipping to `number` makes
+  // the directive safe to declare. See
+  // LegacyPluggableMigrationRollout.test.ts for the full contract.
+  const MACHINE_CONSUMER_BLOCKS = [
+    'factory_set_recipe',
     'factory_start_machine',
     'factory_stop_machine',
-    'factory_set_recipe',
     'factory_set_machine_speed',
     'factory_on_machine_idle',
   ]
 
-  for (const blockId of MACHINE_BLOCKS_WITH_SHADOW) {
+  for (const blockId of MACHINE_CONSUMER_BLOCKS) {
     it(`${blockId} declares machine.shadow="factory_pick_machine"`, () => {
       // GIVEN
       const annotation = extractAnnotation(readFactorySource(), blockId)
 
-      // THEN — a //% machine.shadow="factory_pick_machine" directive must
-      // appear inside the block annotation so PXT renders a value input
-      // populated with the pick-machine reporter as the shadow.
+      // THEN — the //% machine.shadow="factory_pick_machine" directive
+      // must be present so PXT generates the `_shadowOverrides` entry
+      // on the API metadata and renders the slot as a value input.
       expect(annotation).toMatch(/machine\.shadow\s*=\s*"factory_pick_machine"/)
     })
   }
 })
 
-describe('factory.ts shadow-input wiring — Belt action blocks', () => {
+describe('factory.ts — pluggable Belt consumer block declares the shadow directive (post-rollout)', () => {
   it('factory_set_belt_speed declares belt.shadow="factory_pick_belt"', () => {
     // GIVEN
     const annotation = extractAnnotation(readFactorySource(), 'factory_set_belt_speed')
 
-    // THEN
+    // THEN — same post-rollout contract, applied to the Belt-typed
+    // sibling. The slot param is `number`, so PXT honours the
+    // directive and renders the value input pre-populated with the
+    // factory_pick_belt reporter.
     expect(annotation).toMatch(/belt\.shadow\s*=\s*"factory_pick_belt"/)
   })
 })

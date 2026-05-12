@@ -197,10 +197,11 @@ describe('extracted removed audio and celebration wiring', () => {
   it('wires sparks for processing machines without machine-process audio', () => {
     const listeners = new Map<string, (event: { data: unknown }) => void>()
     const simulation = {
-      on: vi.fn((event: 'game_over' | 'machine_state_changed', listener: (event: { data: unknown }) => void) => {
+      on: vi.fn((event: 'game_over' | 'machine_state_changed' | 'machine_cycle_completed', listener: (event: { data: unknown }) => void) => {
         listeners.set(event, listener)
       }),
       getMachine: vi.fn(() => ({ machineType: 'assembler' as const, name: 'Assembler 1' })),
+      enqueueCommands: vi.fn(),
     }
     const particleEffects = {
       emitSparksAt: vi.fn(),

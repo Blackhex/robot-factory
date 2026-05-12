@@ -28,8 +28,10 @@ export interface Machine {
   currentRecipe: Recipe | null
   processingTimer: number
   readonly inputSlots: Item[]
+  readonly maxInputSlots: number
   outputSlot: Item | null
   secondaryOutputSlot: Item | null
+  itemsProduced: number
   qualityThreshold: number
   splitterCondition: SplitterCondition | null
   splitterCounter: number
@@ -59,6 +61,9 @@ export interface MachineBehavior {
   tick(machine: Machine, rng: () => number): void
   /** Whether this machine accepts the given item type at all (regardless of slot capacity). */
   canConsume(machine: Machine, itemType: ItemType): boolean
+  /** Whether this machine has room for `itemType` right now. Combines slot
+   *  capacity with any per-type quota the current recipe imposes. */
+  canAcceptItemType(machine: Machine, itemType: ItemType): boolean
 }
 
 // --- Default tick (part_fabricator, assembler, painter) ---
@@ -230,11 +235,13 @@ function parkInOutput(
   if (slot === 'primary') {
     if (m.outputSlot === null) {
       m.outputSlot = produce()
+      m.itemsProduced++
       return true
     }
   } else {
     if (m.secondaryOutputSlot === null) {
       m.secondaryOutputSlot = produce()
+      m.itemsProduced++
       return true
     }
   }
@@ -326,6 +333,7 @@ function produceOutput(m: Machine, rng: () => number): void {
 
   item.isDefective = evaluateDefect(m, rng, hasInputDefect)
   m.outputSlot = item
+  m.itemsProduced++
   m.pendingDefectFromInput = false
 }
 
@@ -351,6 +359,34 @@ function canConsumeRecipeDriven(m: Machine, itemType: ItemType): boolean {
   return recipe.inputs.some((i) => i.type === itemType)
 }
 
+// --- canAcceptItemType strategies ---
+
+function canAcceptItemTypeAlways(_m: Machine, _t: ItemType): boolean {
+  return true
+}
+
+function canAcceptItemTypeWhenSlotFree(m: Machine, _t: ItemType): boolean {
+  return m.inputSlots.length < m.maxInputSlots
+}
+
+/**
+ * Recipe-aware: a free input slot AND, if a recipe is set, the per-type
+ * quota for `itemType` has not yet been reached. Without a recipe, falls
+ * back to a plain slot-capacity check.
+ */
+function canAcceptItemTypeRecipeDriven(m: Machine, itemType: ItemType): boolean {
+  if (m.inputSlots.length >= m.maxInputSlots) return false
+  const recipe = m.currentRecipe
+  if (recipe === null) return true
+  const required = recipe.inputs.find((i) => i.type === itemType)
+  if (required === undefined) return false
+  let have = 0
+  for (const slot of m.inputSlots) {
+    if (slot.type === itemType) have++
+  }
+  return have < required.quantity
+}
+
 /**
  * Scale a base processing duration by the machine's speed multiplier.
  * The `safeSpeed` guard is defense in depth: the block validator clamps
@@ -367,30 +403,37 @@ function scaledTicks(baseTicks: number, speed: number): number {
 const partFabricatorBehavior: MachineBehavior = {
   tick: (m, rng) => tickDefault(m, rng),
   canConsume: (m, t) => canConsumeRecipeDriven(m, t),
+  canAcceptItemType: (m, t) => canAcceptItemTypeRecipeDriven(m, t),
 }
 const assemblerBehavior: MachineBehavior = {
   tick: (m, rng) => tickDefault(m, rng),
   canConsume: (m, t) => canConsumeRecipeDriven(m, t),
+  canAcceptItemType: (m, t) => canAcceptItemTypeRecipeDriven(m, t),
 }
 const painterBehavior: MachineBehavior = {
   tick: (m, rng) => tickDefault(m, rng),
   canConsume: (m, t) => canConsumeRecipeDriven(m, t),
+  canAcceptItemType: (m, t) => canAcceptItemTypeRecipeDriven(m, t),
 }
 const qualityCheckerBehavior: MachineBehavior = {
   tick: tickQualityChecker,
   canConsume: canConsumeWhenEnabled,
+  canAcceptItemType: canAcceptItemTypeWhenSlotFree,
 }
 const splitterBehavior: MachineBehavior = {
   tick: tickSplitter,
   canConsume: canConsumeAlways,
+  canAcceptItemType: canAcceptItemTypeWhenSlotFree,
 }
 const recyclerBehavior: MachineBehavior = {
   tick: tickRecycler,
   canConsume: canConsumeAlways,
+  canAcceptItemType: canAcceptItemTypeWhenSlotFree,
 }
 const factoryOutputBehavior: MachineBehavior = {
   tick: (_m, _rng) => {},
   canConsume: canConsumeWhenEnabled,
+  canAcceptItemType: canAcceptItemTypeAlways,
 }
 
 export const MACHINE_BEHAVIORS: Record<MachineType, MachineBehavior> = {

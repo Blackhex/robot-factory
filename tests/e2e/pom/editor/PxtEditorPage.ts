@@ -4,6 +4,8 @@ import type {
   DropdownSnapshot,
   FlyoutBlockSnapshot,
   EventBlockInfoEntry,
+  SetRecipeBlockInfo,
+  PluggableConsumerBlockInfo,
 } from '../types'
 
 /**
@@ -87,6 +89,27 @@ export class PxtEditorPage {
         .count()
       expect(count).toBeGreaterThan(0)
     }).toPass({ timeout: 10_000, intervals: [500] })
+  }
+
+  /**
+   * Wait until `__test.getPxtEditorState().pxtReady === true`. This is the
+   * authoritative signal that the editor has completed the workspacesync
+   * handshake AND any post-ready direct Blockly injection has been
+   * scheduled. Specs that read the live workspace XML to assert on the
+   * load pipeline must wait on this seam — DOM-only waits (e.g.
+   * `.blocklySvg` attached) can race the watchdog re-injection loop.
+   */
+  async waitForPxtReady(timeoutMs = 20_000): Promise<void> {
+    await this.page.waitForFunction(
+      () => {
+        const state = (window as unknown as {
+          __test?: { getPxtEditorState?: () => { pxtReady: boolean } }
+        }).__test?.getPxtEditorState?.()
+        return state?.pxtReady === true
+      },
+      undefined,
+      { timeout: timeoutMs },
+    )
   }
 
   // ---- Iframe / fallback presence ------------------------------------------
@@ -204,11 +227,22 @@ export class PxtEditorPage {
       const win = (el as HTMLIFrameElement).contentWindow as any
       if (!win || !win.Blockly) throw new Error('Blockly not available on PXT iframe window')
       const ws = win.Blockly.mainWorkspace
-      const b = ws.newBlock('factory_start_machine')
-      if (!b) throw new Error('factory_start_machine block could not be created')
-      if (typeof b.initSvg === 'function') b.initSvg()
-      if (typeof b.render === 'function') b.render()
-      return b.id as string
+      const xml =
+        '<xml xmlns="https://developers.google.com/blockly/xml">' +
+        '<block type="factory_start_machine">' +
+        '<value name="machine">' +
+        '<shadow type="factory_pick_machine"></shadow>' +
+        '</value>' +
+        '</block>' +
+        '</xml>'
+      const textToDom = win.Blockly.utils?.xml?.textToDom ?? win.Blockly.Xml.textToDom
+      if (typeof textToDom !== 'function') throw new Error('Blockly.Xml.textToDom not available')
+      const dom = textToDom(xml)
+      const blockEl = dom.firstElementChild
+      if (!blockEl) throw new Error('failed to parse probe block XML')
+      const block = win.Blockly.Xml.domToBlock(blockEl, ws)
+      if (!block) throw new Error('factory_start_machine block could not be created from XML')
+      return block.id as string
     }, iframeEl!)
     expect(id).toBeTruthy()
     return id
@@ -657,5 +691,240 @@ export class PxtEditorPage {
       if (!win) throw new Error('PXT iframe contentWindow unavailable')
       return { width: win.innerWidth, height: win.innerHeight }
     }, iframeEl!)
+  }
+
+  /**
+   * Return the raw workspace XML serialized via `Blockly.Xml.workspaceToDom`.
+   * Useful for failure-message diagnostics. Specs SHOULD NOT parse this
+   * string themselves — use the structured readers (e.g.
+   * `readSetRecipeBlocksFromLiveWorkspace`) instead.
+   */
+  async getRawWorkspaceXml(): Promise<string> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      if (!win || !win.Blockly) throw new Error('Blockly not available on PXT iframe window')
+      const ws = win.Blockly.mainWorkspace
+      if (!ws) throw new Error('Blockly main workspace not available')
+      try {
+        const dom = win.Blockly.Xml.workspaceToDom(ws)
+        return dom ? String(win.Blockly.Xml.domToText(dom) ?? '') : ''
+      } catch {
+        return ''
+      }
+    }, iframeEl!)
+  }
+
+  /**
+   * Walk the live Blockly workspace and return one structured entry per
+   * `factory_set_recipe` block. Encodes whether the `<value name="machine">`
+   * input slot is present, what (if any) child block/shadow is wired into
+   * it, and the `<field name="machine">` value on that child.
+   *
+   * Implemented via `Blockly.Xml.workspaceToDom` so the snapshot reflects
+   * the same XML that would be persisted by an autosave at this moment —
+   * i.e. exactly the bytes a save/reload round-trip would carry.
+   */
+  async readSetRecipeBlocksFromLiveWorkspace(): Promise<SetRecipeBlockInfo[]> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      if (!win || !win.Blockly) throw new Error('Blockly not available on PXT iframe window')
+      const ws = win.Blockly.mainWorkspace
+      if (!ws) throw new Error('Blockly main workspace not available')
+      const dom = win.Blockly.Xml.workspaceToDom(ws)
+      if (!dom) return []
+
+      const out: Array<{
+        id: string
+        hasMachineValueInput: boolean
+        machineSlotChildType: string | null
+        machineSlotChildIsShadow: boolean | null
+        machineFieldValue: string | null
+        recipeFieldValue: string | null
+      }> = []
+
+      // Recursively visit every `<block>` (or `<shadow>`) descendant of the
+      // workspace root, regardless of whether it lives inside a statement,
+      // value input, or a `<next>` chain.
+      const visit = (node: Element): void => {
+        if (
+          (node.tagName === 'block' || node.tagName === 'BLOCK') &&
+          node.getAttribute('type') === 'factory_set_recipe'
+        ) {
+          const id = node.getAttribute('id') ?? ''
+          // Direct-children only: the `<value name="machine">` input lives
+          // immediately under this `factory_set_recipe` element. Any
+          // `<value>` further down is for a NESTED block and must not
+          // count toward this entry.
+          let machineValue: Element | null = null
+          let recipeFieldValue: string | null = null
+          for (let i = 0; i < node.children.length; i++) {
+            const child = node.children[i]
+            const tag = child.tagName.toLowerCase()
+            if (tag === 'value' && child.getAttribute('name') === 'machine') {
+              machineValue = child
+            } else if (tag === 'field' && child.getAttribute('name') === 'recipe') {
+              recipeFieldValue = child.textContent ?? ''
+            }
+          }
+
+          let machineSlotChildType: string | null = null
+          let machineSlotChildIsShadow: boolean | null = null
+          let machineFieldValue: string | null = null
+          if (machineValue) {
+            // Find the first child element that is a <block> or <shadow>.
+            for (let i = 0; i < machineValue.children.length; i++) {
+              const c = machineValue.children[i]
+              const tag = c.tagName.toLowerCase()
+              if (tag === 'block' || tag === 'shadow') {
+                machineSlotChildType = c.getAttribute('type')
+                machineSlotChildIsShadow = tag === 'shadow'
+                // Look for `<field name="machine">` directly under this
+                // child block/shadow.
+                for (let j = 0; j < c.children.length; j++) {
+                  const f = c.children[j]
+                  if (
+                    f.tagName.toLowerCase() === 'field' &&
+                    f.getAttribute('name') === 'machine'
+                  ) {
+                    machineFieldValue = f.textContent ?? ''
+                    break
+                  }
+                }
+                break
+              }
+            }
+          }
+
+          out.push({
+            id,
+            hasMachineValueInput: machineValue !== null,
+            machineSlotChildType,
+            machineSlotChildIsShadow,
+            machineFieldValue,
+            recipeFieldValue,
+          })
+        }
+        for (let i = 0; i < node.children.length; i++) {
+          visit(node.children[i])
+        }
+      }
+      visit(dom)
+      return out
+    }, iframeEl!)
+  }
+
+  /**
+   * Generic counterpart of `readSetRecipeBlocksFromLiveWorkspace`. Walks
+   * the live Blockly workspace and returns one structured entry per block
+   * matching `blockType`, reporting whether the `<value name="${slotName}">`
+   * pluggable input is present and what (if any) shadow/block + inner
+   * `<field name="${slotChildFieldName}">` value is wired into it.
+   *
+   * Used by the rollout tests (`PxtEditorLegacyPluggableConsumersLoad`)
+   * that assert the pluggable Machine/Belt slot pattern is preserved /
+   * promoted across the 5 new consumer blocks
+   * (`factory_start_machine`, `factory_stop_machine`,
+   * `factory_set_machine_speed`, `factory_on_machine_idle`,
+   * `factory_set_belt_speed`).
+   *
+   * Implemented via `Blockly.Xml.workspaceToDom` so the snapshot reflects
+   * the same XML that an autosave would persist at this moment — the
+   * exact bytes a save/reload round-trip would carry.
+   */
+  async readPluggableConsumerBlocksFromLiveWorkspace(
+    blockType: string,
+    slotName: string,
+    slotChildFieldName: string = slotName,
+  ): Promise<PluggableConsumerBlockInfo[]> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate(
+      ({ el, blockType, slotName, slotChildFieldName }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) throw new Error('Blockly not available on PXT iframe window')
+        const ws = win.Blockly.mainWorkspace
+        if (!ws) throw new Error('Blockly main workspace not available')
+        const dom = win.Blockly.Xml.workspaceToDom(ws)
+        if (!dom) return []
+
+        const out: Array<{
+          id: string
+          blockType: string
+          slotName: string
+          hasValueInput: boolean
+          slotChildType: string | null
+          slotChildIsShadow: boolean | null
+          slotChildFieldValue: string | null
+        }> = []
+
+        const visit = (node: Element): void => {
+          if (
+            (node.tagName === 'block' || node.tagName === 'BLOCK') &&
+            node.getAttribute('type') === blockType
+          ) {
+            const id = node.getAttribute('id') ?? ''
+            // Direct-children only: the `<value name="${slotName}">` input
+            // lives immediately under this block. Any deeper `<value>` is
+            // for a nested block and must not count toward this entry.
+            let slotValue: Element | null = null
+            for (let i = 0; i < node.children.length; i++) {
+              const child = node.children[i]
+              if (
+                child.tagName.toLowerCase() === 'value' &&
+                child.getAttribute('name') === slotName
+              ) {
+                slotValue = child
+                break
+              }
+            }
+
+            let slotChildType: string | null = null
+            let slotChildIsShadow: boolean | null = null
+            let slotChildFieldValue: string | null = null
+            if (slotValue) {
+              for (let i = 0; i < slotValue.children.length; i++) {
+                const c = slotValue.children[i]
+                const tag = c.tagName.toLowerCase()
+                if (tag === 'block' || tag === 'shadow') {
+                  slotChildType = c.getAttribute('type')
+                  slotChildIsShadow = tag === 'shadow'
+                  for (let j = 0; j < c.children.length; j++) {
+                    const f = c.children[j]
+                    if (
+                      f.tagName.toLowerCase() === 'field' &&
+                      f.getAttribute('name') === slotChildFieldName
+                    ) {
+                      slotChildFieldValue = f.textContent ?? ''
+                      break
+                    }
+                  }
+                  break
+                }
+              }
+            }
+
+            out.push({
+              id,
+              blockType,
+              slotName,
+              hasValueInput: slotValue !== null,
+              slotChildType,
+              slotChildIsShadow,
+              slotChildFieldValue,
+            })
+          }
+          for (let i = 0; i < node.children.length; i++) {
+            visit(node.children[i])
+          }
+        }
+        visit(dom)
+        return out
+      },
+      { el: iframeEl!, blockType, slotName, slotChildFieldName },
+    )
   }
 }
