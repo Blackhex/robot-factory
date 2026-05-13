@@ -1,5 +1,6 @@
 import { i18next } from '../i18n/i18n'
 import type { ProjectSlot } from '../utils/SandboxProjects'
+import { setCanvasInset, clearCanvasInset } from '../utils/setCanvasInset'
 import { createInlineNameInput } from './inlineNameInput'
 import { ProjectsPanelReorderController } from './ProjectsPanelReorderController'
 
@@ -136,6 +137,7 @@ export class ProjectsPanel {
   show(): void {
     this.container.classList.add('open')
     document.body.classList.add('projects-open')
+    setCanvasInset('left', this.container.clientWidth)
     if (!this.listenersAttached) {
       // Capture phase so we see the click before the page's own handlers swallow it.
       document.addEventListener('pointerdown', this.handlePointerDown, true)
@@ -147,6 +149,7 @@ export class ProjectsPanel {
   hide(): void {
     this.container.classList.remove('open')
     document.body.classList.remove('projects-open')
+    clearCanvasInset('left')
     this.reorderController.cancelInFlightDrag()
     if (this.listenersAttached) {
       document.removeEventListener('pointerdown', this.handlePointerDown, true)

@@ -1,3 +1,5 @@
+import { setCanvasInset, clearCanvasInset } from '../utils/setCanvasInset'
+
 interface PxtEditorLike {
   show(): void
   hide(): void
@@ -31,6 +33,8 @@ export function createEditorVisibilityController(
       ? `calc(${options.editorContainer.style.width} - 3px)`
       : 'calc(max(500px, 40%) - 3px)'
     options.pxtEditor.show()
+    // Write before refit so the refit observes the post-reflow layout.
+    setCanvasInset('right', options.editorContainer.clientWidth)
     options.refitCamera()
     options.onOpenChange?.(true)
   }
@@ -41,6 +45,7 @@ export function createEditorVisibilityController(
     document.body.classList.remove('editor-open')
     options.resizeHandle.style.display = 'none'
     options.pxtEditor.hide()
+    clearCanvasInset('right')
     options.refitCamera()
     options.onOpenChange?.(false)
   }

@@ -276,4 +276,8 @@ export class FactoryGridPage {
   async getCanvasBoundingBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
     return this.canvasLocator.boundingBox()
   }
+
+  async getCanvasContainerBoundingBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
+    return this.page.locator('#canvas-container').boundingBox()
+  }
 }

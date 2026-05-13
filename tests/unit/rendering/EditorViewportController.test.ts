@@ -191,3 +191,152 @@ describe('EditorViewportController — editor-toggle viewport sync (BUG)', () =>
     }
   })
 })
+
+/**
+ * RED-step tests for the new "canvas physically reflows around the editor
+ * panel" contract.
+ *
+ * EXPECTED FIX:
+ *   The canvas container's CSS switches from `inset: 0` to using the
+ *   `--rf-canvas-right` variable for its right inset, so when the editor is
+ *   open the canvas physically shrinks rather than being overlapped by the
+ *   editor panel. As a consequence the controller no longer needs to
+ *   subtract the editor width when computing the visible region —
+ *   `canvasContainer.clientWidth` IS the visible region.
+ *
+ *   New contract: `visibleWidth === canvasWidth` always.
+ *   Old contract was: `visibleWidth = max(0, canvasWidth - editorWidth)`.
+ */
+describe('EditorViewportController — getVisibleCanvasWidth (canvas physically shrinks, no overlap)', () => {
+  let fake: ResizeFake
+  let controller: EditorViewportController
+
+  beforeEach(() => {
+    fake = makeFake()
+    controller = buildController(fake)
+  })
+
+  afterEach(() => {
+    controller.dispose()
+    document.body.innerHTML = ''
+  })
+
+  it('returns visibleWidth === canvasWidth when the editor panel is OPEN (post-shrink: canvas physically reflows so no overlap subtraction is needed)', () => {
+    fake.setContainerSize(960, 720)
+    fake.setEditorWidth(640)
+
+    const result = controller.getVisibleCanvasWidth()
+
+    expect(result.canvasWidth).toBe(960)
+    expect(result.visibleWidth).toBe(960)
+  })
+
+  it('returns visibleWidth === canvasWidth when the editor panel is CLOSED (editor width = 0)', () => {
+    fake.setContainerSize(1600, 900)
+    fake.setEditorWidth(0)
+
+    const result = controller.getVisibleCanvasWidth()
+
+    expect(result.canvasWidth).toBe(1600)
+    expect(result.visibleWidth).toBe(1600)
+  })
+
+  it('does NOT subtract the editor width even when the editor is wider than the canvas (would have produced 0 under the old contract)', () => {
+    // Edge case: under the OLD contract this would clamp to 0. Under the
+    // NEW contract the canvas is reflowed by CSS so its clientWidth IS the
+    // post-reflow visible region, regardless of editor width.
+    fake.setContainerSize(800, 600)
+    fake.setEditorWidth(2000)
+
+    const result = controller.getVisibleCanvasWidth()
+
+    expect(result.visibleWidth).toBe(800)
+  })
+})
+
+/**
+ * RED-step test for the new "resize-drag updates --rf-canvas-right" contract.
+ *
+ * EXPECTED FIX:
+ *   The drag onResize callback wired by `attachResizeDrag` writes
+ *   `--rf-canvas-right: <editor-rect-width>px` on document.body BEFORE
+ *   refitting the camera, so the canvas container's CSS reflow tracks the
+ *   editor panel's live width during the drag.
+ */
+describe('EditorViewportController — attachResizeDrag updates --rf-canvas-right CSS variable', () => {
+  let fake: ResizeFake
+  let controller: EditorViewportController
+
+  beforeEach(() => {
+    fake = makeFake()
+    controller = buildController(fake)
+    // jsdom does not implement setPointerCapture; stub it so the drag
+    // helper does not throw on pointerdown.
+    fake.resizeHandle.setPointerCapture = vi.fn() as unknown as Element['setPointerCapture']
+    // Pin viewport width for predictable drag math.
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 })
+  })
+
+  afterEach(() => {
+    controller.dispose()
+    document.body.innerHTML = ''
+    document.body.removeAttribute('style')
+  })
+
+  function dispatchPointer(
+    type: 'pointerdown' | 'pointermove' | 'pointerup',
+    clientX: number,
+  ): void {
+    // jsdom doesn't implement PointerEvent in all versions; build a generic
+    // Event and attach the handler-relevant fields.
+    const ev = new Event(type, { bubbles: true, cancelable: true }) as Event & {
+      clientX: number
+      pointerId: number
+      preventDefault(): void
+    }
+    Object.defineProperty(ev, 'clientX', { value: clientX })
+    Object.defineProperty(ev, 'pointerId', { value: 1 })
+    fake.resizeHandle.dispatchEvent(ev)
+  }
+
+  it('writes --rf-canvas-right = <editor-rect-width>px on document.body during drag (matches the live editor width)', () => {
+    // GIVEN the editor is open at 640px; the controller's drag handle is wired.
+    fake.setContainerSize(960, 720)
+    fake.setEditorWidth(640)
+    controller.attachResizeDrag()
+
+    // WHEN the user starts dragging the resize handle leftward (which would
+    // widen the editor panel). The drag helper updates the panel's CSS width;
+    // we mirror the post-drag width via our getBoundingClientRect fake so
+    // the controller's onResize callback observes a known value.
+    dispatchPointer('pointerdown', 960)
+    fake.setEditorWidth(720) // simulate post-drag editor rect width
+    dispatchPointer('pointermove', 880)
+    dispatchPointer('pointerup', 880)
+
+    // THEN the body inline style exposes the editor width as a px string so
+    // the canvas container's CSS reflows to match.
+    expect(document.body.style.getPropertyValue('--rf-canvas-right')).toBe('720px')
+  })
+
+  it('writes the var BEFORE the camera refit observes the post-reflow layout', () => {
+    fake.setContainerSize(960, 720)
+    fake.setEditorWidth(640)
+    controller.attachResizeDrag()
+
+    // Capture the var value at the moment zoomToFit (the camera refit) runs.
+    let varAtRefitTime: string | null = null
+    fake.cameraController.zoomToFit.mockImplementation(() => {
+      varAtRefitTime = document.body.style.getPropertyValue('--rf-canvas-right')
+    })
+
+    dispatchPointer('pointerdown', 960)
+    fake.setEditorWidth(720)
+    dispatchPointer('pointermove', 880)
+    dispatchPointer('pointerup', 880)
+
+    // The CSS var must already be '720px' by the time the camera refit runs,
+    // so the fit math observes the post-reflow layout, not a stale one.
+    expect(varAtRefitTime).toBe('720px')
+  })
+})

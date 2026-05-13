@@ -3,6 +3,7 @@ import {
   attachHorizontalResizeDrag,
   type HorizontalResizeDragHandle,
 } from '../utils/attachHorizontalResizeDrag'
+import { setCanvasInset } from '../utils/setCanvasInset'
 
 /**
  * Returns the current factory grid size, or `null` when no level is active.
@@ -71,17 +72,14 @@ export class EditorViewportController {
   }
 
   /**
-   * Width (CSS px) of the canvas region NOT covered by the editor panel.
-   * When the editor is hidden (display:none) its bounding rect is 0 wide,
-   * so the visible region equals the full canvas width.
+   * Returns the live width of the canvas container. Since the canvas
+   * physically reflows around the editor panel (CSS-driven via
+   * `--rf-canvas-right`), the visible region equals the canvas width —
+   * there is no overlap to subtract.
    */
   getVisibleCanvasWidth(): VisibleCanvasWidth {
     const canvasWidth = this.canvasContainer.clientWidth
-    const editorRect = this.editorContainer.getBoundingClientRect()
-    const editorWidth = editorRect.width
-    const visibleWidth =
-      editorWidth > 0 ? Math.max(0, canvasWidth - editorWidth) : canvasWidth
-    return { canvasWidth, visibleWidth }
+    return { canvasWidth, visibleWidth: canvasWidth }
   }
 
   /**
@@ -119,7 +117,12 @@ export class EditorViewportController {
       edge: 'right',
       minWidthPx: 500,
       maxWidthFraction: 1,
-      onResize: () => this.refitCameraToCurrentLevel(0.1),
+      onResize: () => {
+        // Write the CSS var BEFORE refit so the canvas-container reflows
+        // first; refit then observes the post-reflow clientWidth.
+        setCanvasInset('right', this.editorContainer.getBoundingClientRect().width)
+        this.refitCameraToCurrentLevel(0.1)
+      },
     })
   }
 

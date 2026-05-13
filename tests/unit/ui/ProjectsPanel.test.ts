@@ -328,6 +328,82 @@ describe('ProjectsPanel', () => {
   })
 })
 
+/**
+ * RED-step tests for the new "canvas-container physically shrinks when the
+ * Projects panel is open" contract.
+ *
+ * EXPECTED FIX (locked by these tests):
+ *   `ProjectsPanel.show()` writes
+ *   `document.body.style.setProperty('--rf-canvas-left', '<panelWidth>px')`
+ *   so the canvas container (which switches from `inset:0` to using the var
+ *   for its left inset) physically reflows to sit between the panel and the
+ *   editor / viewport edge. The width is measured FRESH each call from the
+ *   panel's container `clientWidth`, never cached at construction.
+ *
+ *   `hide()` writes `--rf-canvas-left: 0px` so the canvas reflows back to
+ *   full width.
+ */
+describe('ProjectsPanel — canvas inset CSS variable (--rf-canvas-left)', () => {
+  let parent: HTMLDivElement
+  let panel: ProjectsPanel
+  let panelWidth: number
+
+  beforeEach(async () => {
+    await switchLanguage('en')
+    document.body.innerHTML = ''
+    document.body.removeAttribute('style')
+    parent = document.createElement('div')
+    document.body.appendChild(parent)
+    panel = new ProjectsPanel(parent)
+
+    // Stub the panel container's clientWidth via a live-mutable getter so
+    // each test can simulate a CSS-driven width and so we can verify the
+    // implementation re-measures on every show() call (no caching).
+    panelWidth = 320
+    Object.defineProperty(panel.getContainer(), 'clientWidth', {
+      configurable: true,
+      get: () => panelWidth,
+    })
+  })
+
+  afterEach(() => {
+    panel.dispose()
+    document.body.innerHTML = ''
+    document.body.removeAttribute('style')
+  })
+
+  it('show() sets --rf-canvas-left on document.body to the container measured width as a px string', () => {
+    panel.show()
+
+    expect(document.body.style.getPropertyValue('--rf-canvas-left')).toBe('320px')
+  })
+
+  it('hide() sets --rf-canvas-left to "0px" explicitly (not unset/empty)', () => {
+    panel.show()
+
+    panel.hide()
+
+    // Explicit "0px" so any consumer of the var (e.g. CSS calc(...)) gets a
+    // defined length, not the unset fallback.
+    expect(document.body.style.getPropertyValue('--rf-canvas-left')).toBe('0px')
+  })
+
+  it('show() re-measures the container width on every call (does not cache from construction)', () => {
+    // GIVEN show() was already called once at width 320 and the panel was
+    // hidden again (var reset to 0px).
+    panel.show()
+    panel.hide()
+
+    // WHEN the container's CSS width changes (e.g. via the resize-drag) and
+    // show() is called afterwards
+    panelWidth = 480
+    panel.show()
+
+    // THEN the freshly measured 480px appears in the var, not the original 320.
+    expect(document.body.style.getPropertyValue('--rf-canvas-left')).toBe('480px')
+  })
+})
+
 describe('ProjectsPanel — Multi-selection (Ctrl/Cmd+click)', () => {
   let parent: HTMLDivElement
   let panel: ProjectsPanel

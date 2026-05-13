@@ -39,6 +39,7 @@ import {
   autoSaveFactory as autoSaveFactoryImpl,
   autoRestoreFactory as autoRestoreFactoryImpl,
 } from './utils/AutoSave'
+import { setCanvasInset } from './utils/setCanvasInset'
 import { wireWindowEvents } from './utils/wireWindowEvents'
 import { getTutorialSteps } from './game/Tutorials'
 
@@ -457,13 +458,17 @@ async function main(): Promise<void> {
     edge: 'left',
     minWidthPx: 320,
     maxWidthFraction: 0.5,
-    onResize: () => editorViewport.refitCameraToCurrentLevel(0.1),
+    onResize: () => {
+      setCanvasInset('left', projectsPanel.getContainer().clientWidth)
+      editorViewport.refitCameraToCurrentLevel(0.1)
+    },
   })
 
   const closeProjects = (): void => {
     projectsPanel.hide()
     projectsResizeHandle.style.display = 'none'
     toolbar.setProjectsPanelOpen(false)
+    editorViewport.refitCameraToCurrentLevel()
   }
   projectsPanel.setOutsideClickIgnoreElements([
     toolbar.getProjectsButton(),
@@ -484,6 +489,7 @@ async function main(): Promise<void> {
       const widthCss = projectsPanel.getContainer().style.width || 'max(320px, 28%)'
       projectsResizeHandle.style.left = `calc(${widthCss} - 3px)`
       toolbar.setProjectsPanelOpen(true)
+      editorViewport.refitCameraToCurrentLevel()
     }
   }
 

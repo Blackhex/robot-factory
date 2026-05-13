@@ -62,6 +62,10 @@ export class ProjectsPanelPage {
     await expect(this.container).toBeAttached()
   }
 
+  async getContainerBoundingBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
+    return this.container.boundingBox()
+  }
+
   async expectImportButtonVisible(): Promise<void> {
     await expect(this.importBtn).toBeVisible()
   }
