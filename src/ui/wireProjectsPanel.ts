@@ -12,6 +12,7 @@ import {
 } from '../utils/AutoSave'
 import {
   deleteSlot,
+  getLastLoadedId,
   listSlots,
   loadSlot,
   overwriteSlot,
@@ -86,6 +87,17 @@ export interface WiredProjectsPanel {
   refreshSlots: () => void
 }
 
+async function promptForNonEmptyName(titleKey: string): Promise<string | null> {
+  // Fall back to the raw key when i18next is not initialised (unit-test
+  // harnesses for this module skip `initI18n()` and pin the title to the
+  // literal key — see `tests/unit/ui/WireProjectsPanelExport.test.ts`).
+  const title = (i18next.t(titleKey) as string | undefined) ?? titleKey
+  const name = await promptModal({ title, defaultValue: '' })
+  if (name === null) return null
+  const trimmed = name.trim()
+  return trimmed.length === 0 ? null : trimmed
+}
+
 export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProjectsPanel {
   const {
     projectsPanel,
@@ -135,13 +147,8 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
       const levelId = gameManager.currentLevel?.id
       const save = await exportFactoryWithProgram(factory, pxtEditor, levelId)
       if (slotId === null) {
-        const name = await promptModal({
-          title: i18next.t('projects.new_project_title'),
-          defaultValue: '',
-        })
-        if (name === null) return
-        const trimmed = name.trim()
-        if (trimmed.length === 0) return
+        const trimmed = await promptForNonEmptyName('projects.new_project_title')
+        if (trimmed === null) return
         const newSlot = saveNewSlotAtEnd(trimmed, save)
         setLastLoadedId(newSlot.id)
       } else {
@@ -197,28 +204,8 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
         const entries = await importFilesFromUser()
         if (entries.length === 0) return
 
-        if (entries.length === 1 && entries[0]!.name === null) {
-          const factory = gameManager.factory
-          const save = entries[0]!.save
-          if (factory) {
-            importFactoryWithProgram(save, factory, pxtEditor)
-            getFactoryRenderer()?.syncMeshes()
-            syncFactoryToEditor()
-          }
-          const name = await promptModal({
-            title: i18next.t('projects.new_project_title'),
-            defaultValue: '',
-          })
-          if (name !== null && name.trim().length > 0) {
-            saveNewSlot(name.trim(), save)
-            refreshSlots()
-          }
-          return
-        }
-
         for (const entry of entries) {
-          const name = entry.name ?? `Imported ${Date.now()}`
-          saveNewSlot(name, entry.save)
+          saveNewSlot(entry.name, entry.save)
         }
         refreshSlots()
       } catch {
@@ -235,12 +222,23 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
         if (!factory) return
         const levelId = gameManager.currentLevel?.id
         const save = await exportFactoryWithProgram(factory, pxtEditor, levelId)
-        exportToFile(save)
+        const lastId = getLastLoadedId()
+        const meta = lastId ? listSlots().find((s) => s.id === lastId) : null
+        if (meta) {
+          exportToFile(save, meta.name)
+          return
+        }
+        const trimmed = await promptForNonEmptyName('projects.export_name_title')
+        if (trimmed === null) return
+        exportToFile(save, trimmed)
         return
       }
       if (slotIds.length === 1) {
-        const save = loadSlot(slotIds[0]!)
-        if (save) exportToFile(save)
+        const slotId = slotIds[0]!
+        const save = loadSlot(slotId)
+        if (!save) return
+        const meta = listSlots().find((s) => s.id === slotId)
+        exportToFile(save, meta?.name ?? slotId)
         return
       }
       const allSlots = listSlots()

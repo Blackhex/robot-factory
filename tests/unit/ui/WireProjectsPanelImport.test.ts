@@ -1,11 +1,19 @@
 /**
  * @vitest-environment jsdom
  *
- * Contract tests for the new bundled-import wiring in wireProjectsPanel.
+ * Contract tests for the unified bundle-only import wiring in
+ * `wireProjectsPanel.onImport`.
  *
- * RED: these tests assume `importFilesFromUser()` exists on SaveLoad and
- * that wireProjectsPanel.onImport calls it (instead of importFromFile()).
- * They will fail until the GREEN agent rewires onImport.
+ * RED: these tests assert that for ALL imports (single OR multi entries)
+ * the panel:
+ *   - calls `saveNewSlot(entry.name, entry.save)` for each entry,
+ *   - never calls `promptModal`,
+ *   - never mutates the live factory (no `importFactoryWithProgram`,
+ *     no `getFactoryRenderer().syncMeshes()`).
+ *
+ * The legacy single-file/name=null branch in `wireProjectsPanel.onImport`
+ * (which prompted the user and applied the save to the live factory)
+ * MUST be removed for these tests to pass.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
@@ -41,8 +49,13 @@ vi.mock('../../../src/utils/AutoSave', () => {
 
 import * as SaveLoad from '../../../src/utils/SaveLoad'
 import * as SandboxProjects from '../../../src/utils/SandboxProjects'
+import * as AutoSave from '../../../src/utils/AutoSave'
 import * as Modal from '../../../src/ui/Modal'
-import { buildHarness, makeSave } from './_helpers/wireProjectsPanelHarness'
+import {
+  buildHarness,
+  buildHarnessWithSpies,
+  makeSave,
+} from './_helpers/wireProjectsPanelHarness'
 
 async function flush(): Promise<void> {
   // Two macrotask flips to drain await chains in onImport.
@@ -51,28 +64,46 @@ async function flush(): Promise<void> {
   await new Promise((r) => setTimeout(r, 0))
 }
 
-describe('wireProjectsPanel.onImport — bundled imports', () => {
+describe('wireProjectsPanel.onImport — unified bundle-only imports', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.restoreAllMocks()
     localStorage.clear()
   })
 
-  it('with one legacy single-file (name: null) entry applies it to current factory and prompts for slot name', async () => {
+  it("with one entry (name: 'Hello') silently saves the slot — no prompt", async () => {
     ;(SaveLoad.importFilesFromUser as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { name: null, save: makeSave('<legacy/>') },
+      { name: 'Hello', save: makeSave('<h/>') },
     ])
-    const promptSpy = vi.spyOn(Modal, 'promptModal').mockResolvedValue('LegacyName')
+    const promptSpy = vi.spyOn(Modal, 'promptModal')
 
     const panel = buildHarness()
     panel.triggerImport()
     await flush()
 
-    expect(promptSpy).toHaveBeenCalledTimes(1)
+    expect(promptSpy).not.toHaveBeenCalled()
     expect(SandboxProjects.saveNewSlot).toHaveBeenCalledTimes(1)
     expect(SandboxProjects.saveNewSlot).toHaveBeenCalledWith(
-      'LegacyName',
-      expect.objectContaining({ pxtWorkspace: '<legacy/>' }),
+      'Hello',
+      expect.objectContaining({ pxtWorkspace: '<h/>' }),
     )
+  })
+
+  it('single-entry import does NOT mutate the live factory (no importFactoryWithProgram, no syncMeshes)', async () => {
+    ;(SaveLoad.importFilesFromUser as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { name: 'Hello', save: makeSave('<h/>') },
+    ])
+    vi.spyOn(Modal, 'promptModal')
+
+    const { panel, mocks } = buildHarnessWithSpies()
+    panel.triggerImport()
+    await flush()
+
+    expect(AutoSave.importFactoryWithProgram).not.toHaveBeenCalled()
+    expect(mocks.factoryRendererSyncMeshes).not.toHaveBeenCalled()
+    expect(mocks.syncFactoryToEditor).not.toHaveBeenCalled()
+    expect(mocks.factoryClear).not.toHaveBeenCalled()
+    expect(mocks.itemRendererClear).not.toHaveBeenCalled()
   })
 
   it('with multiple entries silently creates one slot per entry using bundled names; no prompt', async () => {
@@ -106,24 +137,6 @@ describe('wireProjectsPanel.onImport — bundled imports', () => {
     )
   })
 
-  it("with one bundled entry (name: 'X') silently creates one slot named 'X'; no prompt", async () => {
-    ;(SaveLoad.importFilesFromUser as ReturnType<typeof vi.fn>).mockResolvedValue([
-      { name: 'X', save: makeSave('<x/>') },
-    ])
-    const promptSpy = vi.spyOn(Modal, 'promptModal')
-
-    const panel = buildHarness()
-    panel.triggerImport()
-    await flush()
-
-    expect(promptSpy).not.toHaveBeenCalled()
-    expect(SandboxProjects.saveNewSlot).toHaveBeenCalledTimes(1)
-    expect(SandboxProjects.saveNewSlot).toHaveBeenCalledWith(
-      'X',
-      expect.objectContaining({ pxtWorkspace: '<x/>' }),
-    )
-  })
-
   it('refreshes slots after creating new entries', async () => {
     ;(SaveLoad.importFilesFromUser as ReturnType<typeof vi.fn>).mockResolvedValue([
       { name: 'Alpha', save: makeSave('<a/>') },
@@ -139,5 +152,20 @@ describe('wireProjectsPanel.onImport — bundled imports', () => {
     await flush()
 
     expect(panel.setSlots).toHaveBeenCalled()
+  })
+
+  it('on importFilesFromUser() rejection plays the error sound (and never prompts)', async () => {
+    ;(SaveLoad.importFilesFromUser as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('Bad file'),
+    )
+    const promptSpy = vi.spyOn(Modal, 'promptModal')
+
+    const { panel, mocks } = buildHarnessWithSpies()
+    panel.triggerImport()
+    await flush()
+
+    expect(mocks.audioPlayError).toHaveBeenCalledTimes(1)
+    expect(promptSpy).not.toHaveBeenCalled()
+    expect(SandboxProjects.saveNewSlot).not.toHaveBeenCalled()
   })
 })

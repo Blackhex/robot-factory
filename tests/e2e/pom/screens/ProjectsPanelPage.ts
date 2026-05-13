@@ -450,4 +450,100 @@ export class ProjectsPanelPage {
       return nameEl?.textContent?.trim() ?? null
     })
   }
+
+  // ---- export / import file flow ---------------------------------------
+
+  /**
+   * Assert a prompt-style modal is open and its title equals `text`.
+   * Same DOM as `expectConfirmModalTitle` (`.ui-modal-title`); separate
+   * helper so spec intent (prompt vs confirm) reads as a domain verb.
+   */
+  async expectPromptModalTitle(text: string): Promise<void> {
+    const title = this.page.locator('.ui-modal .ui-modal-title')
+    await expect(title).toBeVisible()
+    await expect(title).toHaveText(text)
+  }
+
+  /**
+   * Click Export, wait for the resulting `download` event, and return
+   * its filename plus the parsed JSON content of the file. Used to
+   * assert the unified single/multi bundle envelope on disk.
+   */
+  async exportAndCaptureDownload(): Promise<{ filename: string; json: unknown }> {
+    const downloadPromise = this.page.waitForEvent('download')
+    await this.clickExport()
+    const download = await downloadPromise
+    const filename = download.suggestedFilename()
+    const stream = await download.createReadStream()
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) {
+      chunks.push(chunk as Buffer)
+    }
+    const text = Buffer.concat(chunks).toString('utf8')
+    return { filename, json: JSON.parse(text) }
+  }
+
+  /**
+   * Click Import and feed the file picker an in-memory JSON payload
+   * named `filename`. Used for round-trip tests where the spec captures
+   * a download then re-imports its contents without writing to disk.
+   */
+  async importBundleFromString(filename: string, content: string): Promise<void> {
+    const fcPromise = this.page.waitForEvent('filechooser')
+    await this.clickImport()
+    const fc = await fcPromise
+    await fc.setFiles({
+      name: filename,
+      mimeType: 'application/json',
+      buffer: Buffer.from(content, 'utf8'),
+    })
+  }
+
+  /**
+   * Click Export, wait for the export-name prompt to appear with title
+   * `title`, cancel it, and assert that no `download` event fires. Used
+   * for the 0-selected-no-loaded-slot prompt-then-cancel flow.
+   */
+  async expectExportPromptCancelTriggersNoDownload(title: string): Promise<void> {
+    let downloaded = false
+    const handler = (): void => {
+      downloaded = true
+    }
+    this.page.on('download', handler)
+    try {
+      await this.clickExport()
+      await this.expectPromptModalTitle(title)
+      await this.cancelPrompt()
+      // Give any pending async download a chance to fire so the negative
+      // assertion is meaningful — production aborts synchronously, but a
+      // regression that triggered a download would do so asynchronously.
+      await this.page.waitForTimeout(200)
+      expect(
+        downloaded,
+        'cancelling the export prompt must not trigger a download',
+      ).toBe(false)
+    } finally {
+      this.page.off('download', handler)
+    }
+  }
+
+  /**
+   * Click Export, fill the export-name prompt with `name`, confirm, and
+   * return the filename + parsed JSON of the resulting download.
+   */
+  async exportViaPromptAndCaptureDownload(
+    name: string,
+  ): Promise<{ filename: string; json: unknown }> {
+    const downloadPromise = this.page.waitForEvent('download')
+    await this.clickExport()
+    await this.fillPromptAndConfirm(name)
+    const download = await downloadPromise
+    const filename = download.suggestedFilename()
+    const stream = await download.createReadStream()
+    const chunks: Buffer[] = []
+    for await (const chunk of stream) {
+      chunks.push(chunk as Buffer)
+    }
+    return { filename, json: JSON.parse(Buffer.concat(chunks).toString('utf8')) }
+  }
 }

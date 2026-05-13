@@ -259,24 +259,105 @@ function normalizePxtWorkspaceForImport(parsed: unknown): unknown {
   return { ...obj, pxtWorkspace: JSON.stringify({ ts: wsObj.ts, blocks: blocksString }) }
 }
 
-/** Trigger a JSON file download of the save data. */
-export function exportToFile(save: FactorySave): void {
-  const json = JSON.stringify(expandPxtWorkspaceForExport(save), null, 2)
+export interface BundleSave {
+  version: 1
+  type: 'bundle'
+  projects: { name: string; save: FactorySave }[]
+}
+
+const BUNDLE_VERSION = 1
+
+/**
+ * Sanitize a user-provided name into a safe filename stem. Replaces any
+ * character not in [A-Za-z0-9._-] with `-`, collapses runs of `-`, trims
+ * leading/trailing `-`. Returns `factory` if the result is empty.
+ */
+function sanitizeFilename(name: string): string {
+  const replaced = name.replace(/[^A-Za-z0-9._-]/g, '-')
+  const collapsed = replaced.replace(/-+/g, '-').replace(/^-+|-+$/g, '')
+  return collapsed.length === 0 ? 'factory' : collapsed
+}
+
+/**
+ * Trigger a JSON download of a multi-project bundle. When `entries.length
+ * === 1` the filename is derived from the (sanitized) entry name; otherwise
+ * a timestamped `factory-bundle-<ts>.json` is used.
+ */
+export function exportBundleToFile(entries: { name: string; save: FactorySave }[]): void {
+  const bundle = {
+    version: BUNDLE_VERSION,
+    type: 'bundle' as const,
+    projects: entries.map(e => ({ name: e.name, save: expandPxtWorkspaceForExport(e.save) })),
+  }
+  const json = JSON.stringify(bundle, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
 
+  const filename = entries.length === 1
+    ? `${sanitizeFilename(entries[0]!.name)}.json`
+    : `factory-bundle-${Date.now()}.json`
+
   const a = document.createElement('a')
   a.href = url
-  a.download = `factory-save-${Date.now()}.json`
+  a.download = filename
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
 
-/** Open a file picker and load a save from a JSON file. */
-export function importFromFile(): Promise<FactorySave> {
-  return new Promise<FactorySave>((resolve, reject) => {
+/**
+ * Trigger a JSON download of a single save, written as a single-entry
+ * bundle envelope. Filename is derived from the (sanitized) `name`.
+ */
+export function exportToFile(save: FactorySave, name: string): void {
+  exportBundleToFile([{ name, save }])
+}
+
+/**
+ * Parse a bundle envelope. Throws a descriptive Error on any schema
+ * violation. Returns the flattened `{ name, save }` entries with
+ * `pxtWorkspace` normalized back to a string and each save validated.
+ */
+function parseBundleEnvelope(parsed: unknown): { name: string; save: FactorySave }[] {
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Save file must be a bundle envelope object')
+  }
+  const obj = parsed as { version?: unknown; type?: unknown; projects?: unknown }
+  if (obj.type !== 'bundle') {
+    throw new Error('Save file must have type: "bundle"')
+  }
+  if (typeof obj.version !== 'number' || obj.version !== BUNDLE_VERSION) {
+    throw new Error(
+      `Unsupported bundle version: ${String(obj.version)} (expected ${BUNDLE_VERSION})`,
+    )
+  }
+  if (!Array.isArray(obj.projects)) {
+    throw new Error('Save file: bundle.projects must be an array')
+  }
+  const entries: { name: string; save: FactorySave }[] = []
+  for (const proj of obj.projects as unknown[]) {
+    if (proj === null || typeof proj !== 'object') {
+      throw new Error('Bundle project entry must be an object')
+    }
+    const p = proj as { name?: unknown; save?: unknown }
+    if (typeof p.name !== 'string') {
+      throw new Error('Bundle project entry must have a string name')
+    }
+    const normalizedSave = normalizePxtWorkspaceForImport(p.save)
+    validateSave(normalizedSave)
+    entries.push({ name: p.name, save: normalizedSave as FactorySave })
+  }
+  return entries
+}
+
+/**
+ * Open a file picker and load a single project from a single-entry bundle
+ * envelope. Rejects if the file is not a bundle, the version mismatches,
+ * or `projects.length !== 1`.
+ */
+export function importFromFile(): Promise<{ name: string; save: FactorySave }> {
+  return new Promise<{ name: string; save: FactorySave }>((resolve, reject) => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.json,application/json'
@@ -292,9 +373,11 @@ export function importFromFile(): Promise<FactorySave> {
       reader.onload = () => {
         try {
           const parsed: unknown = JSON.parse(reader.result as string)
-          const normalized = normalizePxtWorkspaceForImport(parsed)
-          validateSave(normalized)
-          resolve(normalized as FactorySave)
+          const entries = parseBundleEnvelope(parsed)
+          if (entries.length !== 1) {
+            throw new Error('Expected a single-project bundle')
+          }
+          resolve(entries[0]!)
         } catch (err) {
           reject(err instanceof Error ? err : new Error('Invalid save file'))
         }
@@ -307,39 +390,13 @@ export function importFromFile(): Promise<FactorySave> {
   })
 }
 
-export interface BundleSave {
-  version: number
-  type: 'bundle'
-  projects: { name: string; save: FactorySave }[]
-}
-
-/** Trigger a JSON file download of a multi-project bundle. */
-export function exportBundleToFile(entries: { name: string; save: FactorySave }[]): void {
-  const bundle = {
-    version: 1,
-    type: 'bundle' as const,
-    projects: entries.map(e => ({ name: e.name, save: expandPxtWorkspaceForExport(e.save) })),
-  }
-  const json = JSON.stringify(bundle, null, 2)
-  const blob = new Blob([json], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `factory-bundle-${Date.now()}.json`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
-
 /**
- * Open a file picker (multi-select) and load saves from one or more JSON files.
- * Each file may be a single FactorySave or a BundleSave; results are flattened
- * preserving file order, then bundle-internal order. Rejects all-or-nothing on
- * any parse error or invalid schema.
+ * Open a file picker (multi-select) and load saves from one or more bundle
+ * envelopes. Raw `FactorySave` files are rejected. Results are flattened
+ * preserving file order, then bundle-internal order. All-or-nothing: any
+ * parse error or invalid schema rejects the whole pick.
  */
-export function importFilesFromUser(): Promise<{ name: string | null; save: FactorySave }[]> {
+export function importFilesFromUser(): Promise<{ name: string; save: FactorySave }[]> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -356,33 +413,10 @@ export function importFilesFromUser(): Promise<{ name: string | null; save: Fact
       const fileArray = Array.from(files)
       Promise.all(fileArray.map(file => file.text()))
         .then(texts => {
-          const entries: { name: string | null; save: FactorySave }[] = []
+          const entries: { name: string; save: FactorySave }[] = []
           for (const text of texts) {
             const parsed: unknown = JSON.parse(text)
-            if (
-              parsed !== null &&
-              typeof parsed === 'object' &&
-              (parsed as { type?: unknown }).type === 'bundle' &&
-              Array.isArray((parsed as { projects?: unknown }).projects)
-            ) {
-              const projects = (parsed as { projects: unknown[] }).projects
-              for (const proj of projects) {
-                if (proj === null || typeof proj !== 'object') {
-                  throw new Error('Bundle project entry must be an object')
-                }
-                const p = proj as { name?: unknown; save?: unknown }
-                if (typeof p.name !== 'string') {
-                  throw new Error('Bundle project entry must have a string name')
-                }
-                const normalizedSave = normalizePxtWorkspaceForImport(p.save)
-                validateSave(normalizedSave)
-                entries.push({ name: p.name, save: normalizedSave as FactorySave })
-              }
-            } else {
-              const normalized = normalizePxtWorkspaceForImport(parsed)
-              validateSave(normalized)
-              entries.push({ name: null, save: normalized as FactorySave })
-            }
+            entries.push(...parseBundleEnvelope(parsed))
           }
           resolve(entries)
         })

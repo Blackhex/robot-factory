@@ -13,7 +13,7 @@
  * `{"ts":"...","blocks":"<xml ...>...</xml>"}` after import — these tests
  * assert that explicitly.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   exportToFile,
   exportBundleToFile,
@@ -21,6 +21,14 @@ import {
   importFilesFromUser,
 } from '../../../src/utils/SaveLoad'
 import type { FactorySave } from '../../../src/utils/SaveLoad'
+import {
+  installExportHarness,
+  installImportHarness,
+  wrapBundle,
+  type CapturedDownload,
+  type ExportHarness,
+  type ImportHarness,
+} from '../../_helpers/saveLoadHarness'
 
 // --------------------------------------------------------------------------
 // Sample data — mirrors a real exported workspace from the user's bug report.
@@ -118,105 +126,21 @@ function expectWorkspaceStringEquivalent(actual: string, expected: string): void
 // Export harness — captures Blob text written via the anchor-download trick.
 // --------------------------------------------------------------------------
 
-interface CapturedDownload {
-  filename: string
-  blob: Blob
-}
-
-interface ExportHarness {
-  downloads: CapturedDownload[]
-  restore: () => void
-}
-
-function installExportHarness(): ExportHarness {
-  const downloads: CapturedDownload[] = []
-  const blobByUrl = new Map<string, Blob>()
-
-  let counter = 0
-  const originalCreate = URL.createObjectURL
-  const originalRevoke = URL.revokeObjectURL
-  URL.createObjectURL = vi.fn((blob: Blob): string => {
-    const url = `blob:mock-${counter++}`
-    blobByUrl.set(url, blob)
-    return url
-  }) as typeof URL.createObjectURL
-  URL.revokeObjectURL = vi.fn(() => {}) as typeof URL.revokeObjectURL
-
-  const originalAnchorClick = HTMLAnchorElement.prototype.click
-  HTMLAnchorElement.prototype.click = function patchedClick(this: HTMLAnchorElement): void {
-    const url = this.href
-    const blob = blobByUrl.get(url)
-    if (blob) {
-      downloads.push({ filename: this.download, blob })
-    }
-  }
-
-  return {
-    downloads,
-    restore: (): void => {
-      URL.createObjectURL = originalCreate
-      URL.revokeObjectURL = originalRevoke
-      HTMLAnchorElement.prototype.click = originalAnchorClick
-    },
-  }
-}
-
 async function readDownloadJson(d: CapturedDownload): Promise<unknown> {
-  return JSON.parse(await d.blob.text())
+  return JSON.parse(d.jsonText)
 }
 
-// --------------------------------------------------------------------------
-// Import harness — fake file picker.
-// --------------------------------------------------------------------------
-
-interface ImportHarness {
-  enqueueFiles: (contents: string[]) => void
-  restore: () => void
-}
-
-function installImportHarness(): ImportHarness {
-  const queue: string[][] = []
-
-  const originalCreateElement = document.createElement.bind(document)
-  vi.spyOn(document, 'createElement').mockImplementation(((
-    tagName: string,
-    options?: ElementCreationOptions,
-  ): HTMLElement => {
-    const el = originalCreateElement(tagName, options)
-    if (tagName.toLowerCase() === 'input') {
-      const input = el as HTMLInputElement
-      const originalClick = input.click.bind(input)
-      input.click = (): void => {
-        const next = queue.shift()
-        if (next === undefined) {
-          originalClick()
-          return
-        }
-        const fileList = next.map(
-          (content, i) =>
-            new File([content], `file-${i}.json`, { type: 'application/json' }),
-        )
-        Object.defineProperty(input, 'files', {
-          configurable: true,
-          get: () => fileList as unknown as FileList,
-        })
-        queueMicrotask(() => {
-          input.dispatchEvent(new Event('change'))
-        })
-      }
-    }
-    return el
-  }) as typeof document.createElement)
-
-  return {
-    enqueueFiles: (contents: string[]): void => {
-      queue.push(contents)
-    },
-    restore: (): void => {
-      vi.restoreAllMocks()
-    },
+/** Read the exported single-entry bundle and return the wrapped save. */
+async function readExportedSave(d: CapturedDownload): Promise<{ pxtWorkspace: { ts: string; blocks: XmlJsonNode } }> {
+  const parsed = (await readDownloadJson(d)) as {
+    projects: { save: { pxtWorkspace: { ts: string; blocks: XmlJsonNode } } }[]
   }
+  return parsed.projects[0]!.save
 }
+
+// --------------------------------------------------------------------------
+// IMPORT harness — fake file picker.
+// --------------------------------------------------------------------------
 
 // ==========================================================================
 // EXPORT — pxtWorkspace.blocks is an XML-as-JSON tree
@@ -234,12 +158,10 @@ describe('exportToFile() — pxtWorkspace.blocks JSON-tree representation', () =
   })
 
   it('serializes pxtWorkspace.blocks as an OBJECT (not a string)', async () => {
-    exportToFile(makeFactorySave())
+    exportToFile(makeFactorySave(), 'sample')
 
     expect(harness.downloads).toHaveLength(1)
-    const parsed = (await readDownloadJson(harness.downloads[0]!)) as {
-      pxtWorkspace: { ts: unknown; blocks: unknown }
-    }
+    const parsed = await readExportedSave(harness.downloads[0]!)
 
     expect(typeof parsed.pxtWorkspace).toBe('object')
     expect(typeof parsed.pxtWorkspace.blocks).toBe('object')
@@ -248,11 +170,9 @@ describe('exportToFile() — pxtWorkspace.blocks JSON-tree representation', () =
   })
 
   it('produces the exact { tag, attrs, children } tree for the sample workspace', async () => {
-    exportToFile(makeFactorySave())
+    exportToFile(makeFactorySave(), 'sample')
 
-    const parsed = (await readDownloadJson(harness.downloads[0]!)) as {
-      pxtWorkspace: { ts: string; blocks: XmlJsonNode }
-    }
+    const parsed = await readExportedSave(harness.downloads[0]!)
 
     expect(parsed.pxtWorkspace.ts).toBe(SAMPLE_TS)
     expect(parsed.pxtWorkspace.blocks).toEqual(EXPECTED_TREE)
@@ -260,11 +180,9 @@ describe('exportToFile() — pxtWorkspace.blocks JSON-tree representation', () =
 
   it('omits `attrs` when an element has no attributes', async () => {
     const ws = JSON.stringify({ ts: '', blocks: '<xml><inner></inner></xml>' })
-    exportToFile(makeFactorySave({ pxtWorkspace: ws }))
+    exportToFile(makeFactorySave({ pxtWorkspace: ws }), 'sample')
 
-    const parsed = (await readDownloadJson(harness.downloads[0]!)) as {
-      pxtWorkspace: { blocks: XmlJsonNode }
-    }
+    const parsed = await readExportedSave(harness.downloads[0]!)
     const root = parsed.pxtWorkspace.blocks
     expect(root.tag).toBe('xml')
     expect('attrs' in root).toBe(false)
@@ -279,11 +197,9 @@ describe('exportToFile() — pxtWorkspace.blocks JSON-tree representation', () =
       ts: '',
       blocks: '<xml xmlns="x"><block type="t"></block></xml>',
     })
-    exportToFile(makeFactorySave({ pxtWorkspace: ws }))
+    exportToFile(makeFactorySave({ pxtWorkspace: ws }), 'sample')
 
-    const parsed = (await readDownloadJson(harness.downloads[0]!)) as {
-      pxtWorkspace: { blocks: XmlJsonNode }
-    }
+    const parsed = await readExportedSave(harness.downloads[0]!)
     const root = parsed.pxtWorkspace.blocks
     expect(root.children).toHaveLength(1)
     const block = root.children![0] as XmlJsonNode
@@ -297,11 +213,9 @@ describe('exportToFile() — pxtWorkspace.blocks JSON-tree representation', () =
       ts: '',
       blocks: '<xml>\n  <a/>\n  <b/>\n</xml>',
     })
-    exportToFile(makeFactorySave({ pxtWorkspace: ws }))
+    exportToFile(makeFactorySave({ pxtWorkspace: ws }), 'sample')
 
-    const parsed = (await readDownloadJson(harness.downloads[0]!)) as {
-      pxtWorkspace: { blocks: XmlJsonNode }
-    }
+    const parsed = await readExportedSave(harness.downloads[0]!)
     const root = parsed.pxtWorkspace.blocks
     expect(Array.isArray(root.children)).toBe(true)
     // Expect alternating whitespace strings and elements.
@@ -314,9 +228,9 @@ describe('exportToFile() — pxtWorkspace.blocks JSON-tree representation', () =
   })
 
   it('contains no double-escaped quote runs (\\\\") in the blocks portion — XML is gone', async () => {
-    exportToFile(makeFactorySave())
+    exportToFile(makeFactorySave(), 'sample')
 
-    const text = await harness.downloads[0]!.blob.text()
+    const text = harness.downloads[0]!.jsonText
     expect(text).not.toMatch(/\\\\"/)
     // And the literal XML attribute syntax should not appear inside a
     // JSON string value at all — the structure is JSON now.
@@ -373,7 +287,7 @@ describe('exportBundleToFile() — pxtWorkspace.blocks JSON-tree representation'
 
   it('contains no XML tag literals in the bundle output', async () => {
     exportBundleToFile([{ name: 'Solo', save: makeFactorySave() }])
-    const text = await harness.downloads[0]!.blob.text()
+    const text = harness.downloads[0]!.jsonText
     expect(text).not.toContain('<xml')
     expect(text).not.toContain('<block')
     expect(text).not.toMatch(/\\\\"/)
@@ -399,129 +313,118 @@ describe('importFromFile() — accepts new JSON-tree blocks and legacy XML-strin
   })
 
   it('accepts NEW JSON-tree form and normalizes pxtWorkspace to the legacy in-memory string', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2,
       grid: [],
       belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: EXPECTED_TREE },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
 
-    const save = await importFromFile()
+    const { save } = await importFromFile()
 
     expect(typeof save.pxtWorkspace).toBe('string')
     expectWorkspaceStringEquivalent(save.pxtWorkspace, SAMPLE_WORKSPACE_STRING)
   })
 
   it('still accepts the prior-iteration object form (string blocks) unchanged', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2,
       grid: [],
       belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: SAMPLE_BLOCKS_XML },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
 
-    const save = await importFromFile()
+    const { save } = await importFromFile()
 
     expect(save.pxtWorkspace).toBe(SAMPLE_WORKSPACE_STRING)
   })
 
   it('still accepts the fully-legacy string pxtWorkspace form unchanged', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2,
       grid: [],
       belts: [],
       pxtWorkspace: SAMPLE_WORKSPACE_STRING,
-    })
-    importH.enqueueFiles([fileContent])
+    }))
 
-    const save = await importFromFile()
+    const { save } = await importFromFile()
 
     expect(save.pxtWorkspace).toBe(SAMPLE_WORKSPACE_STRING)
   })
 
-  it('round-trips: import(export(save)).pxtWorkspace ≡ save.pxtWorkspace', async () => {
+  it('round-trips: import(export(save)).save.pxtWorkspace ≡ save.pxtWorkspace', async () => {
     const original = makeFactorySave()
-    exportToFile(original)
-    const text = await exportH.downloads[0]!.blob.text()
-    importH.enqueueFiles([text])
+    exportToFile(original, 'rt')
+    const text = exportH.downloads[0]!.jsonText
+    await importH.fire(text)
 
-    const reloaded = await importFromFile()
+    const { save: reloaded } = await importFromFile()
 
     expect(typeof reloaded.pxtWorkspace).toBe('string')
     expectWorkspaceStringEquivalent(reloaded.pxtWorkspace, original.pxtWorkspace)
   })
 
   it('rejects: blocks is a number', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: 42 },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFromFile()).rejects.toThrow()
   })
 
   it('rejects: blocks is an array', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: [{ tag: 'xml' }] },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFromFile()).rejects.toThrow()
   })
 
   it('rejects: blocks is null', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: null },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFromFile()).rejects.toThrow()
   })
 
   it('rejects: node missing `tag`', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: { attrs: { foo: 'bar' } } },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFromFile()).rejects.toThrow()
   })
 
   it('rejects: node `attrs` is not an object of strings', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: { tag: 'xml', attrs: { foo: 17 } } },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFromFile()).rejects.toThrow()
   })
 
   it('rejects: node `attrs` is not an object (e.g., array)', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: { tag: 'xml', attrs: ['foo', 'bar'] } },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFromFile()).rejects.toThrow()
   })
 
   it('rejects: node `children` is not an array', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: { tag: 'xml', children: 'oops' } },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFromFile()).rejects.toThrow()
   })
 
   it('rejects: child item is neither object nor string (e.g., number)', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: { tag: 'xml', children: [42] } },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFromFile()).rejects.toThrow()
   })
 })
@@ -540,14 +443,13 @@ describe('importFilesFromUser() — accepts JSON-tree blocks (single, bundle, mi
     exportH.restore()
   })
 
-  it('accepts a single NEW JSON-tree-blocks file and normalizes pxtWorkspace to a string', async () => {
-    const fileContent = JSON.stringify({
+  it('accepts a single NEW JSON-tree-blocks file (single-entry bundle) and normalizes pxtWorkspace to a string', async () => {
+    await importH.fire(wrapBundle({
       version: 2,
       grid: [],
       belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: EXPECTED_TREE },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
 
     const entries = await importFilesFromUser()
 
@@ -576,7 +478,7 @@ describe('importFilesFromUser() — accepts JSON-tree blocks (single, bundle, mi
         },
       ],
     }
-    importH.enqueueFiles([JSON.stringify(bundle)])
+    await importH.fire(JSON.stringify(bundle))
 
     const entries = await importFilesFromUser()
 
@@ -587,16 +489,16 @@ describe('importFilesFromUser() — accepts JSON-tree blocks (single, bundle, mi
     expectWorkspaceStringEquivalent(entries[1]!.save.pxtWorkspace, expectedB)
   })
 
-  it('accepts a mixed pick: one NEW-form file + one fully-legacy string file', async () => {
-    const newForm = JSON.stringify({
+  it('accepts a mixed pick: one NEW-form bundle + one fully-legacy string bundle', async () => {
+    const newForm = wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: EXPECTED_TREE },
-    })
-    const legacy = JSON.stringify({
+    }, 'A')
+    const legacy = wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: SAMPLE_WORKSPACE_STRING,
-    })
-    importH.enqueueFiles([newForm, legacy])
+    }, 'B')
+    await importH.fire([newForm, legacy])
 
     const entries = await importFilesFromUser()
 
@@ -607,11 +509,11 @@ describe('importFilesFromUser() — accepts JSON-tree blocks (single, bundle, mi
     expect(entries[1]!.save.pxtWorkspace).toBe(SAMPLE_WORKSPACE_STRING)
   })
 
-  it('round-trips a single save: import(export(save)).pxtWorkspace ≡ save.pxtWorkspace', async () => {
+  it('round-trips a single save: import(export(save))[0].save.pxtWorkspace ≡ save.pxtWorkspace', async () => {
     const original = makeFactorySave()
-    exportToFile(original)
-    const text = await exportH.downloads[0]!.blob.text()
-    importH.enqueueFiles([text])
+    exportToFile(original, 'rt')
+    const text = exportH.downloads[0]!.jsonText
+    await importH.fire(text)
 
     const entries = await importFilesFromUser()
 
@@ -636,8 +538,8 @@ describe('importFilesFromUser() — accepts JSON-tree blocks (single, bundle, mi
       { name: 'Alpha', save: a },
       { name: 'Beta', save: b },
     ])
-    const text = await exportH.downloads[0]!.blob.text()
-    importH.enqueueFiles([text])
+    const text = exportH.downloads[0]!.jsonText
+    await importH.fire(text)
 
     const entries = await importFilesFromUser()
 
@@ -647,47 +549,42 @@ describe('importFilesFromUser() — accepts JSON-tree blocks (single, bundle, mi
   })
 
   it('rejects malformed JSON-tree blocks (number)', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: 42 },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFilesFromUser()).rejects.toThrow()
   })
 
   it('rejects malformed JSON-tree blocks (missing tag)', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: { attrs: { foo: 'bar' } } },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFilesFromUser()).rejects.toThrow()
   })
 
   it('rejects malformed JSON-tree blocks (attrs not object of strings)', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: { tag: 'xml', attrs: { foo: 17 } } },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFilesFromUser()).rejects.toThrow()
   })
 
   it('rejects malformed JSON-tree blocks (children not array)', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: { tag: 'xml', children: 'oops' } },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFilesFromUser()).rejects.toThrow()
   })
 
   it('rejects malformed JSON-tree blocks (child item is a number)', async () => {
-    const fileContent = JSON.stringify({
+    await importH.fire(wrapBundle({
       version: 2, grid: [], belts: [],
       pxtWorkspace: { ts: SAMPLE_TS, blocks: { tag: 'xml', children: [42] } },
-    })
-    importH.enqueueFiles([fileContent])
+    }))
     await expect(importFilesFromUser()).rejects.toThrow()
   })
 })

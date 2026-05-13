@@ -31,6 +31,7 @@
     "delete": "Delete",
     "empty_placeholder": "+ New project",
     "new_project_title": "Name your project",
+    "export_name_title": "Name your export",
     "autosave_name": "Autosave",
     "confirm_delete_title": "Delete project?",
     "confirm_delete_message": "Are you sure you want to delete \"{{name}}\"?",

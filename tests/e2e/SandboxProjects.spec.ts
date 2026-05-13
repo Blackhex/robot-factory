@@ -877,3 +877,228 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering — persiste
   })
 })
 
+// REQUIREMENT: the unified export/import format. Single-project export
+// uses the same bundle envelope as multi-export, with a sanitized-name
+// filename. Import (single OR multi) silently creates a new slot per
+// bundled entry without prompting and without touching the live factory.
+// 0-selected export uses the loaded slot's name when one is loaded; if
+// no slot is loaded, the user is prompted via `projects.export_name_title`.
+test.describe('Sandbox — Projects panel: unified export/import format', () => {
+  clearStorageBeforeEach()
+
+  test('Single-project export uses bundle envelope and sanitized-name filename', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Alpha')
+    await projectsPanel.expectSlotPresent('Alpha')
+
+    await projectsPanel.clickSlot('Alpha')
+    await projectsPanel.expectSlotsSelected(['Alpha'])
+
+    const { filename, json } = await projectsPanel.exportAndCaptureDownload()
+
+    expect(filename).toBe('Alpha.json')
+
+    const parsed = json as {
+      version: number
+      type: string
+      projects: { name: string; save: Record<string, unknown> }[]
+    }
+    expect(parsed.type).toBe('bundle')
+    expect(parsed.version).toBe(1)
+    expect(parsed.projects).toHaveLength(1)
+    expect(parsed.projects[0]!.name).toBe('Alpha')
+
+    const save = parsed.projects[0]!.save
+    expect(save).toHaveProperty('version')
+    expect(save).toHaveProperty('grid')
+    expect(save).toHaveProperty('belts')
+    expect(save).toHaveProperty('pxtWorkspace')
+  })
+
+  test('Round-trip export → delete → import preserves project name without prompting and leaves live factory intact', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, grid, probe, page,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+
+    // Seed: place a single machine BEFORE saving so the bundled save
+    // contains real factory state (not just an empty grid).
+    await grid.dblClickCell({ x: 10, z: 10 })
+    const seededMachineCount = await probe.getMachineCount()
+    expect(seededMachineCount).toBeGreaterThan(0)
+
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Alpha')
+    await projectsPanel.expectSlotPresent('Alpha')
+
+    // Export Alpha — capture filename + JSON text for re-upload.
+    await projectsPanel.clickSlot('Alpha')
+    await projectsPanel.expectSlotsSelected(['Alpha'])
+    const { filename, json } = await projectsPanel.exportAndCaptureDownload()
+    expect(filename).toBe('Alpha.json')
+
+    // Delete Alpha — the slot must vanish from the list.
+    await projectsPanel.deleteSlot('Alpha')
+    await projectsPanel.confirmConfirm()
+    await projectsPanel.expectSlotAbsent('Alpha')
+
+    // Mutate the live factory so we can verify import does NOT replace it.
+    await toolbar.clickProjects()
+    await projectsPanel.expectClosed()
+    await grid.dblClickCell({ x: 12, z: 10 })
+    const beforeImport = await probe.getMachineCount()
+    expect(beforeImport).toBe(seededMachineCount + 1)
+
+    // Re-import the captured bundle. NO prompt may appear — the new
+    // slot must take its name straight from the bundle entry.
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    let downloaded = false
+    const onDownload = (): void => { downloaded = true }
+    page.on('download', onDownload)
+    try {
+      await projectsPanel.importBundleFromString(filename, JSON.stringify(json))
+      await projectsPanel.expectSlotPresent('Alpha')
+      await projectsPanel.expectNoModal()
+    } finally {
+      page.off('download', onDownload)
+    }
+    expect(downloaded, 'importing must not trigger a download').toBe(false)
+
+    // Live factory must be untouched — import only seeds slots.
+    expect(await probe.getMachineCount()).toBe(beforeImport)
+  })
+
+  test('Multi-import creates one slot per bundled entry without prompting', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    // Save Alpha and Beta. Use long, distinct names — single letters
+    // collide with "Save"/"Delete" via Playwright's case-insensitive
+    // hasText substring matcher (e.g. `hasText: 'A'` matches "Save").
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Alpha')
+    await projectsPanel.expectSlotPresent('Alpha')
+
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Beta')
+    await projectsPanel.expectSlotPresent('Beta')
+
+    // Multi-export both.
+    await projectsPanel.clickSlot('Alpha')
+    await projectsPanel.ctrlClickSlot('Beta')
+    await projectsPanel.expectSlotsSelected(['Alpha', 'Beta'])
+    const { filename, json } = await projectsPanel.exportAndCaptureDownload()
+    expect(filename).toMatch(/^factory-bundle-.*\.json$/)
+
+    // Delete both, then re-import the bundle.
+    await projectsPanel.deleteSlot('Alpha')
+    await projectsPanel.confirmConfirm()
+    await projectsPanel.expectSlotAbsent('Alpha')
+    await projectsPanel.deleteSlot('Beta')
+    await projectsPanel.confirmConfirm()
+    await projectsPanel.expectSlotAbsent('Beta')
+
+    await projectsPanel.importBundleFromString(filename, JSON.stringify(json))
+    await projectsPanel.expectNoModal()
+    await projectsPanel.expectSlotPresent('Alpha')
+    await projectsPanel.expectSlotPresent('Beta')
+  })
+
+  test('0-selected export prompts for a name when no slot is loaded (EN)', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    // No slots, no selection, no last-loaded id.
+    await projectsPanel.expectSlotCount(0)
+
+    const { filename, json } =
+      await projectsPanel.exportViaPromptAndCaptureDownload('QuickExport')
+
+    expect(filename).toBe('QuickExport.json')
+    const parsed = json as { type: string; projects: { name: string }[] }
+    expect(parsed.type).toBe('bundle')
+    expect(parsed.projects).toHaveLength(1)
+    expect(parsed.projects[0]!.name).toBe('QuickExport')
+  })
+
+  test('0-selected export prompt uses the CS translation', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.open()
+    await mainMenu.clickLanguageToggle()
+    await mainMenu.expectHtmlLang('cs')
+    await mainMenu.clickSandbox()
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent(500)
+    await toolbar.waitForCameraSettle()
+
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.clickExport()
+    await projectsPanel.expectPromptModalTitle(t('cs', 'projects.export_name_title'))
+    await projectsPanel.cancelPrompt()
+  })
+
+  test('0-selected export: cancelling the prompt aborts with no download', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    await projectsPanel.expectSlotCount(0)
+
+    await projectsPanel.expectExportPromptCancelTriggersNoDownload(
+      t('en', 'projects.export_name_title'),
+    )
+  })
+
+  test('0-selected export: uses the currently-loaded slot name without prompting', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    // Save Alpha; the save handler sets last-loaded to Alpha's id.
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Alpha')
+    await projectsPanel.expectSlotPresent('Alpha')
+
+    // Sanity: Alpha is not in the multi-selection set, so the export
+    // path is the 0-selected branch (live factory), not the 1-selected
+    // branch (named slot).
+    await expect(
+      projectsPanel.slotByName('Alpha'),
+    ).not.toHaveClass(/is-selected/)
+
+    // 0-selected export with a loaded slot must use the loaded slot's
+    // name and trigger a download immediately — no prompt modal. If the
+    // prompt path were ever taken, this call would hang on the download
+    // wait until the test timed out.
+    const { filename, json } = await projectsPanel.exportAndCaptureDownload()
+
+    // After the download fires the production handler has already
+    // returned; if a prompt had been shown it would still be in the DOM.
+    await projectsPanel.expectNoModal()
+
+    expect(filename).toBe('Alpha.json')
+    const parsed = json as { projects: { name: string }[] }
+    expect(parsed.projects[0]!.name).toBe('Alpha')
+  })
+})
+

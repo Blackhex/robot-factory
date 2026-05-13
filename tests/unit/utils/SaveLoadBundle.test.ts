@@ -7,12 +7,19 @@
  * src/utils/SaveLoad.ts (`exportBundleToFile`, `importFilesFromUser`).
  * They will fail to compile / import until the GREEN agent adds them.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import {
   exportBundleToFile,
   importFilesFromUser,
 } from '../../../src/utils/SaveLoad'
 import type { FactorySave } from '../../../src/utils/SaveLoad'
+import {
+  installExportHarness,
+  installImportHarness,
+  type CapturedDownload,
+  type ExportHarness,
+  type ImportHarness,
+} from '../../_helpers/saveLoadHarness'
 
 function makeFactorySave(overrides: Partial<FactorySave> = {}): FactorySave {
   return {
@@ -24,57 +31,8 @@ function makeFactorySave(overrides: Partial<FactorySave> = {}): FactorySave {
   }
 }
 
-interface CapturedDownload {
-  filename: string
-  blob: Blob
-  text: string
-}
-
-interface ExportHarness {
-  downloads: CapturedDownload[]
-  restore: () => void
-}
-
-function installExportHarness(): ExportHarness {
-  const downloads: CapturedDownload[] = []
-  const blobByUrl = new Map<string, Blob>()
-
-  let counter = 0
-  const originalCreate = URL.createObjectURL
-  const originalRevoke = URL.revokeObjectURL
-  URL.createObjectURL = vi.fn((blob: Blob): string => {
-    const url = `blob:mock-${counter++}`
-    blobByUrl.set(url, blob)
-    return url
-  }) as typeof URL.createObjectURL
-  URL.revokeObjectURL = vi.fn(() => {}) as typeof URL.revokeObjectURL
-
-  const originalAnchorClick = HTMLAnchorElement.prototype.click
-  HTMLAnchorElement.prototype.click = function patchedClick(this: HTMLAnchorElement): void {
-    const url = this.href
-    const blob = blobByUrl.get(url)
-    if (blob) {
-      downloads.push({
-        filename: this.download,
-        blob,
-        text: '',
-      })
-    }
-  }
-
-  return {
-    downloads,
-    restore: (): void => {
-      URL.createObjectURL = originalCreate
-      URL.revokeObjectURL = originalRevoke
-      HTMLAnchorElement.prototype.click = originalAnchorClick
-    },
-  }
-}
-
-async function readDownloadText(d: CapturedDownload): Promise<string> {
-  // Blob.text() is supported under jsdom.
-  return await d.blob.text()
+function readDownloadText(d: CapturedDownload): string {
+  return d.jsonText
 }
 
 describe('exportBundleToFile()', () => {
@@ -114,11 +72,22 @@ describe('exportBundleToFile()', () => {
     expect(parsed.projects[1]!.save.pxtWorkspace).toBe('<b/>')
   })
 
-  it('filename starts with "factory-bundle-" and ends with ".json"', () => {
+  it('filename for a single-entry bundle uses the sanitized entry name and ends with ".json"', () => {
     exportBundleToFile([{ name: 'Solo', save: makeFactorySave() }])
 
     expect(harness.downloads).toHaveLength(1)
-    const filename = harness.downloads[0]!.filename
+    const filename = harness.downloads[0]!.download
+    expect(filename).toBe('Solo.json')
+  })
+
+  it('filename for a multi-entry bundle starts with "factory-bundle-" and ends with ".json"', () => {
+    exportBundleToFile([
+      { name: 'A', save: makeFactorySave() },
+      { name: 'B', save: makeFactorySave() },
+    ])
+
+    expect(harness.downloads).toHaveLength(1)
+    const filename = harness.downloads[0]!.download
     expect(filename.startsWith('factory-bundle-')).toBe(true)
     expect(filename.endsWith('.json')).toBe(true)
   })
@@ -138,59 +107,6 @@ describe('exportBundleToFile()', () => {
     expect(parsed.projects).toEqual([])
   })
 })
-
-interface ImportHarness {
-  /** Queue of file content strings that the next file picker should "select". */
-  enqueueFiles: (contents: string[]) => void
-  restore: () => void
-}
-
-function installImportHarness(): ImportHarness {
-  const queue: string[][] = []
-
-  const originalCreateElement = document.createElement.bind(document)
-  vi.spyOn(document, 'createElement').mockImplementation(((
-    tagName: string,
-    options?: ElementCreationOptions,
-  ): HTMLElement => {
-    const el = originalCreateElement(tagName, options)
-    if (tagName.toLowerCase() === 'input') {
-      const input = el as HTMLInputElement
-      const originalClick = input.click.bind(input)
-      input.click = (): void => {
-        const next = queue.shift()
-        if (next === undefined) {
-          // No fake files queued — invoke real click to keep behavior consistent.
-          originalClick()
-          return
-        }
-        const fileList = next.map(
-          (content, i) =>
-            new File([content], `file-${i}.json`, { type: 'application/json' }),
-        )
-        // input.files is normally read-only; override it for the test.
-        Object.defineProperty(input, 'files', {
-          configurable: true,
-          get: () => fileList as unknown as FileList,
-        })
-        // Fire async to mimic a real picker.
-        queueMicrotask(() => {
-          input.dispatchEvent(new Event('change'))
-        })
-      }
-    }
-    return el
-  }) as typeof document.createElement)
-
-  return {
-    enqueueFiles: (contents: string[]): void => {
-      queue.push(contents)
-    },
-    restore: (): void => {
-      vi.restoreAllMocks()
-    },
-  }
-}
 
 describe('importFilesFromUser()', () => {
   let harness: ImportHarness
@@ -213,7 +129,7 @@ describe('importFilesFromUser()', () => {
         { name: 'Gamma', save: makeFactorySave({ pxtWorkspace: '<g/>' }) },
       ],
     }
-    harness.enqueueFiles([JSON.stringify(bundle)])
+    await harness.fire(JSON.stringify(bundle))
 
     const entries = await importFilesFromUser()
     expect(entries).toHaveLength(3)
@@ -222,18 +138,15 @@ describe('importFilesFromUser()', () => {
     expect(entries[2]!.save.pxtWorkspace).toBe('<g/>')
   })
 
-  it('parses a single FactorySave file into one entry with name: null', async () => {
+  it('parses a single FactorySave file by REJECTING (raw saves are no longer accepted)', async () => {
     const save = makeFactorySave({ pxtWorkspace: '<single/>' })
-    harness.enqueueFiles([JSON.stringify(save)])
+    await harness.fire(JSON.stringify(save))
 
-    const entries = await importFilesFromUser()
-    expect(entries).toHaveLength(1)
-    expect(entries[0]!.name).toBeNull()
-    expect(entries[0]!.save.pxtWorkspace).toBe('<single/>')
+    await expect(importFilesFromUser()).rejects.toThrow()
   })
 
-  it('parses multiple files (mix of bundle + single) into a flat list', async () => {
-    const bundle = {
+  it('parses multiple bundle files into a flat list (file order, then bundle-internal order)', async () => {
+    const bundle1 = {
       version: 1,
       type: 'bundle',
       projects: [
@@ -241,34 +154,45 @@ describe('importFilesFromUser()', () => {
         { name: 'Y', save: makeFactorySave({ pxtWorkspace: '<y/>' }) },
       ],
     }
-    const single = makeFactorySave({ pxtWorkspace: '<solo/>' })
-    harness.enqueueFiles([JSON.stringify(bundle), JSON.stringify(single)])
+    const bundle2 = {
+      version: 1,
+      type: 'bundle',
+      projects: [
+        { name: 'Solo', save: makeFactorySave({ pxtWorkspace: '<solo/>' }) },
+      ],
+    }
+    await harness.fire([JSON.stringify(bundle1), JSON.stringify(bundle2)])
 
     const entries = await importFilesFromUser()
     expect(entries).toHaveLength(3)
-    // Order: all entries from file 1, then file 2.
     expect(entries[0]!.name).toBe('X')
     expect(entries[1]!.name).toBe('Y')
-    expect(entries[2]!.name).toBeNull()
+    expect(entries[2]!.name).toBe('Solo')
     expect(entries[2]!.save.pxtWorkspace).toBe('<solo/>')
   })
 
   it('rejects when any file has invalid JSON', async () => {
-    harness.enqueueFiles(['{not valid json'])
+    await harness.fire('{not valid json')
     await expect(importFilesFromUser()).rejects.toThrow()
   })
 
   it('rejects when any file has an invalid FactorySave schema', async () => {
-    // Looks like a save (has version field) but version is wrong.
+    // Wrap a bogus save in a valid bundle envelope so the rejection comes
+    // from validateSave (not from the bundle-only contract).
     const bogus = { version: 999, grid: [], belts: [], pxtWorkspace: '' }
-    harness.enqueueFiles([JSON.stringify(bogus)])
+    const bundle = { version: 1, type: 'bundle', projects: [{ name: 'X', save: bogus }] }
+    await harness.fire(JSON.stringify(bundle))
 
     await expect(importFilesFromUser()).rejects.toThrow()
   })
 
   it('rejects when one file in a multi-file pick is invalid', async () => {
-    const good = makeFactorySave()
-    harness.enqueueFiles([JSON.stringify(good), '{broken'])
+    const good = {
+      version: 1,
+      type: 'bundle',
+      projects: [{ name: 'X', save: makeFactorySave() }],
+    }
+    await harness.fire([JSON.stringify(good), '{broken'])
 
     await expect(importFilesFromUser()).rejects.toThrow()
   })
@@ -279,7 +203,7 @@ describe('importFilesFromUser()', () => {
       type: 'bundle',
       projects: [{ save: makeFactorySave({ pxtWorkspace: '<a/>' }) }],
     }
-    harness.enqueueFiles([JSON.stringify(bundle)])
+    await harness.fire(JSON.stringify(bundle))
 
     await expect(importFilesFromUser()).rejects.toThrow(/name/)
   })
