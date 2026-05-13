@@ -16,6 +16,7 @@ import {
   listSlots,
   loadSlot,
   overwriteSlot,
+  renameSlot,
   saveNewSlot,
   saveNewSlotAtEnd,
   setLastLoadedId,
@@ -195,6 +196,16 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
       deleteSlot(slotId)
       refreshSlots()
     })()
+  }
+
+  projectsPanel.onNameChange = (slotId, newName) => {
+    if (newName.trim().length === 0) return
+    // WHY: no refreshSlots() — same reasoning as onReorder; setSlots() → renderList() would destroy the focused <input> mid-keystroke and drop focus after the second character.
+    // Push the committed name into the panel's cached slot + row DOM so
+    // the blur-restore handler reads the LIVE name, not the stale value
+    // captured at row construction.
+    renameSlot(slotId, newName)
+    projectsPanel.updateSlotName(slotId, newName)
   }
 
   projectsPanel.onImport = () => {

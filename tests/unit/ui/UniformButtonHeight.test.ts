@@ -8,14 +8,26 @@ const css = readFileSync(
 );
 
 function findRuleBody(selector: string): string | null {
-  // Escape regex meta characters in the selector.
-  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Match the selector when it is NOT followed by another identifier character,
-  // pseudo-class colon, dot, or hyphen — i.e. the exact base rule, not a
-  // descendant/modifier/pseudo selector that begins with the same prefix.
-  const re = new RegExp(`${escaped}(?![\\w:.\\-])\\s*\\{([^}]*)\\}`);
-  const m = css.match(re);
-  return m ? m[1] : null;
+  // Walk the stylesheet rule-by-rule and return the body of the first rule
+  // whose selector list contains an entry equal to `selector` — i.e. the
+  // exact base rule, not a descendant/modifier/pseudo selector that begins
+  // with the same prefix (e.g. `.foo > .target` must NOT match `.target`,
+  // and `.target--variant` must NOT match `.target`).
+  const ruleRe = /([^{}]*)\{([^}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = ruleRe.exec(css)) !== null) {
+    const selectorList = m[1];
+    const body = m[2];
+    // Strip CSS comments inside the selector list, then split on top-level
+    // commas. (Selectors used in this file's tests don't contain commas in
+    // functional-pseudo arguments, so a plain split is sufficient here.)
+    const cleaned = selectorList.replace(/\/\*[\s\S]*?\*\//g, '');
+    const entries = cleaned.split(',').map((s) => s.trim());
+    if (entries.includes(selector)) {
+      return body;
+    }
+  }
+  return null;
 }
 
 const HEIGHT_TOKEN_RE = /(?<![\w-])height\s*:\s*var\(\s*--rf-btn-h\s*\)\s*;?/;

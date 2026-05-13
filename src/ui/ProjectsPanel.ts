@@ -1,5 +1,6 @@
 import { i18next } from '../i18n/i18n'
 import type { ProjectSlot } from '../utils/SandboxProjects'
+import { createInlineNameInput } from './inlineNameInput'
 import { ProjectsPanelReorderController } from './ProjectsPanelReorderController'
 
 /**
@@ -31,6 +32,7 @@ export class ProjectsPanel {
   onSaveSlot: (slotId: string | null) => void = () => {}
   onLoadSlot: (slotId: string) => void = () => {}
   onDeleteSlot: (slotId: string) => void = () => {}
+  onNameChange: (slotId: string, newName: string) => void = () => {}
   onCreateNew: () => void = () => {}
   onImport: () => void = () => {}
   onExport: (slotIds: string[]) => void = () => {}
@@ -181,6 +183,31 @@ export class ProjectsPanel {
     this.renderList()
   }
 
+  /**
+   * Sync the panel's cached slot name and the row's DOM in place after
+   * an inline rename. Called by the wire layer per keystroke so the
+   * blur-restore handler (which reads `displayNameFor(slot)` from the
+   * captured slot reference) snaps to the LATEST committed name rather
+   * than the stale value captured when the row was first rendered.
+   * Does NOT re-render — the focused <input> node is preserved.
+   */
+  updateSlotName(slotId: string, newName: string): void {
+    const slot = this.slots.find((s) => s.id === slotId)
+    if (!slot) return
+    slot.name = newName
+    const row = this.list.querySelector<HTMLElement>(`[data-slot-id="${slotId}"]`)
+    if (!row) return
+    const input = row.querySelector<HTMLInputElement>('input.ui-projects-slot-name-input')
+    if (input) {
+      input.value = newName
+      input.setAttribute('value', newName)
+    }
+    const sr = row.querySelector<HTMLElement>('.ui-projects-slot-name-sr')
+    if (sr) {
+      sr.textContent = newName
+    }
+  }
+
   getSelectedSlotId(): string | null {
     if (this.selectedSlotIds.size === 1) {
       return this.selectedSlotIds.values().next().value ?? null
@@ -217,10 +244,40 @@ export class ProjectsPanel {
     grip.addEventListener('click', (ev) => ev.stopPropagation())
     row.appendChild(grip)
 
-    const name = document.createElement('span')
-    name.className = 'ui-projects-slot-name'
-    name.textContent = this.displayNameFor(slot)
-    row.appendChild(name)
+    const displayName = this.displayNameFor(slot)
+    const nameInput = createInlineNameInput({
+      className: 'ui-projects-slot-name-input',
+      initialValue: displayName,
+      onChange: (v) => this.onNameChange(slot.id, v),
+      stopRowGestures: true,
+    })
+    // Visually-hidden mirror of the input value: keeps the slot name in
+    // the row's textContent (used by tests and any tooling that walks
+    // text). The input is the AT name source, so this span is hidden
+    // from screen readers via aria-hidden. The class is intentionally
+    // distinct from `.ui-projects-slot-name` (placeholder row only) so
+    // CSS rules and tests targeting that class don't sweep it up.
+    // Updated on each non-empty keystroke (below) and on blur-restore;
+    // empty/whitespace edits leave the last non-empty value in place so
+    // assistive tech never hears the row name flash blank mid-edit.
+    const srName = document.createElement('span')
+    srName.className = 'ui-projects-slot-name-sr'
+    srName.setAttribute('aria-hidden', 'true')
+    srName.textContent = displayName
+    nameInput.addEventListener('input', () => {
+      if (nameInput.value.trim().length > 0) {
+        srName.textContent = nameInput.value
+      }
+    })
+    nameInput.addEventListener('blur', () => {
+      if (nameInput.value.trim().length === 0) {
+        const restored = this.displayNameFor(slot)
+        nameInput.value = restored
+        srName.textContent = restored
+      }
+    })
+    row.appendChild(nameInput)
+    row.appendChild(srName)
 
     const save = this.makeInlineButton('ui-projects-slot-save', 'projects.save', () =>
       this.onSaveSlot(slot.id),

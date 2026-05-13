@@ -1,6 +1,8 @@
 import type { Page, Locator } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+import { pressEnterAndSnapshot } from '../_helpers/inputEnterSnapshot'
+
 /**
  * The Projects panel — a sandbox-only overlay that lists saved factory
  * "projects" (slots), with Save / Import / Export controls. Opened from
@@ -120,14 +122,17 @@ export class ProjectsPanelPage {
   async clickSlot(name: string): Promise<void> {
     const row = this.slotByName(name)
     await expect(row).toBeVisible()
-    await row.click()
+    // Click in the row's top-left padding corner so the click hits the
+    // row itself, not the inline name `<input>` (which spans the row's
+    // center and stops click propagation per the inline-rename contract).
+    await row.click({ position: { x: 2, y: 2 } })
   }
 
   /** Ctrl/Cmd+click a slot row to toggle multi-selection. */
   async ctrlClickSlot(name: string): Promise<void> {
     const row = this.slotByName(name)
     await expect(row).toBeVisible()
-    await row.click({ modifiers: ['ControlOrMeta'] })
+    await row.click({ modifiers: ['ControlOrMeta'], position: { x: 2, y: 2 } })
   }
 
   /** Assert each row in `names` has the `is-selected` class. */
@@ -238,9 +243,18 @@ export class ProjectsPanelPage {
   /**
    * Return the display names of saved-project rows in DOM order
    * (top → bottom), excluding the "+ New project" placeholder row.
+   * Reads each row's name from its `<input>.value` (live property)
+   * because saved rows render the name as an editable input — there
+   * is no plain `<span class="ui-projects-slot-name">` to read text from.
    */
   async getProjectOrder(): Promise<string[]> {
-    return this.slots.locator('.ui-projects-slot-name').allInnerTexts()
+    const inputs = this.slots.locator('.ui-projects-slot-name-input')
+    const count = await inputs.count()
+    const values: string[] = []
+    for (let i = 0; i < count; i++) {
+      values.push(await inputs.nth(i).inputValue())
+    }
+    return values
   }
 
   /**
@@ -436,7 +450,9 @@ export class ProjectsPanelPage {
   /**
    * Read the display name of the slot row that currently owns
    * `document.activeElement`. Returns `null` when focus is on `<body>`,
-   * the panel container, or any non-slot element.
+   * the panel container, or any non-slot element. Reads the live
+   * `.value` property of the row's name input (saved rows render the
+   * name as an editable input, not as plain text).
    */
   async getFocusedSlotName(): Promise<string | null> {
     return this.page.evaluate(() => {
@@ -446,8 +462,10 @@ export class ProjectsPanelPage {
         '.ui-projects-slot:not(.ui-projects-slot--empty)',
       )
       if (!row) return null
-      const nameEl = row.querySelector('.ui-projects-slot-name')
-      return nameEl?.textContent?.trim() ?? null
+      const nameEl = row.querySelector<HTMLInputElement>(
+        '.ui-projects-slot-name-input',
+      )
+      return nameEl?.value.trim() ?? null
     })
   }
 
@@ -545,5 +563,268 @@ export class ProjectsPanelPage {
       chunks.push(chunk as Buffer)
     }
     return { filename, json: JSON.parse(Buffer.concat(chunks).toString('utf8')) }
+  }
+
+  // ---- inline rename ---------------------------------------------------
+
+  /**
+   * Locator for the editable name `<input>` of a slot whose currently
+   * persisted name equals `name`. Matches the input's `value`
+   * **attribute**, which is set on render from the persisted slot name.
+   *
+   * Note: after in-place editing via `.fill()`, the `value` attribute
+   * does NOT update (only the `.value` property does), so call this
+   * helper with the name as it stands at lookup time, OR after a panel
+   * re-render (close + reopen, save, delete, …) that re-creates the
+   * input from storage.
+   */
+  slotNameInput(name: string): Locator {
+    const safe = name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    return this.page.locator(
+      '.ui-projects-slot:not(.ui-projects-slot--empty) ' +
+        `input.ui-projects-slot-name-input[value="${safe}"]`,
+    )
+  }
+
+  /**
+   * Inline-rename a slot by typing into its name input. Uses
+   * Playwright's `.fill()` which select-all + types as user input,
+   * firing `input` events on every keystroke for live persistence —
+   * there is no separate Save / Confirm / Enter step.
+   */
+  async renameSlot(currentName: string, newName: string): Promise<void> {
+    const input = this.slotNameInput(currentName)
+    await expect(input).toBeVisible()
+    await input.fill(newName)
+  }
+
+  /**
+   * Append `text` to the slot's name input one character at a time,
+   * simulating real keyboard input. Each keystroke fires a separate
+   * `input` event, which surfaces focus regressions (e.g. the wire
+   * layer rebuilding the slot DOM after every keystroke and dropping
+   * the input's focus). Asserts the input remains the document's
+   * focused element after every keystroke.
+   *
+   * Re-locates the input via the row's stable `data-slot-id` rather
+   * than the value attribute, because the wire layer mirrors live
+   * renames into `[value]` per keystroke — so a `slotNameInput()`
+   * locator captured by initial name would stop matching after the
+   * first character commits.
+   */
+  async typeIntoSlotNameInput(currentName: string, text: string): Promise<void> {
+    const initial = this.slotNameInput(currentName)
+    await expect(initial).toBeVisible()
+    const slotId = await initial.evaluate(
+      (el) => el.closest<HTMLElement>('[data-slot-id]')?.dataset.slotId ?? '',
+    )
+    expect(slotId).not.toBe('')
+    const stable = this.page.locator(
+      `.ui-projects-slot[data-slot-id="${slotId}"] input.ui-projects-slot-name-input`,
+    )
+    await stable.focus()
+    await expect(stable).toBeFocused()
+    await stable.press('End')
+    for (const char of text) {
+      await this.page.keyboard.press(char, { delay: 30 })
+      await expect(stable).toBeFocused()
+    }
+  }
+
+  /**
+   * Clear a slot's name input by filling it with the empty string.
+   * Fires a single `input` event with `value === ''`. The wire layer
+   * ignores empty/whitespace renames (no persist), so the slot's
+   * persisted name stays unchanged — used to verify the blur-restore
+   * behavior that re-populates the input from the persisted name.
+   */
+  async clearSlotNameInput(currentName: string): Promise<void> {
+    const input = this.slotNameInput(currentName)
+    await expect(input).toBeVisible()
+    await input.click()
+    await expect(input).toBeFocused()
+    await input.fill('')
+  }
+
+  /**
+   * Blur the slot's name input by pressing Tab from inside it. Tab
+   * moves focus to the next focusable element in the row (the inline
+   * Save button), firing a `blur` event on the input — which is what
+   * the production code uses to detect "user finished editing while
+   * the field is empty" and restore the persisted name.
+   */
+  async blurSlotNameInput(currentName: string): Promise<void> {
+    const input = this.slotNameInput(currentName)
+    await expect(input).toBeVisible()
+    await input.press('Tab')
+    await expect(input).not.toBeFocused()
+  }
+
+  /**
+   * Resolve the FIRST saved-slot row's name input, then delegate to
+   * {@link pressEnterAndSnapshot}.
+   */
+  async pressEnterInFirstSlotNameInput(): Promise<{
+    wasFocused: boolean
+    isStillFocused: boolean
+    valueAfter: string
+  }> {
+    const input = this.page
+      .locator(
+        '.ui-projects-slot:not(.ui-projects-slot--empty) input.ui-projects-slot-name-input',
+      )
+      .first()
+    return pressEnterAndSnapshot(input)
+  }
+
+  /**
+   * Assert that some slot row's name input currently shows `name` as
+   * its `.value` (property, not the static `[value]` attribute). Polls
+   * the live `.value` because the row may be re-rendered asynchronously
+   * after a save / load / rename refresh.
+   */
+  async expectSlotName(name: string): Promise<void> {
+    await expect
+      .poll(
+        async () => {
+          const inputs = this.page.locator(
+            '.ui-projects-slot:not(.ui-projects-slot--empty) input.ui-projects-slot-name-input',
+          )
+          const count = await inputs.count()
+          const values: string[] = []
+          for (let i = 0; i < count; i++) {
+            values.push(await inputs.nth(i).inputValue())
+          }
+          return values
+        },
+        { message: `expected a project slot input to have current value "${name}"` },
+      )
+      .toContain(name)
+  }
+
+  /**
+   * Measure the first saved-slot row's name `<input>` and its enclosing
+   * row. Returns the input's bounding-box width, the row's bounding-box
+   * width, the natural rendered width of the input's current `.value`
+   * (measured via `CanvasRenderingContext2D.measureText` using the
+   * input's computed `font` shorthand), and the input's horizontal
+   * padding/border totals from `getComputedStyle`. Used by width-contract
+   * tests to assert the input sizes to its text content rather than
+   * stretching to fill the row.
+   */
+  async measureFirstSlotNameInput(): Promise<{
+    inputW: number
+    rowW: number
+    textW: number
+    padX: number
+    borderX: number
+    value: string
+    textAlign: string
+    minWidthPx: number
+  }> {
+    return this.page.evaluate(() => {
+      const input = document.querySelector<HTMLInputElement>(
+        '.ui-projects-slot:not(.ui-projects-slot--empty) input.ui-projects-slot-name-input',
+      )
+      if (!input) {
+        throw new Error('measureFirstSlotNameInput: no slot name input found')
+      }
+      const row = input.closest<HTMLElement>(
+        '.ui-projects-slot:not(.ui-projects-slot--empty)',
+      )
+      if (!row) {
+        throw new Error('measureFirstSlotNameInput: no enclosing slot row found')
+      }
+      const cs = window.getComputedStyle(input)
+      const padX =
+        parseFloat(cs.paddingLeft || '0') + parseFloat(cs.paddingRight || '0')
+      const borderX =
+        parseFloat(cs.borderLeftWidth || '0') +
+        parseFloat(cs.borderRightWidth || '0')
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        throw new Error('measureFirstSlotNameInput: 2d canvas context unavailable')
+      }
+      // Prefer the computed `font` shorthand; fall back to manually
+      // assembled "size family" if the browser returns an empty
+      // shorthand (some UAs do this when font is set via inherit).
+      const fontShorthand = cs.font && cs.font.trim().length > 0
+        ? cs.font
+        : `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
+      ctx.font = fontShorthand
+      const textW = ctx.measureText(input.value).width
+      // `min-width` resolves to a px value in computed style for
+      // length-based declarations; keyword values like `auto` parse to
+      // NaN — coerce those to 0 so callers can compare against a px
+      // threshold without special-casing.
+      const minWidthRaw = parseFloat(cs.minWidth || '0')
+      const minWidthPx = Number.isFinite(minWidthRaw) ? minWidthRaw : 0
+      return {
+        inputW: input.getBoundingClientRect().width,
+        rowW: row.getBoundingClientRect().width,
+        textW,
+        padX,
+        borderX,
+        value: input.value,
+        textAlign: cs.textAlign,
+        minWidthPx,
+      }
+    })
+  }
+
+  /**
+   * Measure every saved (non-placeholder) slot row's name `<input>`
+   * left edge relative to its row, plus the row's drag-handle (grip)
+   * right edge. Returns one entry per saved row in DOM order. Used by
+   * cross-row alignment tests to assert that all inline name inputs
+   * share the same left edge, regardless of project-name length.
+   *
+   * Skips the "+ New project" placeholder row via the same
+   * `.ui-projects-slot:not(.ui-projects-slot--empty)` selector the
+   * other helpers use.
+   */
+  async measureAllSlotNameInputLefts(): Promise<
+    Array<{
+      value: string
+      inputLeftPx: number
+      rowLeftPx: number
+      relativeLeftInRowPx: number
+      gripRightPx: number
+    }>
+  > {
+    return this.page.evaluate(() => {
+      const rows = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.ui-projects-slot:not(.ui-projects-slot--empty)',
+        ),
+      )
+      return rows.map((row) => {
+        const input = row.querySelector<HTMLInputElement>(
+          'input.ui-projects-slot-name-input',
+        )
+        if (!input) {
+          throw new Error(
+            'measureAllSlotNameInputLefts: row has no name input',
+          )
+        }
+        const grip = row.querySelector<HTMLElement>('.ui-projects-slot-grip')
+        if (!grip) {
+          throw new Error(
+            'measureAllSlotNameInputLefts: row has no drag-handle (grip)',
+          )
+        }
+        const rowRect = row.getBoundingClientRect()
+        const inputRect = input.getBoundingClientRect()
+        const gripRect = grip.getBoundingClientRect()
+        return {
+          value: input.value,
+          inputLeftPx: inputRect.left,
+          rowLeftPx: rowRect.left,
+          relativeLeftInRowPx: inputRect.left - rowRect.left,
+          gripRightPx: gripRect.right - rowRect.left,
+        }
+      })
+    })
   }
 }

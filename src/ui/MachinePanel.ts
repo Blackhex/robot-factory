@@ -1,6 +1,7 @@
 import { i18next } from '../i18n/i18n'
 import { PLACEABLE_MACHINE_TYPES, type MachineType, type ItemType } from '../game/types'
 import type { MachineInfo } from '../game/Factory'
+import { createInlineNameInput } from './inlineNameInput'
 
 export interface MachineRuntimeInfo {
   state: 'idle' | 'processing' | 'blocked'
@@ -48,13 +49,13 @@ export class MachinePanel {
     const header = document.createElement('div')
     header.className = 'ui-machine-panel-header'
 
-    this.nameInput = document.createElement('input')
-    this.nameInput.type = 'text'
-    this.nameInput.className = 'ui-machine-panel-name-input'
-    this.nameInput.addEventListener('input', () => {
-      if (this.currentMachine) {
-        this.onNameChange(this.currentMachine, this.nameInput.value)
-      }
+    this.nameInput = createInlineNameInput({
+      className: 'ui-machine-panel-name-input',
+      onChange: (v) => {
+        if (this.currentMachine) {
+          this.onNameChange(this.currentMachine, v)
+        }
+      },
     })
     header.appendChild(this.nameInput)
 

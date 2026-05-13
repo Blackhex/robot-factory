@@ -1102,3 +1102,497 @@ test.describe('Sandbox — Projects panel: unified export/import format', () => 
   })
 })
 
+// REQUIREMENT: the project name in each row of the Projects panel is a
+// focusable, editable `<input>` (mirroring the live-input pattern used
+// by the Machine and Belt name inputs). Typing persists on every
+// keystroke — no Save / Confirm / Enter step. Clicking the input does
+// NOT load the project; loading is dblclick on the row body.
+test.describe('Sandbox — Projects panel: inline rename', () => {
+  clearStorageBeforeEach()
+
+  test('Project name is an editable input that persists every keystroke', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Original')
+    await projectsPanel.expectSlotPresent('Original')
+
+    // The slot's name MUST be an editable input — not plain text. Typing
+    // fires `input` events that persist on every keystroke; no separate
+    // Save / Confirm / Enter step is required.
+    await projectsPanel.renameSlot('Original', 'Renamed')
+
+    // Close + reopen the panel — the persisted name reflects the typed
+    // value, so the re-rendered row shows "Renamed".
+    await toolbar.clickProjects()
+    await projectsPanel.expectClosed()
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.expectSlotName('Renamed')
+  })
+
+  test('Renaming and exporting uses the new name as the filename', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Original')
+    await projectsPanel.expectSlotPresent('Original')
+
+    await projectsPanel.renameSlot('Original', 'Renamed')
+
+    // The save handler set last-loaded to the new slot's id; the
+    // 0-selected export branch uses that slot's CURRENT (renamed) name
+    // straight from storage — no prompt, no separate selection step.
+    const { filename, json } = await projectsPanel.exportAndCaptureDownload()
+
+    expect(filename).toBe('Renamed.json')
+    const parsed = json as { projects: { name: string }[] }
+    expect(parsed.projects).toHaveLength(1)
+    expect(parsed.projects[0]!.name).toBe('Renamed')
+  })
+
+  test('Clicking the name input does not load the project', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, grid, probe,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+
+    // Save the (currently empty) factory as "Project".
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Project')
+    await projectsPanel.expectSlotPresent('Project')
+
+    // Mutate the live factory AFTER saving so a stray load would be
+    // observable as a machine-count change (the saved snapshot has 0
+    // machines).
+    await toolbar.clickProjects()
+    await projectsPanel.expectClosed()
+    await grid.dblClickCell({ x: 10, z: 10 })
+    const beforeClick = await probe.getMachineCount()
+    expect(beforeClick).toBeGreaterThan(0)
+
+    // Re-open and click the slot's NAME INPUT — must not trigger a load
+    // (load is dblclick on the row body) and must not transition scenes.
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    const input = projectsPanel.slotNameInput('Project')
+    await expect(input).toBeVisible()
+    await input.click()
+
+    // Live factory state is untouched — no load happened.
+    expect(await probe.getMachineCount()).toBe(beforeClick)
+    // No scene transition — toolbar still visible (still in sandbox/build).
+    await toolbar.expectVisible()
+    // Panel is still open after a click on the name input.
+    await projectsPanel.expectOpen()
+  })
+
+  // CONTRACT: pressing Enter inside the inline rename input commits
+  // the rename by BLURRING the input. Enter is a familiar "I'm done"
+  // gesture; the per-keystroke save already persisted everything the
+  // user typed, so Enter must not mutate the value — only release
+  // focus. Without an explicit `keydown` handler in the inline name
+  // input factory, a plain `<input type="text">` swallows Enter (no
+  // implicit form submit / blur), so this test fails on current source.
+  test('Pressing Enter in the project name input blurs it without changing the value', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Original')
+    await projectsPanel.expectSlotPresent('Original')
+
+    // Type "AB" character-by-character so each keystroke commits via
+    // the wire layer; the final live + persisted name becomes
+    // "OriginalAB".
+    await projectsPanel.typeIntoSlotNameInput('Original', 'AB')
+
+    // Press Enter on the now-focused input.
+    const result = await projectsPanel.pressEnterInFirstSlotNameInput()
+
+    // Enter does NOT mutate the value — it is a commit gesture.
+    expect(result.valueAfter).toBe('OriginalAB')
+    // Sanity: focus was on the input immediately before Enter.
+    expect(result.wasFocused).toBe(true)
+    // CONTRACT: after Enter the input is no longer focused.
+    expect(result.isStillFocused).toBe(false)
+
+    // Persistence regression guard: the per-keystroke save was not
+    // disturbed by the Enter press — close + reopen the panel and the
+    // re-rendered row still shows "OriginalAB".
+    await toolbar.clickProjects()
+    await projectsPanel.expectClosed()
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    await projectsPanel.expectSlotName('OriginalAB')
+  })
+
+  // REGRESSION GUARD: previously the wire layer rebuilt the slot list
+  // (`refreshSlots()`) on every per-keystroke `input` event, which
+  // disposed the live `<input>` element and dropped focus after the
+  // first character. Playwright's `.fill()` masked it (one bulk event);
+  // real per-key typing surfaces it.
+  test('Multi-keystroke typing keeps the input focused throughout', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Original')
+    await projectsPanel.expectSlotPresent('Original')
+
+    // Type three characters one at a time; helper asserts the input
+    // remains focused after every keystroke.
+    await projectsPanel.typeIntoSlotNameInput('Original', 'XYZ')
+
+    // After the sequence the live value reflects all three characters.
+    // The wire layer mirrors the live name into the [value] attribute
+    // per keystroke, so the input is now addressable by 'OriginalXYZ'.
+    const input = projectsPanel.slotNameInput('OriginalXYZ')
+    await expect(input).toBeFocused()
+    await expect(input).toHaveValue('OriginalXYZ')
+
+    // Close + reopen — re-rendered row reads the persisted name.
+    await toolbar.clickProjects()
+    await projectsPanel.expectClosed()
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.expectSlotName('OriginalXYZ')
+  })
+
+  // REGRESSION GUARD: clearing the inline name input and blurring it
+  // (Tab key) must NOT leave the row showing an empty name. The wire
+  // layer drops empty/whitespace renames so the persisted name is
+  // unchanged; the panel's blur handler restores the input's `.value`
+  // back to that persisted name so the row never visually drops to
+  // blank, and the SR mirror span follows along.
+  test('Clearing the input and blurring restores the persisted name', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('PersistMe')
+    await projectsPanel.expectSlotPresent('PersistMe')
+
+    // Clear the input and blur via Tab. The wire ignores the empty
+    // rename, so the slot's persisted name stays "PersistMe"; on blur
+    // the panel restores the input's value to that persisted name.
+    await projectsPanel.clearSlotNameInput('PersistMe')
+    await projectsPanel.blurSlotNameInput('PersistMe')
+
+    // Live `.value` of the (still-mounted) input is back to "PersistMe".
+    const input = projectsPanel.slotNameInput('PersistMe')
+    await expect(input).toHaveValue('PersistMe')
+
+    // Close + reopen the panel — the persisted name in storage is
+    // unchanged, so the re-rendered row also shows "PersistMe".
+    await toolbar.clickProjects()
+    await projectsPanel.expectClosed()
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.expectSlotName('PersistMe')
+  })
+
+  // REGRESSION GUARD: after a live (per-keystroke) inline rename, the
+  // wire layer must mirror the LATEST committed name into both the
+  // panel's cached slot and the row DOM (input.value, [value]
+  // attribute, SR span). Otherwise, re-editing the same row, clearing,
+  // and blurring would restore to the STALE original name (the value
+  // captured at first render) instead of the latest committed name.
+  test(
+    'Re-editing after a committed live rename, then clearing and blurring, restores to the LATEST committed name (not the original)',
+    async ({ mainMenu, toolbar, tutorial, projectsPanel }) => {
+      await mainMenu.enterSandbox(toolbar, tutorial)
+      await toolbar.clickProjects()
+      await projectsPanel.expectOpen()
+
+      await projectsPanel.clickEmptyPlaceholderSave()
+      await projectsPanel.fillPromptAndConfirm('Original')
+      await projectsPanel.expectSlotPresent('Original')
+
+      // First edit pass: clear "Original" and type "Edited"
+      // character-by-character. Each keystroke commits via the wire
+      // layer so the row's live committed name becomes "Edited".
+      // Note: clearing fires an empty-rename event which the wire
+      // ignores, so the [value] attribute stays at "Original" until
+      // the first non-empty keystroke commits — that's why the
+      // `typeIntoSlotNameInput` first lookup is by "Original".
+      await projectsPanel.clearSlotNameInput('Original')
+      await projectsPanel.typeIntoSlotNameInput('Original', 'Edited')
+
+      // Tab out — blur fires, the wire layer has already mirrored
+      // "Edited" into the panel's cached slot and the DOM, so the
+      // blur-restore reads the LIVE name (which equals the input's
+      // current property value, so no visible change).
+      await projectsPanel.blurSlotNameInput('Edited')
+
+      // Second edit pass: re-click the same row's name input, clear
+      // it, then blur. The wire ignores the empty rename, so the
+      // persisted name stays "Edited"; the panel's blur-restore reads
+      // the cached slot name — which MUST be "Edited" (the latest
+      // committed name), NOT "Original" (the stale captured value).
+      await projectsPanel.clearSlotNameInput('Edited')
+      await projectsPanel.blurSlotNameInput('Edited')
+
+      // Live `.value` of the still-mounted input is restored to the
+      // LATEST committed name, not the original.
+      const input = projectsPanel.slotNameInput('Edited')
+      await expect(input).toHaveValue('Edited')
+      // The [value] attribute mirror is also pinned to the latest
+      // committed name (this is the second half of the wire fix).
+      await expect(input).toHaveAttribute('value', 'Edited')
+    },
+  )
+})
+
+// The inline rename input must size to its text content so the
+// editable / focusable area does not visually claim empty space to
+// the right of a short project name. Rule: input width ≈ text
+// content width (within padding/border tolerance), and always
+// significantly less than the row width for short names.
+test.describe('Sandbox — Projects panel: inline name input width', () => {
+  clearStorageBeforeEach()
+
+  test('inline name input width matches the rendered text width (not the full row width)', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    // Use a long-enough project name so the rendered text width is
+    // guaranteed to exceed the input's `min-width` floor (≥ 100 px),
+    // which lets us assert the content-sizing equality directly.
+    // Short names hit the min-width floor — that case is covered by
+    // the dedicated min-width test below.
+    const longName = 'My very long assembly project'
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm(longName)
+    await projectsPanel.expectSlotPresent(longName)
+
+    const m = await projectsPanel.measureFirstSlotNameInput()
+    const expectedW = m.textW + m.padX + m.borderX
+
+    expect(
+      m.textW,
+      `test precondition: chose name "${m.value}" expecting textW > 100 ` +
+        `to exceed the min-width floor, but textW=${m.textW.toFixed(1)}. ` +
+        `Pick a longer name in the test setup.`,
+    ).toBeGreaterThan(100)
+
+    expect(
+      m.inputW,
+      `inline name input is stretched to fill the row ` +
+        `(inputW=${m.inputW.toFixed(1)}, rowW=${m.rowW.toFixed(1)}, ` +
+        `expected text-content width ≈ ${expectedW.toFixed(1)} ` +
+        `[textW=${m.textW.toFixed(1)} + padX=${m.padX.toFixed(1)} + borderX=${m.borderX.toFixed(1)}]). ` +
+        `Update .ui-projects-slot-name-input CSS so its width tracks ` +
+        `input.value, e.g. via "field-sizing: content" and "flex: 0 1 auto".`,
+    ).toBeLessThanOrEqual(m.rowW * 0.5)
+
+    expect(
+      Math.abs(m.inputW - expectedW),
+      `inline name input width does not match its text content ` +
+        `(inputW=${m.inputW.toFixed(1)}, expected ≈ ${expectedW.toFixed(1)} ` +
+        `[textW=${m.textW.toFixed(1)} + padX=${m.padX.toFixed(1)} + borderX=${m.borderX.toFixed(1)}], ` +
+        `rowW=${m.rowW.toFixed(1)}). ` +
+        `The input must size to its text content, not stretch to fill the row.`,
+    ).toBeLessThanOrEqual(8)
+
+    expect.soft(
+      m.padX,
+      `inline name input has unexpectedly large horizontal padding ` +
+        `(padX=${m.padX.toFixed(1)} px). The visual focus underline / ` +
+        `hover background should not extend past end-of-text. ` +
+        `Use small or zero horizontal padding.`,
+    ).toBeLessThanOrEqual(4)
+  })
+
+  test('inline name input has a minimum width so very short names remain a usable click target', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('AB')
+    await projectsPanel.expectSlotPresent('AB')
+
+    const m = await projectsPanel.measureFirstSlotNameInput()
+
+    expect(
+      m.minWidthPx,
+      `inline name input has no usable min-width floor ` +
+        `(computed min-width=${m.minWidthPx.toFixed(1)} px for value="${m.value}"). ` +
+        `Very short names (e.g. "AB") must remain a clickable / focusable ` +
+        `target — set min-width: 100px (or larger) on .ui-projects-slot-name-input.`,
+    ).toBeGreaterThanOrEqual(100)
+
+    expect(
+      m.inputW,
+      `inline name input is too narrow for short names ` +
+        `(inputW=${m.inputW.toFixed(1)} px for value="${m.value}", ` +
+        `min-width=${m.minWidthPx.toFixed(1)} px). ` +
+        `The rendered width must respect the min-width floor (≥ 100 px) ` +
+        `so short names remain a usable click / focus target.`,
+    ).toBeGreaterThanOrEqual(100)
+  })
+
+  test('inline name input text is left-aligned', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('AB')
+    await projectsPanel.expectSlotPresent('AB')
+
+    const m = await projectsPanel.measureFirstSlotNameInput()
+
+    expect(
+      ['start', 'left'],
+      `inline name input text is not left-aligned ` +
+        `(computed text-align="${m.textAlign}" for value="${m.value}"). ` +
+        `When the input is wider than its text (because of the min-width ` +
+        `floor), the caret / text must begin at the LEFT edge — set ` +
+        `text-align: start (or left) on .ui-projects-slot-name-input.`,
+    ).toContain(m.textAlign)
+  })
+
+  test('inline name input grows when the project name grows and shrinks when it shrinks', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('AB')
+    await projectsPanel.expectSlotPresent('AB')
+
+    const short = await projectsPanel.measureFirstSlotNameInput()
+    expect(
+      short.inputW,
+      `for short name "AB" the input already fills the row ` +
+        `(inputW=${short.inputW.toFixed(1)}, rowW=${short.rowW.toFixed(1)}). ` +
+        `The input must size to its text content, not the row.`,
+    ).toBeLessThanOrEqual(short.rowW * 0.85)
+
+    await projectsPanel.renameSlot('AB', 'My very long assembly project')
+
+    const long = await projectsPanel.measureFirstSlotNameInput()
+    expect(
+      long.inputW,
+      `inline name input did not visibly grow when the name grew ` +
+        `(short inputW=${short.inputW.toFixed(1)} for "${short.value}", ` +
+        `long inputW=${long.inputW.toFixed(1)} for "${long.value}", ` +
+        `rowW=${long.rowW.toFixed(1)}). ` +
+        `Width must track input.value rather than being locked by flex stretch.`,
+    ).toBeGreaterThan(short.inputW + 30)
+    expect(
+      long.inputW,
+      `inline name input grew past 85% of the row width ` +
+        `(inputW=${long.inputW.toFixed(1)}, rowW=${long.rowW.toFixed(1)}). ` +
+        `It must remain bounded so siblings stay visible.`,
+    ).toBeLessThanOrEqual(long.rowW * 0.85)
+
+    await projectsPanel.renameSlot('My very long assembly project', 'AB')
+
+    const back = await projectsPanel.measureFirstSlotNameInput()
+    expect(
+      back.inputW,
+      `inline name input did not shrink back when the name shrank ` +
+        `(long inputW=${long.inputW.toFixed(1)}, ` +
+        `back inputW=${back.inputW.toFixed(1)} for "${back.value}"). ` +
+        `Width must track input.value in both directions.`,
+    ).toBeLessThan(long.inputW - 30)
+    expect(
+      Math.abs(back.inputW - short.inputW),
+      `inline name input did not round-trip back to the short width ` +
+        `(short inputW=${short.inputW.toFixed(1)}, back inputW=${back.inputW.toFixed(1)}). ` +
+        `Width must be a pure function of input.value at the input's font.`,
+    ).toBeLessThanOrEqual(6)
+    expect(
+      back.inputW,
+      `after shrinking back, input occupies more than 85% of the row ` +
+        `(inputW=${back.inputW.toFixed(1)}, rowW=${back.rowW.toFixed(1)}).`,
+    ).toBeLessThanOrEqual(back.rowW * 0.85)
+  })
+
+  test('inline name input has the same left edge across all rows regardless of name length', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    // Save 3 projects with widely varying name widths so each row's
+    // inline input renders at a noticeably different intrinsic width.
+    // The long name's text width must clearly exceed the input's
+    // ~100 px min-width floor so `field-sizing: content` actually
+    // stretches the input — that is what exposes the alignment bug
+    // when `.ui-projects-slot { justify-content: space-between }`
+    // distributes leftover space across all gaps.
+    const names = ['AB', 'Assembly', 'My Long Project Pipeline Name Here']
+    for (const n of names) {
+      await projectsPanel.clickEmptyPlaceholderSave()
+      await projectsPanel.fillPromptAndConfirm(n)
+      await projectsPanel.expectSlotPresent(n)
+    }
+
+    const measurements = await projectsPanel.measureAllSlotNameInputLefts()
+
+    expect(
+      measurements.length,
+      `expected at least 3 saved-slot rows for the alignment check, ` +
+        `got ${measurements.length}.`,
+    ).toBeGreaterThanOrEqual(3)
+
+    const lefts = measurements.map((m) => m.relativeLeftInRowPx)
+    const minLeft = Math.min(...lefts)
+    const maxLeft = Math.max(...lefts)
+    const delta = maxLeft - minLeft
+
+    const detail = measurements
+      .map(
+        (m) =>
+          `"${m.value}" left=${m.relativeLeftInRowPx.toFixed(2)} ` +
+          `(gripRight=${m.gripRightPx.toFixed(2)})`,
+      )
+      .join(', ')
+
+    expect(
+      delta,
+      `inline name input left edges differ across rows — ${detail} — ` +
+        `they should all share the same left edge so the column visually ` +
+        `aligns. Δ=${delta.toFixed(2)} px (min=${minLeft.toFixed(2)}, ` +
+        `max=${maxLeft.toFixed(2)}). The likely cause is ` +
+        `\`.ui-projects-slot { justify-content: space-between }\` ` +
+        `distributing leftover space across all gaps so the input's ` +
+        `absolute x-position depends on its own width.`,
+    ).toBeLessThanOrEqual(0.5)
+  })
+})

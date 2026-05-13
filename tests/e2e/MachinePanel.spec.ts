@@ -146,3 +146,53 @@ test.describe('Machine Panel — single interaction mode', () => {
     await machinePanel.expectTypeValue('part_fabricator')
   })
 })
+
+// CONTRACT: pressing Enter inside the machine panel's inline rename
+// input commits the rename by BLURRING the input. Enter is a familiar
+// "I'm done" gesture; the per-keystroke save (via the input event)
+// already persisted everything the user typed, so Enter must not
+// mutate the value — only release focus. Without an explicit
+// `keydown` handler in the inline name input factory, a plain
+// `<input type="text">` swallows Enter (no implicit form submit /
+// blur), so this test fails on current source.
+test.describe('Machine Panel — inline rename: Enter commits', () => {
+  test.beforeEach(async ({ mainMenu, toolbar, grid }) => {
+    await mainMenu.open()
+    await mainMenu.clickSandbox()
+    await toolbar.expectVisible()
+    await toolbar.waitForCameraSettle()
+    await grid.dblClickCell({ x: 10, z: 10 })
+  })
+
+  test('Pressing Enter in the machine name input blurs it', async ({
+    grid, machinePanel,
+  }) => {
+    await grid.clickCell({ x: 10, z: 10 })
+    await machinePanel.expectVisible()
+
+    // Type a name via the standard panel helper. setName fires an
+    // `input` event so the per-keystroke save persists "AlphaMachine"
+    // to the underlying machine BEFORE the Enter press.
+    await machinePanel.setName('AlphaMachine')
+
+    // Press Enter on the (re-)focused input.
+    const result = await machinePanel.pressEnterInNameInput()
+
+    // Enter does NOT mutate the value — it is a commit gesture.
+    expect(result.valueAfter).toBe('AlphaMachine')
+    // Sanity: focus was on the input immediately before Enter.
+    expect(result.wasFocused).toBe(true)
+    // CONTRACT: after Enter the input is no longer focused.
+    expect(result.isStillFocused).toBe(false)
+
+    // Persistence round-trip: close the panel, click the machine
+    // again, and the panel re-loads the persisted name into the
+    // input. If Enter regressed the per-keystroke save, the
+    // re-loaded value would not be "AlphaMachine".
+    await machinePanel.clickClose()
+    await machinePanel.expectHidden()
+    await grid.clickCell({ x: 10, z: 10 })
+    await machinePanel.expectVisible()
+    await machinePanel.expectNameValue('AlphaMachine')
+  })
+})

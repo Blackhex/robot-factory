@@ -1,6 +1,8 @@
 import type { Page, Locator } from '@playwright/test'
 import { expect } from '@playwright/test'
 
+import { pressEnterAndSnapshot } from '../_helpers/inputEnterSnapshot'
+
 /**
  * The properties panel that appears when a machine is selected.
  */
@@ -85,5 +87,14 @@ export class MachinePanelPage {
   /** Press the global Delete key (deletes the currently selected machine). */
   async pressDelete(): Promise<void> {
     await this.page.keyboard.press('Delete')
+  }
+
+  /** Delegates to {@link pressEnterAndSnapshot} on the machine name input. */
+  async pressEnterInNameInput(): Promise<{
+    wasFocused: boolean
+    isStillFocused: boolean
+    valueAfter: string
+  }> {
+    return pressEnterAndSnapshot(this.nameInput)
   }
 }

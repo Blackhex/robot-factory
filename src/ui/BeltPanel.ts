@@ -1,5 +1,6 @@
 import { i18next } from '../i18n/i18n'
 import type { BeltInfo } from '../game/types'
+import { createInlineNameInput } from './inlineNameInput'
 
 /**
  * Floating panel that shows properties of a selected belt chain.
@@ -26,13 +27,13 @@ export class BeltPanel {
     const header = document.createElement('div')
     header.className = 'ui-belt-panel-header'
 
-    this.nameInput = document.createElement('input')
-    this.nameInput.type = 'text'
-    this.nameInput.className = 'ui-belt-panel-name-input'
-    this.nameInput.addEventListener('input', () => {
-      if (this.currentChain) {
-        this.onNameChange(this.currentChain, this.nameInput.value)
-      }
+    this.nameInput = createInlineNameInput({
+      className: 'ui-belt-panel-name-input',
+      onChange: (v) => {
+        if (this.currentChain) {
+          this.onNameChange(this.currentChain, v)
+        }
+      },
     })
     header.appendChild(this.nameInput)
 

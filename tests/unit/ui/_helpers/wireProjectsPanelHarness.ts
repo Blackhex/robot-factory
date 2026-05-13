@@ -12,6 +12,14 @@ export interface PanelStub {
   onImport?: () => void
   onExport?: (slotIds: string[]) => void
   setSlots: ReturnType<typeof vi.fn>
+  /**
+   * Production `ProjectsPanel.updateSlotName(slotId, newName)`: keeps
+   * the panel's cached `slots[]` and the live row in sync with storage
+   * after a per-keystroke rename, WITHOUT re-rendering. The wire layer
+   * must call it from `onNameChange` immediately after `renameSlot`
+   * succeeds so the blur-restore reads the latest name.
+   */
+  updateSlotName: ReturnType<typeof vi.fn>
   triggerExport(slotIds: string[]): void
   triggerImport(): void
   triggerCreateNew(): void
@@ -22,6 +30,7 @@ export type ProjectsPanelStub = ProjectsPanel & PanelStub
 export function makeProjectsPanelStub(): ProjectsPanelStub {
   const panel: PanelStub = {
     setSlots: vi.fn(),
+    updateSlotName: vi.fn(),
     triggerExport(slotIds: string[]): void {
       this.onExport?.(slotIds)
     },

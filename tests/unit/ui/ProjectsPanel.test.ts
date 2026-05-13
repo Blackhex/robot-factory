@@ -491,6 +491,461 @@ describe('ProjectsPanel — Multi-selection (Ctrl/Cmd+click)', () => {
   })
 })
 
+describe('ProjectsPanel — inline rename', () => {
+  let parent: HTMLDivElement
+  let panel: ProjectsPanel
+
+  type PanelWithRename = ProjectsPanel & {
+    onNameChange: (slotId: string, newName: string) => void
+  }
+
+  beforeEach(async () => {
+    await switchLanguage('en')
+    document.body.innerHTML = ''
+    document.body.className = ''
+    parent = document.createElement('div')
+    document.body.appendChild(parent)
+    panel = new ProjectsPanel(parent)
+  })
+
+  afterEach(() => {
+    panel.dispose()
+    document.body.innerHTML = ''
+  })
+
+  function realRows(): HTMLElement[] {
+    return Array.from(
+      parent.querySelectorAll<HTMLElement>(
+        '.ui-projects-slot:not(.ui-projects-slot--empty)',
+      ),
+    )
+  }
+
+  function nameInputOf(row: HTMLElement): HTMLInputElement {
+    const input = row.querySelector<HTMLInputElement>('.ui-projects-slot-name-input')
+    if (!input) throw new Error('row is missing .ui-projects-slot-name-input')
+    return input
+  }
+
+  it('renders a saved-slot name as <input type="text"> with class ui-projects-slot-name-input (no <span class="ui-projects-slot-name">)', () => {
+    panel.setSlots([makeSlot('a', 'Alpha')])
+
+    const row = realRows()[0]!
+    const input = row.querySelector<HTMLInputElement>('.ui-projects-slot-name-input')
+    expect(input).not.toBeNull()
+    expect(input!.tagName).toBe('INPUT')
+    expect(input!.type).toBe('text')
+
+    const span = row.querySelector('.ui-projects-slot-name')
+    expect(span).toBeNull()
+  })
+
+  it('keeps the <span class="ui-projects-slot-name"> placeholder label on the empty row (only saved rows become editable)', () => {
+    panel.setSlots([makeSlot('a', 'Alpha')])
+
+    const empty = parent.querySelector<HTMLElement>('.ui-projects-slot--empty')!
+    const span = empty.querySelector('.ui-projects-slot-name')
+    expect(span).not.toBeNull()
+    expect(span!.tagName).toBe('SPAN')
+
+    const input = empty.querySelector('.ui-projects-slot-name-input')
+    expect(input).toBeNull()
+  })
+
+  it('input.value reflects the slot display name', () => {
+    panel.setSlots([
+      makeSlot('a', 'Alpha'),
+      makeSlot('b', 'My Cool Project'),
+    ])
+
+    const rows = realRows()
+    expect(nameInputOf(rows[0]!).value).toBe('Alpha')
+    expect(nameInputOf(rows[1]!).value).toBe('My Cool Project')
+  })
+
+  it('input.value for an "Autosave" slot is rendered through displayNameFor (translated label, not the literal "Autosave")', () => {
+    panel.setSlots([makeSlot('autosave-id', 'Autosave')])
+
+    const row = realRows()[0]!
+    const input = nameInputOf(row)
+    expect(input.value).toBe(i18next.t('projects.autosave_name'))
+  })
+
+  it('exposes a public mutable onNameChange callback (defaults to a no-op)', () => {
+    expect(typeof (panel as PanelWithRename).onNameChange).toBe('function')
+    // Default no-op must not throw when invoked with arbitrary args.
+    expect(() =>
+      (panel as PanelWithRename).onNameChange('whatever', 'whatever'),
+    ).not.toThrow()
+  })
+
+  it('typing in the input fires an "input" event that calls onNameChange(slotId, currentInputValue) per keystroke', () => {
+    const onNameChange = vi.fn()
+    ;(panel as PanelWithRename).onNameChange = onNameChange
+
+    panel.setSlots([makeSlot('a', 'Alpha')])
+    const input = nameInputOf(realRows()[0]!)
+
+    input.value = 'Alph'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.value = 'Alpha2'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.value = 'Alpha2!'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+
+    expect(onNameChange).toHaveBeenCalledTimes(3)
+    expect(onNameChange).toHaveBeenNthCalledWith(1, 'a', 'Alph')
+    expect(onNameChange).toHaveBeenNthCalledWith(2, 'a', 'Alpha2')
+    expect(onNameChange).toHaveBeenNthCalledWith(3, 'a', 'Alpha2!')
+  })
+
+  it('clicking the name input does NOT toggle row selection (click is stopped at the input)', () => {
+    panel.setSlots([makeSlot('a', 'Alpha'), makeSlot('b', 'Beta')])
+
+    const rowB = realRows()[1]!
+    rowB.click()
+    expect(panel.getSelectedSlotId()).toBe('b')
+
+    const inputA = nameInputOf(realRows()[0]!)
+    inputA.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+    // Selection unchanged — rowA's row click handler must not fire.
+    expect(panel.getSelectedSlotId()).toBe('b')
+    expect(realRows()[0]!.classList.contains('is-selected')).toBe(false)
+  })
+
+  it('clicking elsewhere on a slot row (not the input) still selects the row', () => {
+    panel.setSlots([makeSlot('a', 'Alpha')])
+
+    const row = realRows()[0]!
+    // Click the row itself (not the input child) — selection should toggle on.
+    row.click()
+
+    expect(panel.getSelectedSlotId()).toBe('a')
+    expect(row.classList.contains('is-selected')).toBe(true)
+  })
+
+  it('double-clicking the name input does NOT trigger onLoadSlot (dblclick is stopped at the input)', () => {
+    const onLoadSlot = vi.fn()
+    panel.onLoadSlot = onLoadSlot
+    panel.setSlots([makeSlot('a', 'Alpha')])
+
+    const input = nameInputOf(realRows()[0]!)
+    input.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+
+    expect(onLoadSlot).not.toHaveBeenCalled()
+  })
+
+  it('double-clicking elsewhere on the row still loads the slot', () => {
+    const onLoadSlot = vi.fn()
+    panel.onLoadSlot = onLoadSlot
+    panel.setSlots([makeSlot('a', 'Alpha')])
+
+    const row = realRows()[0]!
+    row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
+
+    expect(onLoadSlot).toHaveBeenCalledWith('a')
+  })
+
+  it('after setSlots() re-renders, the input is present and reflects the latest name', () => {
+    panel.setSlots([makeSlot('a', 'Alpha')])
+    expect(nameInputOf(realRows()[0]!).value).toBe('Alpha')
+
+    panel.setSlots([makeSlot('a', 'Alpha v2')])
+    const input = nameInputOf(realRows()[0]!)
+    expect(input).not.toBeNull()
+    expect(input.value).toBe('Alpha v2')
+  })
+})
+
+describe('ProjectsPanel — inline rename: blur and a11y', () => {
+  let parent: HTMLDivElement
+  let panel: ProjectsPanel
+
+  beforeEach(async () => {
+    await switchLanguage('en')
+    document.body.innerHTML = ''
+    document.body.className = ''
+    parent = document.createElement('div')
+    document.body.appendChild(parent)
+    panel = new ProjectsPanel(parent)
+  })
+
+  afterEach(() => {
+    panel.dispose()
+    document.body.innerHTML = ''
+  })
+
+  function realRows(): HTMLElement[] {
+    return Array.from(
+      parent.querySelectorAll<HTMLElement>(
+        '.ui-projects-slot:not(.ui-projects-slot--empty)',
+      ),
+    )
+  }
+
+  function nameInputOf(row: HTMLElement): HTMLInputElement {
+    const input = row.querySelector<HTMLInputElement>('.ui-projects-slot-name-input')
+    if (!input) throw new Error('row is missing .ui-projects-slot-name-input')
+    return input
+  }
+
+  function srSpanOf(row: HTMLElement): HTMLElement {
+    const span = row.querySelector<HTMLElement>('.ui-projects-slot-name-sr')
+    if (!span) throw new Error('row is missing .ui-projects-slot-name-sr')
+    return span
+  }
+
+  it('blur with empty value restores the input to the persisted slot name', () => {
+    panel.setSlots([makeSlot('a', 'Original')])
+    const row = realRows()[0]!
+    const input = nameInputOf(row)
+
+    // Mid-edit: user clears the field.
+    input.value = ''
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+
+    // Blur — focus moves elsewhere without committing an empty rename.
+    input.dispatchEvent(new Event('blur'))
+
+    expect(input.value).toBe('Original')
+  })
+
+  it('blur with whitespace-only value also restores the input to the persisted slot name', () => {
+    panel.setSlots([makeSlot('a', 'Original')])
+    const row = realRows()[0]!
+    const input = nameInputOf(row)
+
+    input.value = '   '
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new Event('blur'))
+
+    expect(input.value).toBe('Original')
+  })
+
+  it('blur with a non-empty value does NOT change the input value', () => {
+    panel.setSlots([makeSlot('a', 'Original')])
+    const row = realRows()[0]!
+    const input = nameInputOf(row)
+
+    input.value = 'Renamed'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new Event('blur'))
+
+    expect(input.value).toBe('Renamed')
+  })
+
+  it('SR mirror span (.ui-projects-slot-name-sr) updates textContent on each non-empty keystroke', () => {
+    panel.setSlots([makeSlot('a', 'Original')])
+    const row = realRows()[0]!
+    const input = nameInputOf(row)
+    const srSpan = srSpanOf(row)
+
+    expect(srSpan.textContent).toBe('Original')
+
+    input.value = 'OriginalA'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(srSpan.textContent).toBe('OriginalA')
+
+    input.value = 'OriginalAB'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(srSpan.textContent).toBe('OriginalAB')
+  })
+
+  it('SR mirror span does NOT update on empty keystroke — keeps the last non-empty value', () => {
+    panel.setSlots([makeSlot('a', 'Original')])
+    const row = realRows()[0]!
+    const input = nameInputOf(row)
+    const srSpan = srSpanOf(row)
+
+    // Establish a non-empty mid-edit value first.
+    input.value = 'OriginalX'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(srSpan.textContent).toBe('OriginalX')
+
+    // Clear — SR mirror must NOT flash empty to assistive tech.
+    input.value = ''
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    expect(srSpan.textContent).toBe('OriginalX')
+  })
+
+  it('SR mirror span does NOT update on whitespace-only keystroke — keeps the last non-empty value', () => {
+    panel.setSlots([makeSlot('a', 'Original')])
+    const row = realRows()[0]!
+    const input = nameInputOf(row)
+    const srSpan = srSpanOf(row)
+
+    input.value = '   '
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+
+    expect(srSpan.textContent).toBe('Original')
+  })
+
+  it('blur restore re-syncs the SR span to the persisted slot name (consistent with the visible input)', () => {
+    panel.setSlots([makeSlot('a', 'Original')])
+    const row = realRows()[0]!
+    const input = nameInputOf(row)
+    const srSpan = srSpanOf(row)
+
+    input.value = ''
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new Event('blur'))
+
+    expect(srSpan.textContent).toBe('Original')
+    expect(input.value).toBe('Original')
+  })
+})
+
+// REQUIREMENT: while the user is mid-rename, the wire layer commits each
+// keystroke to storage but intentionally skips refreshSlots() so the
+// focused <input> survives. The panel's cached `slots[]` (and the row's
+// `value` HTML attribute + SR mirror span) therefore drift away from
+// storage. A new public `updateSlotName(slotId, newName)` method must
+// re-sync the cache and the row in place — without re-rendering — so
+// that:
+//   1. A subsequent blur-restore (which reads the cached slot via
+//      `displayNameFor`) snaps to the LATEST committed name, not the
+//      stale one from initial render.
+//   2. The `value` HTML attribute (queried by POMs via
+//      `input[value="…"]`) reflects the latest committed name.
+//   3. The SR mirror span stays consistent with the visible input.
+//   4. The focused <input> node is preserved (no rebuild → no focus
+//      drop, no caret reset).
+describe('ProjectsPanel — inline rename: cache sync', () => {
+  let parent: HTMLDivElement
+  let panel: ProjectsPanel
+
+  type PanelWithCacheSync = ProjectsPanel & {
+    updateSlotName: (slotId: string, newName: string) => void
+  }
+
+  beforeEach(async () => {
+    await switchLanguage('en')
+    document.body.innerHTML = ''
+    document.body.className = ''
+    parent = document.createElement('div')
+    document.body.appendChild(parent)
+    panel = new ProjectsPanel(parent)
+  })
+
+  afterEach(() => {
+    panel.dispose()
+    document.body.innerHTML = ''
+  })
+
+  function realRows(): HTMLElement[] {
+    return Array.from(
+      parent.querySelectorAll<HTMLElement>(
+        '.ui-projects-slot:not(.ui-projects-slot--empty)',
+      ),
+    )
+  }
+
+  function nameInputOf(row: HTMLElement): HTMLInputElement {
+    const input = row.querySelector<HTMLInputElement>('.ui-projects-slot-name-input')
+    if (!input) throw new Error('row is missing .ui-projects-slot-name-input')
+    return input
+  }
+
+  function srSpanOf(row: HTMLElement): HTMLElement {
+    const span = row.querySelector<HTMLElement>('.ui-projects-slot-name-sr')
+    if (!span) throw new Error('row is missing .ui-projects-slot-name-sr')
+    return span
+  }
+
+  it('exposes a public updateSlotName(slotId, newName) method', () => {
+    expect(typeof (panel as PanelWithCacheSync).updateSlotName).toBe('function')
+  })
+
+  it('updateSlotName updates the cached slot in place', () => {
+    const slot = makeSlot('a', 'Original')
+    panel.setSlots([slot])
+
+    ;(panel as PanelWithCacheSync).updateSlotName(slot.id, 'Edited')
+
+    // Read the private cache directly — this is the exact field the
+    // blur-restore handler dereferences via `displayNameFor(slot)`.
+    const cachedSlots = (panel as unknown as { slots: ProjectSlot[] }).slots
+    expect(cachedSlots[0]!.name).toBe('Edited')
+  })
+
+  it('updateSlotName updates BOTH input.value (the property) AND the value HTML attribute', () => {
+    const slot = makeSlot('a', 'Original')
+    panel.setSlots([slot])
+    const input = nameInputOf(realRows()[0]!)
+
+    ;(panel as PanelWithCacheSync).updateSlotName(slot.id, 'Edited')
+
+    expect(input.value).toBe('Edited')
+    expect(input.getAttribute('value')).toBe('Edited')
+  })
+
+  it('updateSlotName updates the SR mirror span textContent', () => {
+    const slot = makeSlot('a', 'Original')
+    panel.setSlots([slot])
+    const srSpan = srSpanOf(realRows()[0]!)
+
+    ;(panel as PanelWithCacheSync).updateSlotName(slot.id, 'Edited')
+
+    expect(srSpan.textContent).toBe('Edited')
+  })
+
+  it('updateSlotName does NOT re-render the row (input node reference is preserved)', () => {
+    const slot = makeSlot('a', 'Original')
+    panel.setSlots([slot])
+    const row = realRows()[0]!
+    const beforeInput = nameInputOf(row)
+
+    ;(panel as PanelWithCacheSync).updateSlotName(slot.id, 'Edited')
+
+    const afterInput = row.querySelector<HTMLInputElement>('.ui-projects-slot-name-input')
+    expect(afterInput).toBe(beforeInput)
+    // Node still attached to the live document — no rebuild swapped it out.
+    expect(document.body.contains(beforeInput)).toBe(true)
+  })
+
+  it('updateSlotName for an unknown slot id is a no-op (no crash, no DOM change)', () => {
+    panel.setSlots([makeSlot('a', 'Original')])
+    const input = nameInputOf(realRows()[0]!)
+
+    expect(() =>
+      (panel as PanelWithCacheSync).updateSlotName('nonexistent', 'X'),
+    ).not.toThrow()
+
+    expect(input.value).toBe('Original')
+    expect(input.getAttribute('value')).toBe('Original')
+  })
+
+  // BUG 1 regression: without `updateSlotName`, the blur-restore handler
+  // reads the stale cached slot ("Original") and snaps the cleared
+  // input back to "Original" — even though storage already holds
+  // "Edited". After the wire layer calls `updateSlotName('Edited')`,
+  // the blur-restore must snap to "Edited" instead.
+  it('blur on cleared input restores to the LATEST cached name (after a prior updateSlotName)', () => {
+    const slot = makeSlot('a', 'Original')
+    panel.setSlots([slot])
+    const row = realRows()[0]!
+    const input = nameInputOf(row)
+    const srSpan = srSpanOf(row)
+
+    // Simulate one keystroke: input fires, wire commits to storage,
+    // wire calls updateSlotName to keep the panel cache in sync.
+    input.value = 'Edited'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    ;(panel as PanelWithCacheSync).updateSlotName(slot.id, 'Edited')
+
+    // User now clears the field and blurs.
+    input.value = ''
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new Event('blur'))
+
+    // Blur-restore must read the LATEST cached name ("Edited"), not the
+    // stale one captured at row construction ("Original").
+    expect(input.value).toBe('Edited')
+    expect(srSpan.textContent).toBe('Edited')
+  })
+})
+
 describe('ProjectsPanel header removal', () => {
   let parent: HTMLDivElement
   let panel: ProjectsPanel

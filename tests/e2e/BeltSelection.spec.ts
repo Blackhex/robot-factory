@@ -230,3 +230,55 @@ test.describe('Belt drawing — drag from output slot auto-rotates source machin
     expect(newBelt!.sourceSlot).toBe('front')
   })
 })
+
+// CONTRACT: pressing Enter inside the belt panel's inline rename input
+// commits the rename by BLURRING the input. Enter is a familiar
+// "I'm done" gesture; the per-keystroke save (via the input event)
+// already persisted everything the user typed, so Enter must not
+// mutate the value — only release focus. Without an explicit
+// `keydown` handler in the inline name input factory, a plain
+// `<input type="text">` swallows Enter (no implicit form submit /
+// blur), so this test fails on current source.
+test.describe('Belt Panel — inline rename: Enter commits', () => {
+  test.beforeEach(async ({ mainMenu, toolbar }) => {
+    await mainMenu.open()
+    await mainMenu.clickSandbox()
+    await toolbar.expectVisible()
+    await toolbar.waitForCameraSettle()
+  })
+
+  test('Pressing Enter in the belt name input blurs it', async ({
+    probe, grid, belt, beltPanel,
+  }) => {
+    await placeMachinesAndBelt(probe, grid)
+
+    await belt.click()
+    await beltPanel.expectVisible(3000)
+
+    // Type a name via the panel helper. setName fires an `input`
+    // event so the per-keystroke save persists "AlphaBelt" to the
+    // underlying belt BEFORE the Enter press.
+    await beltPanel.setName('AlphaBelt')
+
+    // Press Enter on the (re-)focused input.
+    const result = await beltPanel.pressEnterInNameInput()
+
+    // Enter does NOT mutate the value — it is a commit gesture.
+    expect(result.valueAfter).toBe('AlphaBelt')
+    // Sanity: focus was on the input immediately before Enter.
+    expect(result.wasFocused).toBe(true)
+    // CONTRACT: after Enter the input is no longer focused.
+    expect(result.isStillFocused).toBe(false)
+
+    // Persistence round-trip: deselect by clicking an empty cell,
+    // then re-click the belt. The panel re-loads the persisted name
+    // into the input. If Enter regressed the per-keystroke save, the
+    // re-loaded value would not be "AlphaBelt".
+    await grid.clickCell({ x: 2, z: 2 })
+    await beltPanel.expectHidden()
+    await belt.click()
+    await beltPanel.expectVisible(3000)
+    await beltPanel.expectNameValue('AlphaBelt')
+  })
+})
+

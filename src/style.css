@@ -265,7 +265,7 @@ canvas {
 .ui-projects-slot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.5rem;
   min-height: var(--rf-btn-h);
   padding: 0.5rem;
@@ -276,6 +276,14 @@ canvas {
   font-size: 0.875rem;
   cursor: pointer;
   user-select: none;
+}
+
+/* Pin Save (and the trailing Delete sibling that follows it) to the row's
+   right edge so the inline rename input sits flush against the drag handle
+   on every row, regardless of project-name length. Scoped to non-empty
+   rows so the placeholder row's centered layout is preserved. */
+.ui-projects-slot:not(.ui-projects-slot--empty) > .ui-projects-slot-save {
+  margin-left: auto;
 }
 
 .ui-projects-slot:hover {
@@ -301,6 +309,42 @@ canvas {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Size the editable area to the project name; do not let flex stretch claim the empty row space. */
+.ui-projects-slot-name-input {
+  field-sizing: content;
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 100px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: inherit;
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 2px 0;
+  cursor: text;
+}
+
+.ui-projects-slot-name-input:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ui-projects-slot-name-input:focus {
+  border-bottom: 1px solid var(--rf-accent);
+}
+
+.ui-projects-slot-name-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .ui-projects-slot-delete {
