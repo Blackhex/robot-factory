@@ -740,3 +740,969 @@ describe('ProjectsPanel — dismissal', () => {
     expect(onRequestClose).not.toHaveBeenCalled()
   })
 })
+
+// REQUIREMENT: drag-and-drop reordering of project rows.
+//
+// New surface on `ProjectsPanel` (none of which exists in RED):
+//   - Each non-placeholder row gets a `button.ui-projects-slot-grip`
+//     drag handle with `aria-label = i18next.t('projects.drag_handle_aria')`
+//     and `data-i18n-key="projects.drag_handle_aria"`. The placeholder
+//     row has NO grip.
+//   - `onReorder: (orderedSlotIds: string[]) => void = () => {}` field
+//     emitting the FULL new ordering of real slot ids (placeholder
+//     excluded). Always emitted as a fresh array.
+//   - During a drag, the dragged row(s) are physically reordered IN
+//     PLACE (live preview) so the user sees the would-be drop position
+//     before releasing — no separate `.ui-projects-drop-indicator`
+//     line is inserted.
+//   - On `drop`, the previewed order is committed via `onReorder`
+//     exactly once. On cancel (`dragend` without drop, pointer
+//     released outside the list, `cancelInFlightDrag()`), the original
+//     order snapshot taken at `dragstart` is restored.
+//   - Multi-selection drag preserves the dragged subset's relative
+//     order in the original list.
+//   - Keyboard reordering with Alt+ArrowUp / Alt+ArrowDown.
+//   - Touch/pointer-drag fallback on the grip.
+//
+// All assertions read DOM / public callback fields only.
+describe('ProjectsPanel — drag-and-drop reordering', () => {
+  let parent: HTMLDivElement
+  let panel: ProjectsPanel
+
+  // Local extension type: the new `onReorder` field and a per-grip touch
+  // start helper. Lets the file compile against the current
+  // ProjectsPanel typings without `as any`.
+  type ReorderPanel = ProjectsPanel & {
+    onReorder?: (orderedSlotIds: string[]) => void
+  }
+
+  beforeEach(async () => {
+    await switchLanguage('en')
+    document.body.innerHTML = ''
+    document.body.className = ''
+    parent = document.createElement('div')
+    document.body.appendChild(parent)
+    panel = new ProjectsPanel(parent)
+  })
+
+  afterEach(() => {
+    panel.dispose()
+    document.body.innerHTML = ''
+  })
+
+  function realRows(): HTMLElement[] {
+    return Array.from(
+      parent.querySelectorAll<HTMLElement>(
+        '.ui-projects-slot:not(.ui-projects-slot--empty)',
+      ),
+    )
+  }
+
+  function emptyRow(): HTMLElement {
+    return parent.querySelector<HTMLElement>('.ui-projects-slot--empty')!
+  }
+
+  function gripOf(row: HTMLElement): HTMLElement {
+    const g = row.querySelector<HTMLElement>('.ui-projects-slot-grip')
+    if (!g) throw new Error('row has no .ui-projects-slot-grip')
+    return g
+  }
+
+  /**
+   * Stamp a known geometry on a row so the drag handler can compute
+   * top-half / bottom-half from `clientY`. Each row is `H` tall and
+   * stacked vertically starting at y=0.
+   */
+  const ROW_H = 40
+  function stampRowRects(rows: HTMLElement[]): void {
+    rows.forEach((row, i) => {
+      const top = i * ROW_H
+      Object.defineProperty(row, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({
+          top,
+          bottom: top + ROW_H,
+          left: 0,
+          right: 200,
+          width: 200,
+          height: ROW_H,
+          x: 0,
+          y: top,
+          toJSON: () => ({}),
+        }),
+      })
+    })
+  }
+
+  function topHalfY(rowIndex: number): number {
+    return rowIndex * ROW_H + ROW_H * 0.25
+  }
+
+  function bottomHalfY(rowIndex: number): number {
+    return rowIndex * ROW_H + ROW_H * 0.75
+  }
+
+  // jsdom does not always implement `DataTransfer` / `DragEvent`. Build
+  // a minimal object that records `setData`/`getData` calls and attach
+  // it to a synthetic `MouseEvent` of the requested drag type. The
+  // production handler only needs `event.dataTransfer` to be present,
+  // not a real DataTransfer instance.
+  interface FakeDataTransfer {
+    types: string[]
+    data: Map<string, string>
+    effectAllowed: string
+    dropEffect: string
+    setData(format: string, value: string): void
+    getData(format: string): string
+  }
+  function makeDataTransfer(): FakeDataTransfer {
+    const data = new Map<string, string>()
+    return {
+      types: [],
+      data,
+      effectAllowed: 'move',
+      dropEffect: 'move',
+      setData(format: string, value: string): void {
+        data.set(format, value)
+        if (!this.types.includes(format)) this.types.push(format)
+      },
+      getData(format: string): string {
+        return data.get(format) ?? ''
+      },
+    }
+  }
+
+  function dispatchDragEvent(
+    target: EventTarget,
+    type: string,
+    opts: {
+      clientX?: number
+      clientY?: number
+      dataTransfer?: FakeDataTransfer
+    } = {},
+  ): { event: Event; dataTransfer: FakeDataTransfer } {
+    const dt = opts.dataTransfer ?? makeDataTransfer()
+    const ev = new MouseEvent(type, {
+      bubbles: true,
+      cancelable: true,
+      clientX: opts.clientX ?? 0,
+      clientY: opts.clientY ?? 0,
+    })
+    Object.defineProperty(ev, 'dataTransfer', {
+      configurable: true,
+      value: dt,
+    })
+    target.dispatchEvent(ev)
+    return { event: ev, dataTransfer: dt }
+  }
+
+  function dispatchPointerDown(
+    target: EventTarget,
+    opts: {
+      clientX?: number
+      clientY?: number
+      pointerType?: string
+      pointerId?: number
+    } = {},
+  ): void {
+    const PE = (globalThis as { PointerEvent?: typeof PointerEvent }).PointerEvent
+    const init: PointerEventInit = {
+      bubbles: true,
+      cancelable: true,
+      clientX: opts.clientX ?? 0,
+      clientY: opts.clientY ?? 0,
+      pointerType: opts.pointerType ?? 'touch',
+      pointerId: opts.pointerId ?? 1,
+    }
+    const ev = PE
+      ? new PE('pointerdown', init)
+      : new MouseEvent('pointerdown', init as MouseEventInit)
+    target.dispatchEvent(ev)
+  }
+
+  function dispatchPointerMove(
+    target: EventTarget,
+    opts: { clientX?: number; clientY?: number; pointerId?: number } = {},
+  ): void {
+    const PE = (globalThis as { PointerEvent?: typeof PointerEvent }).PointerEvent
+    const init: PointerEventInit = {
+      bubbles: true,
+      cancelable: true,
+      clientX: opts.clientX ?? 0,
+      clientY: opts.clientY ?? 0,
+      pointerType: 'touch',
+      pointerId: opts.pointerId ?? 1,
+    }
+    const ev = PE
+      ? new PE('pointermove', init)
+      : new MouseEvent('pointermove', init as MouseEventInit)
+    target.dispatchEvent(ev)
+  }
+
+  function dispatchPointerUp(
+    target: EventTarget,
+    opts: { clientX?: number; clientY?: number; pointerId?: number } = {},
+  ): void {
+    const PE = (globalThis as { PointerEvent?: typeof PointerEvent }).PointerEvent
+    const init: PointerEventInit = {
+      bubbles: true,
+      cancelable: true,
+      clientX: opts.clientX ?? 0,
+      clientY: opts.clientY ?? 0,
+      pointerType: 'touch',
+      pointerId: opts.pointerId ?? 1,
+    }
+    const ev = PE
+      ? new PE('pointerup', init)
+      : new MouseEvent('pointerup', init as MouseEventInit)
+    target.dispatchEvent(ev)
+  }
+
+  function ctrlClick(el: HTMLElement): void {
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }))
+  }
+
+  // -------- Grip DOM ---------------------------------------------------
+
+  it('every real slot row contains a .ui-projects-slot-grip drag handle', () => {
+    panel.setSlots([makeSlot('a', 'Alpha'), makeSlot('b', 'Beta')])
+    const grips = parent.querySelectorAll(
+      '.ui-projects-slot:not(.ui-projects-slot--empty) .ui-projects-slot-grip',
+    )
+    expect(grips.length).toBe(2)
+  })
+
+  it('the grip is a <button> for keyboard accessibility', () => {
+    panel.setSlots([makeSlot('a', 'Alpha')])
+    const grip = parent.querySelector('.ui-projects-slot-grip')!
+    expect(grip.tagName).toBe('BUTTON')
+  })
+
+  it('the grip carries an aria-label and a data-i18n-key for re-localization', () => {
+    panel.setSlots([makeSlot('a', 'Alpha')])
+    const grip = parent.querySelector<HTMLElement>('.ui-projects-slot-grip')!
+    expect(grip.getAttribute('aria-label')).toBe(
+      i18next.t('projects.drag_handle_aria'),
+    )
+    expect(grip.dataset.i18nKey).toBe('projects.drag_handle_aria')
+  })
+
+  it('the placeholder row has NO grip and is not draggable', () => {
+    panel.setSlots([makeSlot('a', 'Alpha')])
+
+    // Sanity: real rows DO have a grip; otherwise the negative
+    // assertion below would pass vacuously while the feature is
+    // entirely unimplemented.
+    expect(
+      realRows()[0]!.querySelector('.ui-projects-slot-grip'),
+    ).not.toBeNull()
+
+    const empty = emptyRow()
+    expect(empty.querySelector('.ui-projects-slot-grip')).toBeNull()
+    // `draggable` attribute is absent or false on the placeholder row.
+    const draggableAttr = empty.getAttribute('draggable')
+    expect(draggableAttr === null || draggableAttr === 'false').toBe(true)
+  })
+
+  // -------- onReorder field --------------------------------------------
+
+  it('exposes a public `onReorder` callback that defaults to a no-op', () => {
+    const p = panel as ReorderPanel
+    expect(typeof p.onReorder).toBe('function')
+    expect(() => p.onReorder?.([])).not.toThrow()
+  })
+
+  // -------- Single-row drag via grip -----------------------------------
+
+  it('dragging row B and dropping on row A top-half emits ["B","A","C"]', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    stampRowRects(rows)
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[1]!), 'dragstart')
+    dispatchDragEvent(rows[0]!, 'dragover', {
+      clientY: topHalfY(0),
+      dataTransfer,
+    })
+    dispatchDragEvent(rows[0]!, 'drop', {
+      clientY: topHalfY(0),
+      dataTransfer,
+    })
+
+    expect(onReorder).toHaveBeenCalledTimes(1)
+    expect(onReorder).toHaveBeenCalledWith(['B', 'A', 'C'])
+  })
+
+  it('dragging row B and dropping on row A bottom-half emits ["A","B","C"]', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    stampRowRects(rows)
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[1]!), 'dragstart')
+    dispatchDragEvent(rows[0]!, 'dragover', {
+      clientY: bottomHalfY(0),
+      dataTransfer,
+    })
+    dispatchDragEvent(rows[0]!, 'drop', {
+      clientY: bottomHalfY(0),
+      dataTransfer,
+    })
+
+    // The "no-op for adjacent identity" case is acceptable; the spec
+    // requires the actual emitted ordering to be ['A','B','C'].
+    if (onReorder.mock.calls.length > 0) {
+      expect(onReorder).toHaveBeenLastCalledWith(['A', 'B', 'C'])
+    }
+  })
+
+  it('dragging row B and dropping on row C bottom-half emits ["A","C","B"]', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    stampRowRects(rows)
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[1]!), 'dragstart')
+    dispatchDragEvent(rows[2]!, 'dragover', {
+      clientY: bottomHalfY(2),
+      dataTransfer,
+    })
+    dispatchDragEvent(rows[2]!, 'drop', {
+      clientY: bottomHalfY(2),
+      dataTransfer,
+    })
+
+    expect(onReorder).toHaveBeenCalledTimes(1)
+    expect(onReorder).toHaveBeenCalledWith(['A', 'C', 'B'])
+  })
+
+  it('dropping on the empty placeholder snaps the dragged row to last position', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    const empty = emptyRow()
+    stampRowRects([...rows, empty])
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[1]!), 'dragstart')
+    dispatchDragEvent(empty, 'dragover', {
+      clientY: ROW_H * 3 + ROW_H * 0.5,
+      dataTransfer,
+    })
+    dispatchDragEvent(empty, 'drop', {
+      clientY: ROW_H * 3 + ROW_H * 0.5,
+      dataTransfer,
+    })
+
+    expect(onReorder).toHaveBeenCalledTimes(1)
+    expect(onReorder).toHaveBeenCalledWith(['A', 'C', 'B'])
+  })
+
+  // -------- Multi-selection drag ---------------------------------------
+
+  it('multi-select drag (A+C) dropped on D bottom-half emits ["B","D","A","C"]', () => {
+    panel.setSlots([
+      makeSlot('A', 'A'),
+      makeSlot('B', 'B'),
+      makeSlot('C', 'C'),
+      makeSlot('D', 'D'),
+    ])
+    const rows = realRows()
+    stampRowRects(rows)
+    rows[0]!.click() // select A
+    ctrlClick(rows[2]!) // add C
+    expect(panel.getSelectedSlotIds()).toEqual(['A', 'C'])
+
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[2]!), 'dragstart')
+    dispatchDragEvent(rows[3]!, 'dragover', {
+      clientY: bottomHalfY(3),
+      dataTransfer,
+    })
+    dispatchDragEvent(rows[3]!, 'drop', {
+      clientY: bottomHalfY(3),
+      dataTransfer,
+    })
+
+    expect(onReorder).toHaveBeenCalledTimes(1)
+    expect(onReorder).toHaveBeenCalledWith(['B', 'D', 'A', 'C'])
+  })
+
+  it('multi-select drag (A+C) dropped on B top-half emits ["A","C","B","D"]', () => {
+    panel.setSlots([
+      makeSlot('A', 'A'),
+      makeSlot('B', 'B'),
+      makeSlot('C', 'C'),
+      makeSlot('D', 'D'),
+    ])
+    const rows = realRows()
+    stampRowRects(rows)
+    rows[0]!.click()
+    ctrlClick(rows[2]!)
+
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[2]!), 'dragstart')
+    dispatchDragEvent(rows[1]!, 'dragover', {
+      clientY: topHalfY(1),
+      dataTransfer,
+    })
+    dispatchDragEvent(rows[1]!, 'drop', {
+      clientY: topHalfY(1),
+      dataTransfer,
+    })
+
+    expect(onReorder).toHaveBeenCalledTimes(1)
+    expect(onReorder).toHaveBeenCalledWith(['A', 'C', 'B', 'D'])
+  })
+
+  it('dragging the entire selection set is a no-op (no onReorder)', () => {
+    panel.setSlots([
+      makeSlot('A', 'A'),
+      makeSlot('B', 'B'),
+      makeSlot('C', 'C'),
+      makeSlot('D', 'D'),
+    ])
+    const rows = realRows()
+    stampRowRects(rows)
+    rows[0]!.click()
+    ctrlClick(rows[1]!)
+    ctrlClick(rows[2]!)
+    ctrlClick(rows[3]!)
+    expect(panel.getSelectedSlotIds()).toEqual(['A', 'B', 'C', 'D'])
+
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[0]!), 'dragstart')
+    dispatchDragEvent(rows[3]!, 'dragover', {
+      clientY: bottomHalfY(3),
+      dataTransfer,
+    })
+    dispatchDragEvent(rows[3]!, 'drop', {
+      clientY: bottomHalfY(3),
+      dataTransfer,
+    })
+
+    expect(onReorder).not.toHaveBeenCalled()
+  })
+
+  // -------- Placeholder is not draggable -------------------------------
+
+  it('dragstart on the placeholder row does NOT emit onReorder', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B')])
+    const rows = realRows()
+    const empty = emptyRow()
+    stampRowRects([...rows, empty])
+
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    // Sanity precondition: dragging from a real row's grip and
+    // dropping on the placeholder DOES emit — otherwise the negative
+    // assertion below passes vacuously while drag-and-drop isn't
+    // implemented at all.
+    {
+      const { dataTransfer } = dispatchDragEvent(gripOf(rows[0]!), 'dragstart')
+      dispatchDragEvent(empty, 'dragover', {
+        clientY: ROW_H * 2 + ROW_H * 0.5,
+        dataTransfer,
+      })
+      dispatchDragEvent(empty, 'drop', {
+        clientY: ROW_H * 2 + ROW_H * 0.5,
+        dataTransfer,
+      })
+    }
+    expect(onReorder).toHaveBeenCalled()
+    onReorder.mockClear()
+
+    // Re-fetch rows after the panel re-renders following the previous
+    // reorder.
+    const rows2 = realRows()
+    const empty2 = emptyRow()
+    stampRowRects([...rows2, empty2])
+
+    // Placeholder has no grip — dispatch on the row itself.
+    const { dataTransfer } = dispatchDragEvent(empty2, 'dragstart')
+    dispatchDragEvent(rows2[0]!, 'dragover', {
+      clientY: topHalfY(0),
+      dataTransfer,
+    })
+    dispatchDragEvent(rows2[0]!, 'drop', {
+      clientY: topHalfY(0),
+      dataTransfer,
+    })
+
+    expect(onReorder).not.toHaveBeenCalled()
+  })
+
+  // -------- Drop indicator (removed) -----------------------------------
+  // The standalone `.ui-projects-drop-indicator` line was replaced by
+  // live in-list preview of the dragged row(s) — see the live-preview
+  // suite below for the new contract.
+
+  // -------- Keyboard reordering ----------------------------------------
+
+  it('Alt+ArrowDown on the top slot moves it down one position and emits the new order', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    rows[0]!.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        altKey: true,
+        bubbles: true,
+      }),
+    )
+
+    expect(onReorder).toHaveBeenCalledTimes(1)
+    expect(onReorder).toHaveBeenCalledWith(['B', 'A', 'C'])
+  })
+
+  it('Alt+ArrowUp on the top slot is a no-op', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    // Sanity precondition: Alt+ArrowDown on the second row DOES emit
+    // — otherwise the negative assertion below passes vacuously while
+    // keyboard reordering is entirely unimplemented.
+    realRows()[1]!.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        altKey: true,
+        bubbles: true,
+      }),
+    )
+    expect(onReorder).toHaveBeenCalled()
+    onReorder.mockClear()
+
+    realRows()[0]!.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowUp',
+        altKey: true,
+        bubbles: true,
+      }),
+    )
+
+    expect(onReorder).not.toHaveBeenCalled()
+  })
+
+  it('Alt+ArrowDown on the LAST real slot is a no-op (placeholder must remain last)', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    // Sanity precondition: Alt+ArrowDown on a non-last row MUST fire
+    // onReorder. Without this guard, the negative assertion below
+    // would pass vacuously when keyboard reordering isn't wired up at
+    // all.
+    realRows()[0]!.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        altKey: true,
+        bubbles: true,
+      }),
+    )
+    expect(onReorder).toHaveBeenCalled()
+    onReorder.mockClear()
+
+    // Re-fetch rows because the previous reorder caused a re-render.
+    const rowsAfter = realRows()
+    rowsAfter[rowsAfter.length - 1]!.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        altKey: true,
+        bubbles: true,
+      }),
+    )
+
+    expect(onReorder).not.toHaveBeenCalled()
+  })
+
+  it('keeps focus on the moved row after a keyboard reorder', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const initialRows = realRows()
+    initialRows[0]!.tabIndex = 0
+    initialRows[0]!.focus()
+
+    initialRows[0]!.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        altKey: true,
+        bubbles: true,
+      }),
+    )
+
+    // After reorder + re-render: slot A (the originally focused slot)
+    // moved from index 0 to index 1. Focus must follow it to its new
+    // DOM position.
+    const after = realRows()
+    expect(after[1]!.dataset.slotId).toBe('A')
+    const focused = document.activeElement as HTMLElement | null
+    expect(focused).toBe(after[1]!)
+  })
+
+  it('plain ArrowUp/ArrowDown (no Alt) does not emit onReorder', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    // Sanity precondition: with Alt held, ArrowDown DOES emit —
+    // otherwise this negative test passes vacuously.
+    realRows()[0]!.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        altKey: true,
+        bubbles: true,
+      }),
+    )
+    expect(onReorder).toHaveBeenCalled()
+    onReorder.mockClear()
+
+    const rowsAfter = realRows()
+    rowsAfter[0]!.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        altKey: false,
+        bubbles: true,
+      }),
+    )
+    rowsAfter[1]!.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowUp',
+        altKey: false,
+        bubbles: true,
+      }),
+    )
+
+    expect(onReorder).not.toHaveBeenCalled()
+  })
+
+  // -------- Touch / pointer drag ---------------------------------------
+
+  it('touch pointer-drag from a grip onto another row emits onReorder', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    stampRowRects(rows)
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    // Stub elementFromPoint so the pointer-drag handler can locate the
+    // current target row from clientX/clientY.
+    const originalElementFromPoint = document.elementFromPoint
+    document.elementFromPoint = (x: number, y: number): Element | null => {
+      void x
+      for (const r of [...rows, emptyRow()]) {
+        const rect = r.getBoundingClientRect()
+        if (y >= rect.top && y < rect.bottom) return r
+      }
+      return null
+    }
+
+    try {
+      const grip = gripOf(rows[1]!)
+      // Start drag at the centre of row B.
+      dispatchPointerDown(grip, {
+        clientX: 100,
+        clientY: ROW_H * 1 + ROW_H * 0.5,
+        pointerType: 'touch',
+        pointerId: 7,
+      })
+      // Move past a small threshold to commit to drag mode.
+      dispatchPointerMove(grip, {
+        clientX: 100,
+        clientY: ROW_H * 1 + ROW_H * 0.5 - 12,
+        pointerId: 7,
+      })
+      // Move into row A's top half.
+      dispatchPointerMove(grip, {
+        clientX: 100,
+        clientY: topHalfY(0),
+        pointerId: 7,
+      })
+      dispatchPointerUp(grip, {
+        clientX: 100,
+        clientY: topHalfY(0),
+        pointerId: 7,
+      })
+
+      expect(onReorder).toHaveBeenCalledTimes(1)
+      expect(onReorder).toHaveBeenCalledWith(['B', 'A', 'C'])
+    } finally {
+      document.elementFromPoint = originalElementFromPoint
+    }
+  })
+
+  // -------- Live preview during dragover -------------------------------
+  //
+  // NEW BEHAVIOR (RED): instead of inserting a separate
+  // `.ui-projects-drop-indicator` line into the list, the dragged
+  // row(s) themselves should be physically moved in the DOM during
+  // each `dragover` to show the would-be drop position live. The
+  // dragged row keeps its `is-dragging` class (ghost styling) while
+  // it sits in its preview slot. The placeholder row stays last at
+  // all times. A `dragend` without a matching `drop` reverts to the
+  // original DOM order; a `drop` commits the previewed order.
+
+  function visualSlotOrder(): string[] {
+    return Array.from(
+      parent.querySelectorAll<HTMLElement>(
+        '.ui-projects-slot:not(.ui-projects-slot--empty)',
+      ),
+    ).map((r) => r.dataset.slotId ?? '')
+  }
+
+  function placeholderIsLast(): boolean {
+    const all = parent.querySelectorAll<HTMLElement>('.ui-projects-slot')
+    return (
+      all.length > 0 &&
+      all[all.length - 1]!.classList.contains('ui-projects-slot--empty')
+    )
+  }
+
+  it('live-preview: dragover on row C bottom-half moves dragged row A to [B, C, A]', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    stampRowRects(rows)
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[0]!), 'dragstart')
+    dispatchDragEvent(rows[2]!, 'dragover', {
+      clientY: bottomHalfY(2),
+      dataTransfer,
+    })
+
+    expect(visualSlotOrder()).toEqual(['B', 'C', 'A'])
+    expect(placeholderIsLast()).toBe(true)
+    // The dragged row (now in its preview position) keeps the
+    // `is-dragging` class so it remains visually ghosted.
+    const movedA = parent.querySelector<HTMLElement>(
+      '.ui-projects-slot[data-slot-id="A"]',
+    )!
+    expect(movedA.classList.contains('is-dragging')).toBe(true)
+  })
+
+  it('live-preview: dragover on row A top-half moves dragged row C to [C, A, B]', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    stampRowRects(rows)
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[2]!), 'dragstart')
+    dispatchDragEvent(rows[0]!, 'dragover', {
+      clientY: topHalfY(0),
+      dataTransfer,
+    })
+
+    expect(visualSlotOrder()).toEqual(['C', 'A', 'B'])
+    expect(placeholderIsLast()).toBe(true)
+  })
+
+  it('live-preview: multi-row drag (A+C) over row D bottom-half shows [B, D, A, C]', () => {
+    panel.setSlots([
+      makeSlot('A', 'A'),
+      makeSlot('B', 'B'),
+      makeSlot('C', 'C'),
+      makeSlot('D', 'D'),
+    ])
+    const rows = realRows()
+    stampRowRects(rows)
+    rows[0]!.click()
+    ctrlClick(rows[2]!)
+    expect(panel.getSelectedSlotIds()).toEqual(['A', 'C'])
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[0]!), 'dragstart')
+    dispatchDragEvent(rows[3]!, 'dragover', {
+      clientY: bottomHalfY(3),
+      dataTransfer,
+    })
+
+    expect(visualSlotOrder()).toEqual(['B', 'D', 'A', 'C'])
+    expect(placeholderIsLast()).toBe(true)
+  })
+
+  it('live-preview: dragover on the placeholder snaps the dragged row to just before the placeholder', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    const empty = emptyRow()
+    stampRowRects([...rows, empty])
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[1]!), 'dragstart')
+    dispatchDragEvent(empty, 'dragover', {
+      clientY: ROW_H * 3 + ROW_H * 0.5,
+      dataTransfer,
+    })
+
+    expect(visualSlotOrder()).toEqual(['A', 'C', 'B'])
+    // Placeholder must remain at the very end of the list — it should
+    // never be displaced by the live-preview move.
+    const all = parent.querySelectorAll<HTMLElement>('.ui-projects-slot')
+    expect(all.length).toBe(4)
+    expect(all[3]!.classList.contains('ui-projects-slot--empty')).toBe(true)
+  })
+
+  it('live-preview: dragend without drop reverts the DOM order and clears is-dragging', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    stampRowRects(rows)
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    const grip = gripOf(rows[0]!)
+    const { dataTransfer } = dispatchDragEvent(grip, 'dragstart')
+    dispatchDragEvent(rows[2]!, 'dragover', {
+      clientY: bottomHalfY(2),
+      dataTransfer,
+    })
+    // Sanity precondition: the live-preview reordering occurred.
+    // Without this, the revert-to-original assertion below would pass
+    // vacuously when the live-preview feature is entirely
+    // unimplemented.
+    expect(visualSlotOrder()).toEqual(['B', 'C', 'A'])
+
+    // Cancel the drag (Escape / drag-out) — no drop event.
+    dispatchDragEvent(grip, 'dragend', { dataTransfer })
+
+    expect(visualSlotOrder()).toEqual(['A', 'B', 'C'])
+    expect(placeholderIsLast()).toBe(true)
+    // No row should keep the dragging ghost class.
+    const dragging = parent.querySelectorAll('.ui-projects-slot.is-dragging')
+    expect(dragging.length).toBe(0)
+    // The slots array is unchanged (proven indirectly: onReorder was
+    // never invoked, so applyReorderToLocalSlots was never called).
+    expect(onReorder).not.toHaveBeenCalled()
+  })
+
+  it('live-preview: drop commits the previewed order with exactly one onReorder call', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    stampRowRects(rows)
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[0]!), 'dragstart')
+    dispatchDragEvent(rows[2]!, 'dragover', {
+      clientY: bottomHalfY(2),
+      dataTransfer,
+    })
+    expect(visualSlotOrder()).toEqual(['B', 'C', 'A'])
+
+    dispatchDragEvent(rows[2]!, 'drop', {
+      clientY: bottomHalfY(2),
+      dataTransfer,
+    })
+
+    expect(onReorder).toHaveBeenCalledTimes(1)
+    expect(onReorder).toHaveBeenCalledWith(['B', 'C', 'A'])
+    expect(visualSlotOrder()).toEqual(['B', 'C', 'A'])
+    expect(placeholderIsLast()).toBe(true)
+  })
+
+  it('live-preview: no .ui-projects-drop-indicator element is inserted during dragover', () => {
+    panel.setSlots([makeSlot('A', 'A'), makeSlot('B', 'B'), makeSlot('C', 'C')])
+    const rows = realRows()
+    stampRowRects(rows)
+    const list = parent.querySelector('.ui-projects-list')!
+
+    const { dataTransfer } = dispatchDragEvent(gripOf(rows[0]!), 'dragstart')
+    dispatchDragEvent(rows[2]!, 'dragover', {
+      clientY: bottomHalfY(2),
+      dataTransfer,
+    })
+
+    expect(list.querySelectorAll('.ui-projects-drop-indicator').length).toBe(0)
+  })
+
+  it('live-preview: consecutive dragovers update DOM order without duplicating rows', () => {
+    panel.setSlots([
+      makeSlot('A', 'A'),
+      makeSlot('B', 'B'),
+      makeSlot('C', 'C'),
+      makeSlot('D', 'D'),
+    ])
+    const rows = realRows()
+    stampRowRects(rows)
+    const list = parent.querySelector('.ui-projects-list')!
+
+    const grip = gripOf(rows[0]!)
+    const { dataTransfer } = dispatchDragEvent(grip, 'dragstart')
+
+    dispatchDragEvent(rows[1]!, 'dragover', {
+      clientY: bottomHalfY(1),
+      dataTransfer,
+    })
+    expect(visualSlotOrder()).toEqual(['B', 'A', 'C', 'D'])
+    expect(list.querySelectorAll('.ui-projects-slot').length).toBe(5)
+    expect(placeholderIsLast()).toBe(true)
+
+    dispatchDragEvent(rows[3]!, 'dragover', {
+      clientY: bottomHalfY(3),
+      dataTransfer,
+    })
+    expect(visualSlotOrder()).toEqual(['B', 'C', 'D', 'A'])
+    expect(list.querySelectorAll('.ui-projects-slot').length).toBe(5)
+    expect(placeholderIsLast()).toBe(true)
+
+    dispatchDragEvent(rows[1]!, 'dragover', {
+      clientY: topHalfY(1),
+      dataTransfer,
+    })
+    expect(visualSlotOrder()).toEqual(['A', 'B', 'C', 'D'])
+    expect(list.querySelectorAll('.ui-projects-slot').length).toBe(5)
+    expect(placeholderIsLast()).toBe(true)
+  })
+
+  it('live-preview: dragend after many preview moves restores the exact original order', () => {
+    panel.setSlots([
+      makeSlot('A', 'A'),
+      makeSlot('B', 'B'),
+      makeSlot('C', 'C'),
+      makeSlot('D', 'D'),
+    ])
+    const rows = realRows()
+    stampRowRects(rows)
+    const onReorder = vi.fn()
+    ;(panel as ReorderPanel).onReorder = onReorder
+
+    const grip = gripOf(rows[1]!)
+    const { dataTransfer } = dispatchDragEvent(grip, 'dragstart')
+
+    // Bounce B across many preview positions.
+    dispatchDragEvent(rows[0]!, 'dragover', {
+      clientY: topHalfY(0),
+      dataTransfer,
+    })
+    dispatchDragEvent(rows[3]!, 'dragover', {
+      clientY: bottomHalfY(3),
+      dataTransfer,
+    })
+    dispatchDragEvent(rows[2]!, 'dragover', {
+      clientY: topHalfY(2),
+      dataTransfer,
+    })
+    dispatchDragEvent(rows[0]!, 'dragover', {
+      clientY: topHalfY(0),
+      dataTransfer,
+    })
+    // Sanity precondition: at least one of the preview moves above
+    // shuffled the DOM away from the original [A, B, C, D] order.
+    // Without this, the revert assertion would pass vacuously while
+    // the live-preview feature is entirely unimplemented.
+    expect(visualSlotOrder()).not.toEqual(['A', 'B', 'C', 'D'])
+
+    dispatchDragEvent(grip, 'dragend', { dataTransfer })
+
+    expect(visualSlotOrder()).toEqual(['A', 'B', 'C', 'D'])
+    expect(placeholderIsLast()).toBe(true)
+    // Slots array unchanged: onReorder never fired (no drop occurred).
+    expect(onReorder).not.toHaveBeenCalled()
+  })
+})

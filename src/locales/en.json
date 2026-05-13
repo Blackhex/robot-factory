@@ -35,7 +35,8 @@
     "confirm_delete_title": "Delete project?",
     "confirm_delete_message": "Are you sure you want to delete \"{{name}}\"?",
     "confirm_new_title": "Start a new project?",
-    "confirm_new_message": "Your current factory and program will be cleared. This cannot be undone."
+    "confirm_new_message": "Your current factory and program will be cleared. This cannot be undone.",
+    "drag_handle_aria": "Drag to reorder"
   },
   "modal": {
     "ok": "OK",

@@ -35,7 +35,8 @@
     "confirm_delete_title": "Smazat projekt?",
     "confirm_delete_message": "Opravdu chcete smazat projekt \"{{name}}\"?",
     "confirm_new_title": "Začít nový projekt?",
-    "confirm_new_message": "Vaše aktuální továrna a program budou smazány. Tuto akci nelze vrátit zpět."
+    "confirm_new_message": "Vaše aktuální továrna a program budou smazány. Tuto akci nelze vrátit zpět.",
+    "drag_handle_aria": "Přetažením změňte pořadí"
   },
   "modal": {
     "ok": "OK",

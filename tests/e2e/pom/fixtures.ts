@@ -63,16 +63,4 @@ export const test = base.extend<Pages>({
   consoleMonitor: async ({ page }, use) => { await use(new ConsoleMonitor(page)) },
 })
 
-// Centralized failure-screenshot hook.
-test.afterEach(async ({ page }, info) => {
-  if (info.status !== info.expectedStatus) {
-    await page
-      .screenshot({
-        path: `tests/e2e/screenshots/${info.title.replace(/\s+/g, '-')}.png`,
-        fullPage: true,
-      })
-      .catch(() => undefined)
-  }
-})
-
 export { expect }

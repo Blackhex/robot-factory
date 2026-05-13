@@ -16,7 +16,9 @@ import {
   loadSlot,
   overwriteSlot,
   saveNewSlot,
+  saveNewSlotAtEnd,
   setLastLoadedId,
+  setSlotOrder,
 } from '../utils/SandboxProjects'
 import type { Factory } from '../game/Factory'
 import type { ProjectsPanel } from './ProjectsPanel'
@@ -140,7 +142,7 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
         if (name === null) return
         const trimmed = name.trim()
         if (trimmed.length === 0) return
-        const newSlot = saveNewSlot(trimmed, save)
+        const newSlot = saveNewSlotAtEnd(trimmed, save)
         setLastLoadedId(newSlot.id)
       } else {
         overwriteSlot(slotId, save)
@@ -251,6 +253,15 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
       }
       exportBundleToFile(entries)
     })()
+  }
+
+  projectsPanel.onReorder = (ids) => {
+    // Persist only — the panel's reorder controller has already updated
+    // its in-memory `slots` and re-rendered the list with focus restored
+    // to the moved row. Calling `refreshSlots()` here would invoke
+    // `setSlots()` → `renderList()` a second time, wiping the focused
+    // row's DOM node and breaking consecutive Alt+Arrow keyboard reorder.
+    setSlotOrder(ids)
   }
 
   refreshSlots()

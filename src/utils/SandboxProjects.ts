@@ -7,6 +7,9 @@ import {
 /** localStorage key for the sandbox projects index document. */
 export const SANDBOX_PROJECTS_INDEX_KEY = 'rf_sandbox_projects_index'
 
+/** localStorage key for the user-controlled slot ordering (if present). */
+export const SANDBOX_PROJECTS_ORDER_KEY = 'rf_sandbox_projects_index:order'
+
 /** Legacy single-slot sandbox autosave key, kept for migration. */
 export const LEGACY_SANDBOX_AUTOSAVE_KEY = 'rf_factory_sandbox'
 
@@ -68,6 +71,28 @@ function writeIndex(idx: SandboxProjectsIndex): void {
   localStorage.setItem(SANDBOX_PROJECTS_INDEX_KEY, JSON.stringify(idx))
 }
 
+function readExplicitOrder(): string[] | null {
+  const raw = localStorage.getItem(SANDBOX_PROJECTS_ORDER_KEY)
+  if (raw === null) return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (Array.isArray(parsed) && parsed.every(v => typeof v === 'string')) {
+      return parsed
+    }
+  } catch {
+    // fall through
+  }
+  return null
+}
+
+function writeExplicitOrder(order: string[]): void {
+  try {
+    localStorage.setItem(SANDBOX_PROJECTS_ORDER_KEY, JSON.stringify(order))
+  } catch {
+    // swallow — matches existing best-effort persistence pattern
+  }
+}
+
 function generateId(): string {
   const c: { randomUUID?: () => string } | undefined =
     typeof crypto !== 'undefined' ? crypto : undefined
@@ -77,9 +102,70 @@ function generateId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
 }
 
-/** Return all known slots, newest first. */
+/** Return all known slots, newest first (or in user-defined order if set). */
 export function listSlots(): ProjectSlot[] {
-  return [...readIndex().slots].sort((a, b) => b.savedAt - a.savedAt)
+  const slots = readIndex().slots
+  const defaultOrder = defaultSortNewestFirst(slots)
+  const explicit = readExplicitOrder()
+  if (explicit === null) return defaultOrder
+
+  const byId = new Map<string, ProjectSlot>()
+  for (const s of slots) byId.set(s.id, s)
+
+  const result: ProjectSlot[] = []
+  const seen = new Set<string>()
+  for (const id of explicit) {
+    const slot = byId.get(id)
+    if (slot && !seen.has(id)) {
+      result.push(slot)
+      seen.add(id)
+    }
+  }
+  for (const slot of defaultOrder) {
+    if (!seen.has(slot.id)) {
+      result.push(slot)
+      seen.add(slot.id)
+    }
+  }
+  return result
+}
+
+/** Default user-facing sort: most recently saved first. */
+function defaultSortNewestFirst(slots: ProjectSlot[]): ProjectSlot[] {
+  return [...slots].sort((a, b) => b.savedAt - a.savedAt)
+}
+
+/**
+ * Persist a user-controlled slot ordering. Unknown ids are dropped
+ * silently; existing slots not mentioned are appended at the end in
+ * their current `listSlots()` order.
+ */
+export function setSlotOrder(orderedIds: string[]): void {
+  try {
+    const slots = readIndex().slots
+    const validIds = new Set(slots.map(s => s.id))
+    const seen = new Set<string>()
+    const filtered: string[] = []
+    for (const id of orderedIds) {
+      if (validIds.has(id) && !seen.has(id)) {
+        filtered.push(id)
+        seen.add(id)
+      }
+    }
+    // Append leftovers in their current listSlots() order. Compute
+    // listSlots() order without our own (still-unwritten) explicit
+    // order — i.e. fall back to newest-first by savedAt.
+    const defaultOrder = defaultSortNewestFirst(slots)
+    for (const slot of defaultOrder) {
+      if (!seen.has(slot.id)) {
+        filtered.push(slot.id)
+        seen.add(slot.id)
+      }
+    }
+    writeExplicitOrder(filtered)
+  } catch {
+    // swallow — matches existing best-effort persistence pattern
+  }
 }
 
 /** Create a new slot with the given name and persist the FactorySave to it. */
@@ -97,6 +183,20 @@ export function saveNewSlot(name: string, save: FactorySave): ProjectSlot {
   idx.slots.unshift(slot)
   writeIndex(idx)
   saveToLocalStorage(sandboxProjectSlotKey(slot.id), save)
+  return slot
+}
+
+/**
+ * Create a new slot AND pin it to the end of the user-facing display
+ * order. Wraps `saveNewSlot` (so the underlying index still prepends,
+ * keeping its newest-first invariant) and then writes an explicit
+ * order placing the new slot last — matching the user expectation
+ * that saving a project appends it visually to the projects list.
+ */
+export function saveNewSlotAtEnd(name: string, save: FactorySave): ProjectSlot {
+  const slot = saveNewSlot(name, save)
+  const ordered = listSlots().map(s => s.id).filter(id => id !== slot.id)
+  setSlotOrder([...ordered, slot.id])
   return slot
 }
 
@@ -148,6 +248,10 @@ export function deleteSlot(slotId: string): void {
   }
   writeIndex(idx)
   localStorage.removeItem(sandboxProjectSlotKey(slotId))
+  const order = readExplicitOrder()
+  if (order !== null) {
+    writeExplicitOrder(order.filter(id => id !== slotId))
+  }
 }
 
 /** Get the id of the slot most recently loaded, if any. */

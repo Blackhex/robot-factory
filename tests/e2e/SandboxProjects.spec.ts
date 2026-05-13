@@ -469,3 +469,411 @@ test.describe('Sandbox — Projects panel: outside click and Escape dismiss', ()
   })
 })
 
+// REQUIREMENT: the Projects panel supports user-controlled ordering of
+// saved-project rows. Each saved row exposes a drag handle (grip), the
+// "+ New project" placeholder does NOT, and the row order can be
+// rearranged by HTML5 drag-and-drop, by Alt+Arrow keyboard moves, and
+// across multi-select drags. The new order persists to localStorage via
+// `setSlotOrder` and survives a page reload. The placeholder is pinned
+// to the bottom and dragging a row never triggers the destructive load
+// flow.
+test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
+  clearStorageBeforeEach()
+
+  /** Save N named projects sequentially via the empty placeholder. */
+  async function saveProjects(
+    projectsPanel: import('./pom/screens/ProjectsPanelPage').ProjectsPanelPage,
+    names: string[],
+  ): Promise<void> {
+    for (const name of names) {
+      await projectsPanel.clickEmptyPlaceholderSave()
+      await projectsPanel.fillPromptAndConfirm(name)
+      await projectsPanel.expectSlotPresent(name)
+    }
+  }
+
+  test('drag handle is present on saved-project rows but NOT on the "+ New project" placeholder', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await saveProjects(projectsPanel, ['Alpha'])
+
+    // Saved rows expose the grip.
+    await expect(projectsPanel.slotGrip('Alpha')).toBeVisible()
+    // Placeholder must NOT have a grip.
+    await expect(
+      projectsPanel.placeholderGrip(),
+      'placeholder row must not render a drag handle',
+    ).toHaveCount(0)
+  })
+
+  test('dragging Beta above Alpha reorders the rendered list to ["Beta", "Alpha", "Gamma"]', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await saveProjects(projectsPanel, ['Alpha', 'Beta', 'Gamma'])
+
+    await projectsPanel.dragSlot('Beta', 'Alpha', 'before')
+
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Alpha', 'Gamma'])
+  })
+
+  test('multi-select drag preserves relative order of the selected rows', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await saveProjects(projectsPanel, ['Alpha', 'Beta', 'Gamma', 'Delta'])
+
+    // Pick Alpha and Gamma — non-contiguous in the list — and drag the
+    // pair below Delta. Their relative order in the dragged set
+    // (Alpha-before-Gamma) must be preserved at the drop site.
+    await projectsPanel.clickSlot('Alpha')
+    await projectsPanel.ctrlClickSlot('Gamma')
+    await projectsPanel.expectSlotsSelected(['Alpha', 'Gamma'])
+
+    await projectsPanel.dragSlot('Gamma', 'Delta', 'after')
+
+    expect(await projectsPanel.getProjectOrder()).toEqual([
+      'Beta',
+      'Delta',
+      'Alpha',
+      'Gamma',
+    ])
+  })
+
+  test('"+ New project" placeholder stays pinned to the bottom even when a row is dropped onto it', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await saveProjects(projectsPanel, ['Alpha', 'Beta'])
+
+    // Drop Alpha onto the placeholder. Production must clamp the drop to
+    // the last real-slot index — Alpha lands as the last project, NOT
+    // after the placeholder, and the placeholder remains last.
+    await projectsPanel.dropOnPlaceholder('Alpha')
+
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Alpha'])
+    await projectsPanel.expectPlaceholderIsLast()
+  })
+
+  test('Alt+ArrowDown / Alt+ArrowUp reorder the focused slot row', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await saveProjects(projectsPanel, ['Alpha', 'Beta', 'Gamma'])
+
+    // Sanity: starting order matches the save order.
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Alpha', 'Beta', 'Gamma'])
+
+    await projectsPanel.pressKeyOnSlot('Alpha', 'ArrowDown', ['Alt'])
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Alpha', 'Gamma'])
+
+    await projectsPanel.pressKeyOnSlot('Alpha', 'ArrowDown', ['Alt'])
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
+
+    await projectsPanel.pressKeyOnSlot('Alpha', 'ArrowUp', ['Alt'])
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Alpha', 'Gamma'])
+
+    await projectsPanel.pressKeyOnSlot('Alpha', 'ArrowUp', ['Alt'])
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Alpha', 'Beta', 'Gamma'])
+  })
+
+  test('keyboard reorder keeps focus on the moved row across consecutive Alt+Arrow presses', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await saveProjects(projectsPanel, ['Alpha', 'Beta', 'Gamma'])
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Alpha', 'Beta', 'Gamma'])
+
+    // Focus Alpha exactly once. The whole point of this test is that
+    // we never re-focus between key presses — the handler itself must
+    // restore focus to the moved row, and that focus must SURVIVE the
+    // subsequent panel re-render triggered by `wireProjectsPanel`.
+    await projectsPanel.focusSlot('Alpha')
+    expect(
+      await projectsPanel.getFocusedSlotName(),
+      'Alpha row should be focused after focusSlot()',
+    ).toBe('Alpha')
+
+    // First Alt+ArrowDown — Alpha moves down one position; focus must
+    // STILL be on Alpha (not on <body>, not on Beta).
+    await projectsPanel.pressKey('ArrowDown', ['Alt'])
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Alpha', 'Gamma'])
+    expect(
+      await projectsPanel.getFocusedSlotName(),
+      'after first Alt+ArrowDown, focus must follow the moved Alpha row',
+    ).toBe('Alpha')
+
+    // Second consecutive Alt+ArrowDown WITHOUT re-focusing. If the
+    // first press dropped focus to <body>, the controller's
+    // "focus is on a slot row" guard will silently drop this press.
+    await projectsPanel.pressKey('ArrowDown', ['Alt'])
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
+    expect(
+      await projectsPanel.getFocusedSlotName(),
+      'after second Alt+ArrowDown, focus must still follow the moved Alpha row',
+    ).toBe('Alpha')
+
+    // Two consecutive Alt+ArrowUp's — same invariant in reverse.
+    await projectsPanel.pressKey('ArrowUp', ['Alt'])
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Alpha', 'Gamma'])
+    expect(
+      await projectsPanel.getFocusedSlotName(),
+      'after first Alt+ArrowUp, focus must follow the moved Alpha row',
+    ).toBe('Alpha')
+
+    await projectsPanel.pressKey('ArrowUp', ['Alt'])
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Alpha', 'Beta', 'Gamma'])
+    expect(
+      await projectsPanel.getFocusedSlotName(),
+      'after second Alt+ArrowUp, focus must still follow the moved Alpha row',
+    ).toBe('Alpha')
+  })
+
+  test('dragging a slot row does NOT trigger the destructive load flow', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, grid, probe,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+
+    // Place a machine so that an accidental load (which clears the
+    // factory back to the saved snapshot) would be observable as a
+    // machine-count change.
+    await grid.dblClickCell({ x: 10, z: 10 })
+    const beforeCount = await probe.getMachineCount()
+    expect(beforeCount).toBeGreaterThan(0)
+
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    // Save the current factory under two names so we have two slots to
+    // drag between.
+    await saveProjects(projectsPanel, ['Alpha', 'Beta'])
+
+    // Now place an extra machine to differentiate the live factory from
+    // the saved snapshots. If onLoadSlot ever fires during the drag,
+    // this extra machine will be wiped on reload.
+    await toolbar.clickProjects()
+    await projectsPanel.expectClosed()
+    await grid.dblClickCell({ x: 12, z: 10 })
+    const afterPlace = await probe.getMachineCount()
+    expect(afterPlace).toBe(beforeCount + 1)
+
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.dragSlot('Beta', 'Alpha', 'before')
+
+    // Drag must not trigger a load — live factory state is untouched.
+    expect(await probe.getMachineCount()).toBe(afterPlace)
+  })
+
+  // ---------- live preview during drag --------------------------------
+  // The visual feedback for an in-flight drag is the dragged row
+  // animating into its would-be drop position INSIDE the list. These
+  // tests pin the contract: mid-drag DOM order matches the order the
+  // user would see if they released right now.
+
+  test('mid-drag, the dragged row visually moves to its would-be drop position (live preview)', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await saveProjects(projectsPanel, ['Alpha', 'Beta', 'Gamma'])
+
+    // Sanity: starting order matches the save order.
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Alpha', 'Beta', 'Gamma'])
+
+    // Start dragging Alpha and pause with the pointer in the LOWER half
+    // of Gamma's row — i.e. the would-be drop position is "after Gamma",
+    // making Alpha the last real slot. Do NOT release yet.
+    await projectsPanel.beginDragOver('Alpha', 'Gamma', 'bottom')
+
+    // Live preview: the rendered slot order must already reflect the
+    // post-drop arrangement BEFORE the pointer is released.
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
+
+    // The "+ New project" placeholder must remain pinned at the bottom
+    // even while the dragged row is parked above it.
+    await projectsPanel.expectPlaceholderIsLast()
+
+    // Release the pointer — the drop must keep the previewed order.
+    await projectsPanel.endDrag()
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
+  })
+
+  test('cancelling an in-flight drag (release outside the panel) restores the original order', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await saveProjects(projectsPanel, ['Alpha', 'Beta', 'Gamma'])
+
+    // Start the drag and confirm the live preview is in effect — this
+    // is the precondition that makes "cancel restores" a meaningful
+    // assertion (otherwise the order would never have changed).
+    await projectsPanel.beginDragOver('Alpha', 'Gamma', 'bottom')
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
+
+    // Cancel by releasing the pointer well outside the panel. No slot
+    // row is under the pointer at release time, so the controller must
+    // discard the previewed order rather than commit it.
+    await projectsPanel.cancelDrag()
+
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Alpha', 'Beta', 'Gamma'])
+    await projectsPanel.expectPlaceholderIsLast()
+  })
+})
+
+// Persistence is split into its own describe so we can use a one-shot
+// localStorage clear (sentinel in sessionStorage) instead of the standard
+// per-test clear that would also wipe state on `page.reload()`.
+test.describe('Sandbox — Projects panel: drag-and-drop reordering — persistence', () => {
+  test('reordered list survives a page reload', async ({
+    page, mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    // Clear localStorage ONLY on the first navigation of this test. The
+    // sentinel in sessionStorage (which survives a reload but is scoped
+    // per-tab) prevents the post-reload navigation from also wiping the
+    // saved slot order we are about to verify.
+    await page.addInitScript(() => {
+      const KEY = '__rf_e2e_reorder_persist_seeded__'
+      try {
+        if (!sessionStorage.getItem(KEY)) {
+          localStorage.clear()
+          sessionStorage.setItem(KEY, '1')
+        }
+      } catch {
+        /* ignore */
+      }
+    })
+
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    // Save Alpha, Beta, Gamma — same fixture as the basic reorder test.
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      await projectsPanel.clickEmptyPlaceholderSave()
+      await projectsPanel.fillPromptAndConfirm(name)
+      await projectsPanel.expectSlotPresent(name)
+    }
+
+    await projectsPanel.dragSlot('Beta', 'Alpha', 'before')
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Alpha', 'Gamma'])
+
+    // Reload — `setSlotOrder` should have persisted the new order.
+    await page.reload()
+
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Alpha', 'Gamma'])
+  })
+
+  test('a live-preview drop persists the previewed order across reload', async ({
+    page, mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await page.addInitScript(() => {
+      const KEY = '__rf_e2e_live_preview_persist_seeded__'
+      try {
+        if (!sessionStorage.getItem(KEY)) {
+          localStorage.clear()
+          sessionStorage.setItem(KEY, '1')
+        }
+      } catch {
+        /* ignore */
+      }
+    })
+
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      await projectsPanel.clickEmptyPlaceholderSave()
+      await projectsPanel.fillPromptAndConfirm(name)
+      await projectsPanel.expectSlotPresent(name)
+    }
+
+    // Live-preview drag: Alpha → bottom-half of Gamma, then drop.
+    await projectsPanel.beginDragOver('Alpha', 'Gamma', 'bottom')
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
+    await projectsPanel.endDrag()
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
+
+    await page.reload()
+
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
+  })
+
+  test('a cancelled drag does NOT persist any reorder across reload', async ({
+    page, mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await page.addInitScript(() => {
+      const KEY = '__rf_e2e_cancel_persist_seeded__'
+      try {
+        if (!sessionStorage.getItem(KEY)) {
+          localStorage.clear()
+          sessionStorage.setItem(KEY, '1')
+        }
+      } catch {
+        /* ignore */
+      }
+    })
+
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      await projectsPanel.clickEmptyPlaceholderSave()
+      await projectsPanel.fillPromptAndConfirm(name)
+      await projectsPanel.expectSlotPresent(name)
+    }
+
+    // Mid-drag the live preview must show the would-be order…
+    await projectsPanel.beginDragOver('Alpha', 'Gamma', 'bottom')
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
+
+    // …but cancelling must restore the original order before commit,
+    // so nothing is written to localStorage.
+    await projectsPanel.cancelDrag()
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Alpha', 'Beta', 'Gamma'])
+
+    await page.reload()
+
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    expect(await projectsPanel.getProjectOrder()).toEqual(['Alpha', 'Beta', 'Gamma'])
+  })
+})
+

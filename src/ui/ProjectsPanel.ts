@@ -1,5 +1,6 @@
 import { i18next } from '../i18n/i18n'
 import type { ProjectSlot } from '../utils/SandboxProjects'
+import { ProjectsPanelReorderController } from './ProjectsPanelReorderController'
 
 /**
  * Sandbox-only Projects panel — lists saved factory "projects" (slots)
@@ -21,6 +22,7 @@ export class ProjectsPanel {
   private slots: ProjectSlot[] = []
   private selectedSlotIds: Set<string> = new Set()
   private emptySelected = false
+  private reorderController: ProjectsPanelReorderController
   private handleLangChange = (): void => {
     this.updateLabels()
     this.renderList()
@@ -33,6 +35,7 @@ export class ProjectsPanel {
   onImport: () => void = () => {}
   onExport: (slotIds: string[]) => void = () => {}
   onRequestClose: () => void = () => {}
+  onReorder: (orderedSlotIds: string[]) => void = () => {}
 
   private outsideClickIgnoreElements: HTMLElement[] = []
   private listenersAttached = false
@@ -66,6 +69,17 @@ export class ProjectsPanel {
     this.list = document.createElement('div')
     this.list.className = 'ui-projects-list'
     this.container.appendChild(this.list)
+
+    this.reorderController = new ProjectsPanelReorderController({
+      listEl: this.list,
+      getOrderedSlotIds: () => this.slots.map((s) => s.id),
+      getSelectedSlotIds: () => [...this.selectedSlotIds],
+      isPlaceholderRow: (el) => el.classList.contains('ui-projects-slot--empty'),
+      onReorder: (newOrder, focusSlotId) => {
+        this.applyReorderToLocalSlots(newOrder, focusSlotId)
+        this.onReorder([...newOrder])
+      },
+    })
 
     const actions = document.createElement('div')
     actions.className = 'ui-projects-actions'
@@ -131,6 +145,7 @@ export class ProjectsPanel {
   hide(): void {
     this.container.classList.remove('open')
     document.body.classList.remove('projects-open')
+    this.reorderController.cancelInFlightDrag()
     if (this.listenersAttached) {
       document.removeEventListener('pointerdown', this.handlePointerDown, true)
       document.removeEventListener('keydown', this.handleKeyDown)
@@ -189,7 +204,18 @@ export class ProjectsPanel {
     const row = document.createElement('div')
     row.className = 'ui-projects-slot'
     row.dataset.slotId = slot.id
+    row.tabIndex = 0
     if (this.selectedSlotIds.has(slot.id)) row.classList.add('is-selected')
+
+    const grip = document.createElement('button')
+    grip.type = 'button'
+    grip.className = 'ui-projects-slot-grip'
+    grip.dataset.i18nKey = 'projects.drag_handle_aria'
+    grip.dataset.i18nAttr = 'aria-label'
+    grip.setAttribute('aria-label', i18next.t('projects.drag_handle_aria'))
+    grip.textContent = '⋮⋮'
+    grip.addEventListener('click', (ev) => ev.stopPropagation())
+    row.appendChild(grip)
 
     const name = document.createElement('span')
     name.className = 'ui-projects-slot-name'
@@ -208,6 +234,7 @@ export class ProjectsPanel {
 
     row.addEventListener('click', (ev) => this.handleRowClick(slot.id, ev))
     row.addEventListener('dblclick', () => this.onLoadSlot(slot.id))
+    this.reorderController.attachToSlotRow(row, slot.id)
     return row
   }
 
@@ -231,6 +258,7 @@ export class ProjectsPanel {
 
     row.addEventListener('click', () => this.selectEmpty())
     row.addEventListener('dblclick', () => this.onCreateNew())
+    this.reorderController.attachToPlaceholderRow(row)
     return row
   }
 
@@ -274,11 +302,39 @@ export class ProjectsPanel {
   private updateLabels(): void {
     for (const el of this.container.querySelectorAll<HTMLElement>('[data-i18n-key]')) {
       const key = el.dataset.i18nKey
-      if (key) el.textContent = i18next.t(key)
+      if (!key) continue
+      const text = i18next.t(key)
+      const attr = el.dataset.i18nAttr
+      if (attr) el.setAttribute(attr, text)
+      else el.textContent = text
     }
   }
 
+  private applyReorderToLocalSlots(newOrder: string[], focusSlotId?: string): void {
+    const byId = new Map(this.slots.map((s) => [s.id, s]))
+    const reordered: ProjectSlot[] = []
+    for (const id of newOrder) {
+      const slot = byId.get(id)
+      if (slot) reordered.push(slot)
+    }
+    this.slots = reordered
+    if (focusSlotId !== undefined) {
+      // Keyboard reorder path: re-render so the new order is reflected
+      // in the DOM, then move focus to the displaced row.
+      this.renderList()
+      const row = this.list.querySelector<HTMLElement>(
+        `.ui-projects-slot[data-slot-id="${CSS.escape(focusSlotId)}"]`,
+      )
+      row?.focus()
+    }
+    // Drag path: the reorder controller has already moved the row nodes
+    // in place via live preview. Re-rendering would destroy/recreate
+    // them and cause a flicker — only the in-memory `slots` array
+    // needs syncing here.
+  }
+
   dispose(): void {
+    this.reorderController.dispose()
     if (this.listenersAttached) {
       document.removeEventListener('pointerdown', this.handlePointerDown, true)
       document.removeEventListener('keydown', this.handleKeyDown)

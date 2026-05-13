@@ -4,5 +4,6 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/public/**', '**/pxt-target/**', '**/dist/**'],
+    setupFiles: ['./tests/unit/setup.ts'],
   },
 })
