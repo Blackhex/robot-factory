@@ -6,6 +6,7 @@ import { buildDropdownOptions, resolveDropdownText, type DropdownItem } from './
 import { PxtFallbackEditor } from './PxtFallbackEditor'
 import { applyOnMachineIdleHatShape } from './hatBlockShape'
 import { PLUGGABLE_CONSUMER_BLOCK_TYPES } from './pluggableConsumerBlockTypes'
+import { performBlankProjectLoad, type BlankProjectDeps } from './PxtEditorBlankProject'
 import toolboxOverridesCss from './pxt-toolbox-overrides.css?raw'
 
 /**
@@ -237,6 +238,9 @@ export class PxtEditor {
 
     this.fallbackEditor?.setValue(ts)
   }
+
+  /** Replace the workspace with a blank "on start" program. See {@link performBlankProjectLoad}. */
+  loadBlankProjectAsync(timeoutMs = 4000): Promise<void> { return performBlankProjectLoad(this as unknown as BlankProjectDeps, timeoutMs) }
 
   /**
    * Force PXT to flush its debounced internal save and resolve once the

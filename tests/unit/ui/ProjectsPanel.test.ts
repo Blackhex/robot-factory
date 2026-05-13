@@ -134,14 +134,26 @@ describe('ProjectsPanel', () => {
     expect(onLoadSlot).toHaveBeenCalledWith('a')
   })
 
-  it('double-click on the empty row does NOT invoke onLoadSlot', () => {
+  // REQUIREMENT REVERSAL: Previously, double-clicking the empty "+ New
+  // project" row was a no-op (it must NOT invoke onLoadSlot). The new
+  // requirement reuses that gesture as the entry point for creating a
+  // brand-new blank project: the empty row dblclick must invoke a fresh
+  // `onCreateNew` callback (with no arguments) and must STILL not invoke
+  // `onLoadSlot`. The load path remains bound only to real slot rows.
+  it('double-click on the empty row invokes onCreateNew (and does NOT invoke onLoadSlot)', () => {
+    const onCreateNew = vi.fn()
     const onLoadSlot = vi.fn()
+    // Cast away the missing `onCreateNew` field — the GREEN agent will
+    // add it as a public callback on ProjectsPanel.
+    ;(panel as ProjectsPanel & { onCreateNew: () => void }).onCreateNew = onCreateNew
     panel.onLoadSlot = onLoadSlot
     panel.setSlots([])
 
     const empty = parent.querySelector<HTMLElement>('.ui-projects-slot--empty')!
     empty.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
 
+    expect(onCreateNew).toHaveBeenCalledTimes(1)
+    expect(onCreateNew).toHaveBeenCalledWith()
     expect(onLoadSlot).not.toHaveBeenCalled()
   })
 

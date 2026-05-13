@@ -29,6 +29,7 @@ export class ProjectsPanel {
   onSaveSlot: (slotId: string | null) => void = () => {}
   onLoadSlot: (slotId: string) => void = () => {}
   onDeleteSlot: (slotId: string) => void = () => {}
+  onCreateNew: () => void = () => {}
   onImport: () => void = () => {}
   onExport: (slotIds: string[]) => void = () => {}
 
@@ -189,6 +190,7 @@ export class ProjectsPanel {
     row.appendChild(save)
 
     row.addEventListener('click', () => this.selectEmpty())
+    row.addEventListener('dblclick', () => this.onCreateNew())
     return row
   }
 

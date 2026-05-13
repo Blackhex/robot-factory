@@ -51,6 +51,7 @@ describe('wireProjectsPanel.onSaveSlot — attaches slot as lastLoadedId', () =>
     const pxtEditor = {
       getWorkspaceXml: () => '<xml/>',
       loadWorkspaceXml: vi.fn(),
+      loadBlankProjectAsync: vi.fn(() => Promise.resolve()),
       flushPendingSaveAsync: () => Promise.resolve(),
     }
 
@@ -107,6 +108,7 @@ describe('wireProjectsPanel.onSaveSlot — attaches slot as lastLoadedId', () =>
     const pxtEditor = {
       getWorkspaceXml: () => '<xml/>',
       loadWorkspaceXml: vi.fn(),
+      loadBlankProjectAsync: vi.fn(() => Promise.resolve()),
       flushPendingSaveAsync: () => Promise.resolve(),
     }
 

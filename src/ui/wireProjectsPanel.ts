@@ -29,6 +29,14 @@ interface AudioLike {
 interface PxtEditorLike {
   getWorkspaceXml(): string
   loadWorkspaceXml(xml: string): void
+  /**
+   * Replace the editor with a blank "on start" program. Resolves only
+   * after the live Blockly workspace has converged to that one block —
+   * see `PxtEditor.loadBlankProjectAsync` for why this is a separate API
+   * from `loadWorkspaceXml(BLANK_PROJECT_BLOCKS_XML)` (defined in
+   * `src/editor/PxtEditorBlankProject.ts`).
+   */
+  loadBlankProjectAsync(): Promise<void>
   flushPendingSaveAsync(): Promise<void>
 }
 
@@ -94,6 +102,29 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
     projectsPanel.setSlots(listSlots())
   }
 
+  async function runDestructiveFactoryReplace(
+    mutate: (factory: Factory) => void | Promise<void>,
+  ): Promise<void> {
+    machinePanel.hide()
+    beltPanel.hide()
+    getGridInteraction()?.disable()
+    try {
+      await pxtEditor.flushPendingSaveAsync()
+    } catch { /* best-effort drain */ }
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    const f = gameManager.factory
+    if (!f) {
+      getGridInteraction()?.enable()
+      return
+    }
+    f.clear()
+    getItemRenderer()?.clear()
+    await mutate(f)
+    getFactoryRenderer()?.syncMeshes()
+    syncFactoryToEditor()
+    getGridInteraction()?.enable()
+  }
+
   projectsPanel.onSaveSlot = (slotId) => {
     audio.playUIClick()
     const factory = gameManager.factory
@@ -125,25 +156,18 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
     if (!factory) return
     const save = loadSlot(slotId)
     if (!save) return
-    machinePanel.hide()
-    beltPanel.hide()
-    getGridInteraction()?.disable()
+    void runDestructiveFactoryReplace((f) => importFactoryWithProgram(save, f, pxtEditor))
+  }
+
+  projectsPanel.onCreateNew = () => {
+    audio.playUIClick()
     void (async (): Promise<void> => {
-      try {
-        await pxtEditor.flushPendingSaveAsync()
-      } catch { /* best-effort drain */ }
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-      const f = gameManager.factory
-      if (!f) {
-        getGridInteraction()?.enable()
-        return
-      }
-      f.clear()
-      getItemRenderer()?.clear()
-      importFactoryWithProgram(save, f, pxtEditor)
-      getFactoryRenderer()?.syncMeshes()
-      syncFactoryToEditor()
-      getGridInteraction()?.enable()
+      const ok = await confirmModal({
+        title: i18next.t('projects.confirm_new_title'),
+        message: i18next.t('projects.confirm_new_message'),
+      })
+      if (!ok) return
+      await runDestructiveFactoryReplace(() => pxtEditor.loadBlankProjectAsync())
     })()
   }
 

@@ -73,6 +73,25 @@ export class ProjectsPanelPage {
     await this.emptyPlaceholder.first().click()
   }
 
+  /** Double-click the "+ New project" placeholder row to open the
+   * "start a new project" confirmation flow. */
+  async dblClickEmptyPlaceholder(): Promise<void> {
+    await expect(this.emptyPlaceholder.first()).toBeVisible()
+    await this.emptyPlaceholder.first().dblclick()
+  }
+
+  /** Assert a confirm modal is open and its title equals `text`. */
+  async expectConfirmModalTitle(text: string): Promise<void> {
+    const title = this.page.locator('.ui-modal .ui-modal-title')
+    await expect(title).toBeVisible()
+    await expect(title).toHaveText(text)
+  }
+
+  /** Assert no modal is currently mounted. */
+  async expectNoModal(): Promise<void> {
+    await expect(this.page.locator('.ui-modal')).toHaveCount(0)
+  }
+
   async clickSlot(name: string): Promise<void> {
     const row = this.slotByName(name)
     await expect(row).toBeVisible()
