@@ -32,6 +32,31 @@ export class ProjectsPanel {
   onCreateNew: () => void = () => {}
   onImport: () => void = () => {}
   onExport: (slotIds: string[]) => void = () => {}
+  onRequestClose: () => void = () => {}
+
+  private outsideClickIgnoreElements: HTMLElement[] = []
+  private listenersAttached = false
+  private handlePointerDown = (event: Event): void => {
+    if (!this.isOpen()) return
+    const target = event.target as Node | null
+    if (!target) return
+    if (this.container.contains(target)) return
+    for (const el of this.outsideClickIgnoreElements) {
+      if (el.contains(target)) return
+    }
+    if (target instanceof Element && target.closest('.ui-modal-backdrop')) return
+    this.onRequestClose()
+  }
+  private handleKeyDown = (event: KeyboardEvent): void => {
+    if (!this.isOpen()) return
+    if (event.key !== 'Escape') return
+    // Modal owns Escape first — its capture-phase handler may already have
+    // consumed and removed the modal before this bubble handler runs, so
+    // check both defaultPrevented and the live document state.
+    if (event.defaultPrevented) return
+    if (document.querySelector('.ui-modal-backdrop')) return
+    this.onRequestClose()
+  }
 
   constructor(parent: HTMLElement) {
     this.container = document.createElement('div')
@@ -95,11 +120,22 @@ export class ProjectsPanel {
   show(): void {
     this.container.classList.add('open')
     document.body.classList.add('projects-open')
+    if (!this.listenersAttached) {
+      // Capture phase so we see the click before the page's own handlers swallow it.
+      document.addEventListener('pointerdown', this.handlePointerDown, true)
+      document.addEventListener('keydown', this.handleKeyDown)
+      this.listenersAttached = true
+    }
   }
 
   hide(): void {
     this.container.classList.remove('open')
     document.body.classList.remove('projects-open')
+    if (this.listenersAttached) {
+      document.removeEventListener('pointerdown', this.handlePointerDown, true)
+      document.removeEventListener('keydown', this.handleKeyDown)
+      this.listenersAttached = false
+    }
   }
 
   isOpen(): boolean {
@@ -115,6 +151,10 @@ export class ProjectsPanel {
    * shared horizontal-resize-handle drag helper). */
   getContainer(): HTMLDivElement {
     return this.container
+  }
+
+  setOutsideClickIgnoreElements(elements: HTMLElement[]): void {
+    this.outsideClickIgnoreElements = [...elements]
   }
 
   setSlots(slots: ProjectSlot[]): void {
@@ -239,6 +279,11 @@ export class ProjectsPanel {
   }
 
   dispose(): void {
+    if (this.listenersAttached) {
+      document.removeEventListener('pointerdown', this.handlePointerDown, true)
+      document.removeEventListener('keydown', this.handleKeyDown)
+      this.listenersAttached = false
+    }
     i18next.off('languageChanged', this.handleLangChange)
     this.container.remove()
   }

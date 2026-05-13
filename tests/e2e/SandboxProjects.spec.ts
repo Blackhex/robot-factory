@@ -1,38 +1,16 @@
-import { test, expect } from './pom'
+import { test, expect, clearStorageBeforeEach } from './pom'
 import { t, type Lang } from './pom/data/i18n'
 
 // Wider viewport so the toolbar + Projects panel layout has room.
 test.use({ viewport: { width: 1920, height: 1080 } })
 
 test.describe('Sandbox — Projects panel', () => {
-  test.beforeEach(async ({ page }) => {
-    // Start every test with an empty localStorage so the projects list is
-    // deterministic. Must run before the app boots.
-    await page.addInitScript(() => {
-      try {
-        localStorage.clear()
-      } catch {
-        /* ignore */
-      }
-    })
-  })
-
-  async function enterSandbox(
-    mainMenu: import('./pom/screens/MainMenuPage').MainMenuPage,
-    toolbar: import('./pom/screens/ToolbarPage').ToolbarPage,
-    tutorial: import('./pom/screens/TutorialOverlayPage').TutorialOverlayPage,
-  ): Promise<void> {
-    await mainMenu.open()
-    await mainMenu.clickSandbox()
-    await toolbar.expectVisible()
-    await tutorial.dismissIfPresent(500)
-    await toolbar.waitForCameraSettle()
-  }
+  clearStorageBeforeEach()
 
   test('Projects button is visible in Sandbox mode', async ({
     mainMenu, toolbar, tutorial,
   }) => {
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
     await toolbar.expectProjectsButtonVisible()
   })
 
@@ -52,7 +30,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Clicking Projects opens the panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
   })
@@ -60,7 +38,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Clicking Projects again closes the panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
     await toolbar.clickProjects()
@@ -70,7 +48,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Empty slot list shows only the empty placeholder', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
     await projectsPanel.expectSlotCount(0)
@@ -80,7 +58,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Clicking the empty row\'s Save creates a new slot', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -94,7 +72,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Clicking a slot\'s inline Save overwrites it', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -116,7 +94,7 @@ test.describe('Sandbox — Projects panel', () => {
     mainMenu, toolbar, tutorial, projectsPanel, grid,
   }) => {
     const errors = mainMenu.collectPageErrors()
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
 
     // Save current (empty) state as "Beta".
     await toolbar.clickProjects()
@@ -142,7 +120,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Delete slot removes it from the list', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
     await toolbar.clickProjects()
 
     await projectsPanel.clickEmptyPlaceholderSave()
@@ -159,7 +137,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Import button is present in Projects panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
     await projectsPanel.expectImportButtonVisible()
@@ -168,7 +146,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Export button is present in Projects panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
     await projectsPanel.expectExportButtonVisible()
@@ -177,7 +155,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Multi-export bundles selected projects into one file', async ({
     page, mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await enterSandbox(mainMenu, toolbar, tutorial)
+    await mainMenu.enterSandbox(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -224,11 +202,7 @@ test.describe('Sandbox — Projects panel', () => {
 })
 
 test.describe('Sandbox — Projects panel: dblclick "+ New project" resets factory + program', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      try { localStorage.clear() } catch { /* ignore */ }
-    })
-  })
+  clearStorageBeforeEach()
 
   // Helper: place one machine on the grid and drop a non-trivial PXT block
   // so the destructive reset has something visible to wipe. Returns the
@@ -266,11 +240,7 @@ test.describe('Sandbox — Projects panel: dblclick "+ New project" resets facto
     mainMenu, toolbar, tutorial, projectsPanel, grid, editorPanel, pxt, probe,
   }) => {
     test.setTimeout(60_000)
-    await mainMenu.open()
-    await mainMenu.clickSandbox()
-    await toolbar.expectVisible()
-    await tutorial.dismissIfPresent(500)
-    await toolbar.waitForCameraSettle()
+    await mainMenu.enterSandbox(toolbar, tutorial)
 
     const seeded = await seedFactoryAndProgram(grid, toolbar, editorPanel, pxt, probe)
 
@@ -304,11 +274,7 @@ test.describe('Sandbox — Projects panel: dblclick "+ New project" resets facto
     mainMenu, toolbar, tutorial, projectsPanel, grid, editorPanel, pxt, probe,
   }) => {
     test.setTimeout(60_000)
-    await mainMenu.open()
-    await mainMenu.clickSandbox()
-    await toolbar.expectVisible()
-    await tutorial.dismissIfPresent(500)
-    await toolbar.waitForCameraSettle()
+    await mainMenu.enterSandbox(toolbar, tutorial)
 
     await seedFactoryAndProgram(grid, toolbar, editorPanel, pxt, probe)
 
@@ -383,3 +349,123 @@ test.describe('Sandbox — Projects panel: dblclick "+ New project" resets facto
     })
   }
 })
+
+// REQUIREMENT: while the Projects panel is open in the Sandbox, clicks
+// on the 3D canvas (or anywhere outside the panel that isn't a registered
+// ignore element) and the Escape key must dismiss the panel. Clicks on
+// the toolbar Projects button (toggle), the resize handle, or inside an
+// open `.ui-modal-backdrop` must NOT cause an unwanted dismiss.
+test.describe('Sandbox — Projects panel: outside click and Escape dismiss', () => {
+  clearStorageBeforeEach()
+
+  test('clicking the 3D canvas while panel is open closes the panel', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, grid,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    // Click an empty cell well away from the panel and the toolbar.
+    await grid.clickCell({ x: 15, z: 15 })
+
+    await projectsPanel.expectClosed()
+  })
+
+  test('clicking the toolbar Projects button while open closes the panel (toggle preserved)', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    // First toggle: must close (NOT immediately re-open from a stray
+    // outside-click handler firing on the same pointerdown).
+    await toolbar.clickProjects()
+    await projectsPanel.expectClosed()
+
+    // Second: must re-open. If the outside handler also fired, we'd
+    // observe a flip-flop / failure here.
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    // Third: closes again.
+    await toolbar.clickProjects()
+    await projectsPanel.expectClosed()
+  })
+
+  test('dragging the resize handle does NOT close the panel', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.dragResizeHandle(40)
+
+    await projectsPanel.expectOpen()
+  })
+
+  test('clicks inside the new-project confirm modal do not close the panel', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, grid, page,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+
+    // Place a machine so that the dblclick on "+ New project" produces a
+    // meaningful destructive confirmation.
+    await grid.dblClickCell({ x: 10, z: 10 })
+
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.dblClickEmptyPlaceholder()
+    await projectsPanel.expectConfirmModalTitle(t('en', 'projects.confirm_new_title'))
+
+    // Click somewhere INSIDE the modal that is not a button (the title).
+    // This must not dismiss the panel and must not close the modal.
+    await page.locator('.ui-modal .ui-modal-title').click()
+
+    await expect(page.locator('.ui-modal')).toHaveCount(1)
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.cancelConfirm()
+    await projectsPanel.expectNoModal()
+    await projectsPanel.expectOpen()
+  })
+
+  test('pressing Escape while panel is open closes the panel', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, page,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await page.keyboard.press('Escape')
+
+    await projectsPanel.expectClosed()
+  })
+
+  test('Escape closes a modal first; second Escape closes the panel', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, grid, page,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await grid.dblClickCell({ x: 10, z: 10 })
+
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+
+    await projectsPanel.dblClickEmptyPlaceholder()
+    await projectsPanel.expectConfirmModalTitle(t('en', 'projects.confirm_new_title'))
+
+    // First Escape: modal handles it (and stops it from also dismissing
+    // the panel). Modal closes; panel stays open.
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.ui-modal')).toHaveCount(0)
+    await projectsPanel.expectOpen()
+
+    // Second Escape: panel handles it now that the modal is gone.
+    await page.keyboard.press('Escape')
+    await projectsPanel.expectClosed()
+  })
+})
+

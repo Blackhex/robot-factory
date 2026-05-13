@@ -460,12 +460,21 @@ async function main(): Promise<void> {
     onResize: () => editorViewport.refitCameraToCurrentLevel(0.1),
   })
 
+  const closeProjects = (): void => {
+    projectsPanel.hide()
+    projectsResizeHandle.style.display = 'none'
+    toolbar.setProjectsPanelOpen(false)
+  }
+  projectsPanel.setOutsideClickIgnoreElements([
+    toolbar.getProjectsButton(),
+    projectsResizeHandle,
+  ])
+  projectsPanel.onRequestClose = closeProjects
+
   toolbar.onOpenProjects = () => {
     audio.playUIClick()
     if (projectsPanel.isOpen()) {
-      projectsPanel.hide()
-      projectsResizeHandle.style.display = 'none'
-      toolbar.setProjectsPanelOpen(false)
+      closeProjects()
     } else {
       wiredProjects.refreshSlots()
       projectsPanel.show()

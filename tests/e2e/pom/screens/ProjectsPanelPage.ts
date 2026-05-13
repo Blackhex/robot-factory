@@ -31,6 +31,31 @@ export class ProjectsPanelPage {
     await expect(this.container).not.toHaveClass(/open/)
   }
 
+  /** True when the panel currently has the `open` class. */
+  async isOpen(): Promise<boolean> {
+    const classes = (await this.container.getAttribute('class')) ?? ''
+    return classes.split(/\s+/).includes('open')
+  }
+
+  /**
+   * Pointer-down + small horizontal drag + pointer-up on the
+   * `#projects-resize-handle` element. Used to verify that interacting
+   * with the resize handle does NOT trigger the panel's outside-click
+   * dismiss behavior.
+   */
+  async dragResizeHandle(deltaX = 30): Promise<void> {
+    const handle = this.page.locator('#projects-resize-handle')
+    await expect(handle).toBeVisible()
+    const box = await handle.boundingBox()
+    if (!box) throw new Error('dragResizeHandle: resize handle has no bounding box')
+    const startX = box.x + box.width / 2
+    const startY = box.y + box.height / 2
+    await this.page.mouse.move(startX, startY)
+    await this.page.mouse.down()
+    await this.page.mouse.move(startX + deltaX, startY, { steps: 10 })
+    await this.page.mouse.up()
+  }
+
   async expectAttached(): Promise<void> {
     await expect(this.container).toBeAttached()
   }

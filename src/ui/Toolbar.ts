@@ -115,6 +115,10 @@ export class Toolbar {
     this.projectsBtn.classList.toggle('is-panel-open', open)
   }
 
+  getProjectsButton(): HTMLButtonElement {
+    return this.projectsBtn
+  }
+
   setPaused(paused: boolean): void {
     const key = paused ? 'actions.resume' : 'actions.pause'
     this.pauseBtn.dataset.i18nKey = key

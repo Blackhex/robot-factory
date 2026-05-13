@@ -1,6 +1,8 @@
 import type { Page, Locator } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { BasePage } from '../BasePage'
+import type { ToolbarPage } from './ToolbarPage'
+import type { TutorialOverlayPage } from './TutorialOverlayPage'
 
 /**
  * Main menu screen. Exposes navigation into the rest of the app.
@@ -106,6 +108,18 @@ export class MainMenuPage extends BasePage {
   async clickSandbox(): Promise<void> {
     await expect(this.sandboxBtn).toBeVisible()
     await this.sandboxBtn.click()
+  }
+
+  /**
+   * Full Sandbox entry flow: open the main menu, click Sandbox, wait for the
+   * toolbar, dismiss the tutorial if present, and wait for the camera to settle.
+   */
+  async enterSandbox(toolbar: ToolbarPage, tutorial: TutorialOverlayPage): Promise<void> {
+    await this.open()
+    await this.clickSandbox()
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent(500)
+    await toolbar.waitForCameraSettle()
   }
 
   /** Subscribe to page-level errors (caller drains the returned array after navigation). */

@@ -143,9 +143,7 @@ describe('ProjectsPanel', () => {
   it('double-click on the empty row invokes onCreateNew (and does NOT invoke onLoadSlot)', () => {
     const onCreateNew = vi.fn()
     const onLoadSlot = vi.fn()
-    // Cast away the missing `onCreateNew` field — the GREEN agent will
-    // add it as a public callback on ProjectsPanel.
-    ;(panel as ProjectsPanel & { onCreateNew: () => void }).onCreateNew = onCreateNew
+    panel.onCreateNew = onCreateNew
     panel.onLoadSlot = onLoadSlot
     panel.setSlots([])
 
@@ -516,5 +514,229 @@ describe('ProjectsPanel header removal', () => {
 
   it('does not render a .ui-projects-title element', () => {
     expect(parent.querySelector('.ui-projects-title')).toBeNull()
+  })
+})
+
+// REQUIREMENT: while open, the Projects panel must dismiss itself when
+// the user clicks outside it or presses Escape — but NOT when the click
+// lands on the panel itself, on a registered ignore element (the toolbar
+// Projects button, the resize handle), or inside an open `.ui-modal-backdrop`.
+// The new public API on ProjectsPanel:
+//   - `onRequestClose: () => void` callback (invoked, never closes
+//     the panel itself — wiring decides how to react).
+//   - `setOutsideClickIgnoreElements(elements: HTMLElement[]): void`
+//     allowlist; clicks within any of these (or their descendants) must
+//     NOT invoke `onRequestClose`.
+//   - On `show()`: attach document-level `pointerdown` (capture phase)
+//     and `keydown` listeners. On `hide()` and `dispose()`: detach them.
+describe('ProjectsPanel — dismissal', () => {
+  let parent: HTMLDivElement
+  let panel: ProjectsPanel
+
+  beforeEach(async () => {
+    await switchLanguage('en')
+    document.body.innerHTML = ''
+    document.body.className = ''
+    parent = document.createElement('div')
+    document.body.appendChild(parent)
+    panel = new ProjectsPanel(parent)
+  })
+
+  afterEach(() => {
+    panel.dispose()
+    document.body.innerHTML = ''
+  })
+
+  // jsdom (current Vitest pin) does not always implement `PointerEvent`
+  // — fall back to `MouseEvent` of type `pointerdown` so the listener
+  // (which only inspects `event.target`) sees an equivalent event.
+  function dispatchPointerDown(target: EventTarget): void {
+    const PE = (globalThis as { PointerEvent?: typeof PointerEvent }).PointerEvent
+    const ev = PE
+      ? new PE('pointerdown', { bubbles: true })
+      : new MouseEvent('pointerdown', { bubbles: true })
+    target.dispatchEvent(ev)
+  }
+
+  function dispatchKeyDown(key: string): void {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+  }
+
+  it('while open, a pointerdown outside the panel invokes onRequestClose', () => {
+    panel.show()
+    const onRequestClose = vi.fn()
+    panel.onRequestClose = onRequestClose
+
+    const outside = document.createElement('div')
+    outside.id = 'outside-el'
+    document.body.appendChild(outside)
+
+    dispatchPointerDown(outside)
+
+    expect(onRequestClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('while open, a pointerdown on the panel container does NOT invoke onRequestClose', () => {
+    panel.setSlots([makeSlot('a', 'Alpha')])
+    panel.show()
+    const onRequestClose = vi.fn()
+    panel.onRequestClose = onRequestClose
+
+    const container = parent.querySelector<HTMLElement>('#projects-container')!
+    dispatchPointerDown(container)
+
+    const slotRow = parent.querySelector<HTMLElement>(
+      '.ui-projects-slot:not(.ui-projects-slot--empty)',
+    )!
+    dispatchPointerDown(slotRow)
+
+    expect(onRequestClose).not.toHaveBeenCalled()
+  })
+
+  it('while open, a pointerdown on a registered ignore element does NOT invoke onRequestClose', () => {
+    const externalBtn = document.createElement('button')
+    externalBtn.id = 'ext-projects-btn'
+    const childIcon = document.createElement('span')
+    externalBtn.appendChild(childIcon)
+    document.body.appendChild(externalBtn)
+
+    panel.setOutsideClickIgnoreElements([externalBtn])
+    panel.show()
+    const onRequestClose = vi.fn()
+    panel.onRequestClose = onRequestClose
+
+    dispatchPointerDown(externalBtn)
+    dispatchPointerDown(childIcon)
+
+    expect(onRequestClose).not.toHaveBeenCalled()
+  })
+
+  it('while open, a pointerdown inside an element matching .ui-modal-backdrop does NOT invoke onRequestClose', () => {
+    const backdrop = document.createElement('div')
+    backdrop.className = 'ui-modal-backdrop'
+    const card = document.createElement('div')
+    card.className = 'ui-modal'
+    const btn = document.createElement('button')
+    btn.textContent = 'OK'
+    card.appendChild(btn)
+    backdrop.appendChild(card)
+    document.body.appendChild(backdrop)
+
+    panel.show()
+    const onRequestClose = vi.fn()
+    panel.onRequestClose = onRequestClose
+
+    dispatchPointerDown(btn)
+    dispatchPointerDown(card)
+    dispatchPointerDown(backdrop)
+
+    expect(onRequestClose).not.toHaveBeenCalled()
+  })
+
+  it('while CLOSED, a pointerdown outside the panel does NOT invoke onRequestClose', () => {
+    const onRequestClose = vi.fn()
+    panel.onRequestClose = onRequestClose
+
+    // Panel never opened.
+    const outside = document.createElement('div')
+    document.body.appendChild(outside)
+    dispatchPointerDown(outside)
+
+    // And after open + close, listeners must be detached.
+    panel.show()
+    panel.hide()
+    dispatchPointerDown(outside)
+
+    expect(onRequestClose).not.toHaveBeenCalled()
+  })
+
+  it('while open, an Escape keydown invokes onRequestClose', () => {
+    panel.show()
+    const onRequestClose = vi.fn()
+    panel.onRequestClose = onRequestClose
+
+    dispatchKeyDown('Escape')
+
+    expect(onRequestClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('while open, a non-Escape keydown does NOT invoke onRequestClose', () => {
+    panel.show()
+    const onRequestClose = vi.fn()
+    panel.onRequestClose = onRequestClose
+
+    dispatchKeyDown('a')
+    dispatchKeyDown('Enter')
+    dispatchKeyDown(' ')
+
+    expect(onRequestClose).not.toHaveBeenCalled()
+  })
+
+  it('while CLOSED, an Escape keydown does NOT invoke onRequestClose', () => {
+    const onRequestClose = vi.fn()
+    panel.onRequestClose = onRequestClose
+
+    dispatchKeyDown('Escape')
+
+    expect(onRequestClose).not.toHaveBeenCalled()
+  })
+
+  it('after hide(), listeners are detached: outside pointerdown / Escape do NOT invoke onRequestClose', () => {
+    panel.show()
+    panel.hide()
+
+    // Set the spy AFTER hide so any lingering invocation is attributable
+    // to the listeners surviving past hide().
+    const onRequestClose = vi.fn()
+    panel.onRequestClose = onRequestClose
+
+    const outside = document.createElement('div')
+    document.body.appendChild(outside)
+    dispatchPointerDown(outside)
+    dispatchKeyDown('Escape')
+
+    expect(onRequestClose).not.toHaveBeenCalled()
+  })
+
+  it('after dispose(), outside pointerdown and Escape do NOT invoke onRequestClose', () => {
+    // Local panel — the outer afterEach also calls dispose() on the
+    // shared `panel`, and a second dispose on this instance would be
+    // wasteful. Use a fresh parent so removal is clean.
+    const localParent = document.createElement('div')
+    document.body.appendChild(localParent)
+    const localPanel = new ProjectsPanel(localParent)
+
+    localPanel.show()
+    localPanel.dispose()
+
+    const onRequestClose = vi.fn()
+    localPanel.onRequestClose = onRequestClose
+
+    const outside = document.createElement('div')
+    document.body.appendChild(outside)
+    dispatchPointerDown(outside)
+    dispatchKeyDown('Escape')
+
+    expect(onRequestClose).not.toHaveBeenCalled()
+  })
+
+  it('calling setOutsideClickIgnoreElements AFTER show() updates the active ignore set', () => {
+    panel.show()
+    const onRequestClose = vi.fn()
+    panel.onRequestClose = onRequestClose
+
+    const externalBtn = document.createElement('button')
+    document.body.appendChild(externalBtn)
+
+    // Before registering: button is "outside" → click dismisses.
+    dispatchPointerDown(externalBtn)
+    expect(onRequestClose).toHaveBeenCalledTimes(1)
+
+    onRequestClose.mockReset()
+    panel.setOutsideClickIgnoreElements([externalBtn])
+
+    // After registering: button is in the ignore set → click ignored.
+    dispatchPointerDown(externalBtn)
+    expect(onRequestClose).not.toHaveBeenCalled()
   })
 })
