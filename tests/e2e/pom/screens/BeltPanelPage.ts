@@ -2,6 +2,7 @@ import type { Page, Locator } from '@playwright/test'
 import { expect } from '@playwright/test'
 
 import { pressEnterAndSnapshot } from '../_helpers/inputEnterSnapshot'
+import { expectPanelStaysOnTopAtCenter } from '../_helpers/panelStacking'
 
 /**
  * The properties panel that appears when a belt segment is selected.
@@ -58,5 +59,17 @@ export class BeltPanelPage {
     valueAfter: string
   }> {
     return pressEnterAndSnapshot(this.nameInput)
+  }
+
+  async getBoundingBox(): Promise<{ x: number; y: number; width: number; height: number } | null> {
+    return this.panel.boundingBox()
+  }
+
+  /**
+   * Assert that `document.elementFromPoint` at the Belt panel's
+   * geometric centre resolves to a node inside `.ui-belt-panel`.
+   */
+  async expectStaysOnTopAtCenter(): Promise<void> {
+    await expectPanelStaysOnTopAtCenter(this.panel, '.ui-belt-panel')
   }
 }

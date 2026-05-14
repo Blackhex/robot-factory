@@ -170,9 +170,76 @@ type _RobotItemTypeExhaustive =
 const _robotItemTypeExhaustive: _RobotItemTypeExhaustive = true
 void _robotItemTypeExhaustive
 
-const ROBOT_ITEM_TYPE_SET: ReadonlySet<ItemType> = new Set<ItemType>(ROBOT_ITEM_TYPES)
-export function isRobotItemType(type: ItemType): boolean {
-  return ROBOT_ITEM_TYPE_SET.has(type)
+/**
+ * Single source of truth for the subset of ItemTypes that represent
+ * raw parts (wheels, sensors, batteries, chassis, circuits, raw_material).
+ * Used by `getItemCategory()` and HUD breakdown counters.
+ */
+export const PART_ITEM_TYPES = [
+  'wheel_small',
+  'wheel_medium',
+  'wheel_large',
+  'sensor_proximity',
+  'sensor_camera',
+  'sensor_lidar',
+  'battery_standard',
+  'battery_high_capacity',
+  'chassis_light',
+  'chassis_heavy',
+  'circuit_basic',
+  'circuit_advanced',
+  'raw_material',
+] as const satisfies readonly ItemType[]
+
+/**
+ * Single source of truth for the subset of ItemTypes that represent
+ * sub-assemblies (drivetrains, sensor arrays, power units). Used by
+ * `getItemCategory()` and HUD breakdown counters.
+ */
+export const ASSEMBLY_ITEM_TYPES = [
+  'drivetrain_basic',
+  'drivetrain_advanced',
+  'sensor_array_basic',
+  'sensor_array_advanced',
+  'power_unit_standard',
+  'power_unit_high',
+] as const satisfies readonly ItemType[]
+
+// Compile-time guard: the union of the three category tuples must
+// exactly equal `ItemType` (no missing, no extra members). Adding a
+// new `ItemType` without classifying it breaks `tsc --noEmit`.
+type _AllCategoriesUnion =
+  | (typeof PART_ITEM_TYPES)[number]
+  | (typeof ASSEMBLY_ITEM_TYPES)[number]
+  | (typeof ROBOT_ITEM_TYPES)[number]
+type _AllCategoriesExhaustive =
+  Exclude<ItemType, _AllCategoriesUnion> extends never
+    ? _AllCategoriesUnion extends ItemType ? true : never
+    : never
+const _allCategoriesExhaustive: _AllCategoriesExhaustive = true
+void _allCategoriesExhaustive
+
+// Compile-time guard: no value appears in more than one category tuple.
+type _CategoriesDisjoint =
+  Extract<(typeof PART_ITEM_TYPES)[number], (typeof ASSEMBLY_ITEM_TYPES)[number]> extends never
+    ? Extract<(typeof PART_ITEM_TYPES)[number], (typeof ROBOT_ITEM_TYPES)[number]> extends never
+      ? Extract<(typeof ASSEMBLY_ITEM_TYPES)[number], (typeof ROBOT_ITEM_TYPES)[number]> extends never
+        ? true
+        : never
+      : never
+    : never
+const _categoriesDisjoint: _CategoriesDisjoint = true
+void _categoriesDisjoint
+
+const PART_ITEM_TYPE_SET: ReadonlySet<ItemType> = new Set<ItemType>(PART_ITEM_TYPES)
+const ASSEMBLY_ITEM_TYPE_SET: ReadonlySet<ItemType> = new Set<ItemType>(ASSEMBLY_ITEM_TYPES)
+
+export type ItemCategory = 'part' | 'assembly' | 'robot'
+
+export function getItemCategory(type: ItemType): ItemCategory {
+  if (PART_ITEM_TYPE_SET.has(type)) return 'part'
+  if (ASSEMBLY_ITEM_TYPE_SET.has(type)) return 'assembly'
+  return 'robot'
 }
 
 export type MachineState = 'idle' | 'processing' | 'blocked'

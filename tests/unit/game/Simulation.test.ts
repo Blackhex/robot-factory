@@ -628,28 +628,31 @@ describe('Simulation', () => {
     })
 
     it('should calculate quality percent correctly', () => {
+      // NOTE: HUD Quality metric was redefined to (outputsDelivered / (outputsDelivered + defectiveDiscards)) * 100.
       // GIVEN
-      sim.robotsProduced = 8
-      sim.defects = 2
+      sim.outputsDelivered = 8
+      sim.defectiveDiscards = 2
 
       // THEN
       // total=10, quality = 8/10 * 100 = 80%
       expect(sim.getStats().qualityPercent).toBeCloseTo(80)
     })
 
-    it('should return 100% quality when no robots or defects', () => {
+    it('should return 100% quality when no deliveries or defective discards', () => {
+      // NOTE: HUD Quality metric was redefined to (outputsDelivered / (outputsDelivered + defectiveDiscards)) * 100.
       // GIVEN
-      sim.robotsProduced = 0
-      sim.defects = 0
+      sim.outputsDelivered = 0
+      sim.defectiveDiscards = 0
 
       // THEN
       expect(sim.getStats().qualityPercent).toBe(100)
     })
 
-    it('should handle all defects (0% quality)', () => {
+    it('should handle all defective discards (0% quality)', () => {
+      // NOTE: HUD Quality metric was redefined to (outputsDelivered / (outputsDelivered + defectiveDiscards)) * 100.
       // GIVEN
-      sim.robotsProduced = 0
-      sim.defects = 5
+      sim.outputsDelivered = 0
+      sim.defectiveDiscards = 5
 
       // THEN
       // total=5, quality = 0/5 * 100 = 0%
@@ -1025,6 +1028,188 @@ describe('Simulation', () => {
       // THEN
       expect(sim.running).toBe(false)
       expect(sim.paused).toBe(false)
+    })
+  })
+
+  describe('per-category delivery accumulators', () => {
+    // Spec: Simulation must expose `partsDelivered`, `assembliesDelivered`,
+    // and `defectiveDiscards` accumulators that mirror the new fields on
+    // `DeliveryResult` from ItemDeliveryEngine. `getStats()` must surface
+    // `partsDelivered` and `assembliesDelivered`. `clearInFlight()` resets
+    // all three new counters back to 0.
+
+    function buildShipperBelt(): ConveyorBelt {
+      const output = new Machine('out1', 'factory_output')
+      output.start()
+      sim.addMachine(output)
+      sim.setMachinePosition('out1', 1, 0)
+      const belt = new ConveyorBelt('b1', 0, 0, 1, 0, 1.0)
+      sim.addBelt(belt)
+      return belt
+    }
+
+    it('starts with zero partsDelivered, assembliesDelivered, defectiveDiscards', () => {
+      // THEN
+      expect(sim.partsDelivered).toBe(0)
+      expect(sim.assembliesDelivered).toBe(0)
+      expect(sim.defectiveDiscards).toBe(0)
+    })
+
+    it('delivering a part bumps partsDelivered (not assemblies or robots)', () => {
+      // GIVEN
+      const belt = buildShipperBelt()
+      belt.addItem(createItem('wheel_small'))
+
+      // WHEN
+      tickN(sim, 11)
+
+      // THEN
+      expect(sim.partsDelivered).toBe(1)
+      expect(sim.assembliesDelivered).toBe(0)
+      expect(sim.robotsProduced).toBe(0)
+    })
+
+    it('delivering an assembly bumps assembliesDelivered (not parts or robots)', () => {
+      // GIVEN
+      const belt = buildShipperBelt()
+      belt.addItem(createItem('drivetrain_basic'))
+
+      // WHEN
+      tickN(sim, 11)
+
+      // THEN
+      expect(sim.partsDelivered).toBe(0)
+      expect(sim.assembliesDelivered).toBe(1)
+      expect(sim.robotsProduced).toBe(0)
+    })
+
+    it('delivering a robot bumps robotsProduced (not parts or assemblies)', () => {
+      // GIVEN
+      const belt = buildShipperBelt()
+      belt.addItem(createItem('robot_worker'))
+
+      // WHEN
+      tickN(sim, 11)
+
+      // THEN
+      expect(sim.partsDelivered).toBe(0)
+      expect(sim.assembliesDelivered).toBe(0)
+      expect(sim.robotsProduced).toBe(1)
+    })
+
+    it('mixed deliveries accumulate per-category totals correctly', () => {
+      // GIVEN
+      const belt = buildShipperBelt()
+
+      // WHEN — three parts, two assemblies, one robot, one defective part
+      belt.addItem(createItem('wheel_small'))
+      tickN(sim, 11)
+      belt.addItem(createItem('wheel_medium'))
+      tickN(sim, 11)
+      belt.addItem(createItem('sensor_camera'))
+      tickN(sim, 11)
+      belt.addItem(createItem('drivetrain_basic'))
+      tickN(sim, 11)
+      belt.addItem(createItem('sensor_array_basic'))
+      tickN(sim, 11)
+      belt.addItem(createItem('robot_worker'))
+      tickN(sim, 11)
+      const defectivePart = createItem('wheel_small')
+      defectivePart.isDefective = true
+      belt.addItem(defectivePart)
+      tickN(sim, 11)
+
+      // THEN — per-category accumulators
+      expect(sim.partsDelivered).toBe(3)
+      expect(sim.assembliesDelivered).toBe(2)
+      expect(sim.robotsProduced).toBe(1)
+      // AND — defectiveDiscards reflects only the Shipper discard signal
+      expect(sim.defectiveDiscards).toBe(1)
+      // AND — getStats() mirrors the new counters
+      const stats = sim.getStats()
+      expect(stats.partsDelivered).toBe(3)
+      expect(stats.assembliesDelivered).toBe(2)
+    })
+
+    it('getStats() exposes partsDelivered and assembliesDelivered', () => {
+      // GIVEN
+      sim.partsDelivered = 7
+      sim.assembliesDelivered = 4
+
+      // WHEN
+      const stats = sim.getStats()
+
+      // THEN
+      expect(stats.partsDelivered).toBe(7)
+      expect(stats.assembliesDelivered).toBe(4)
+    })
+
+    it('clearInFlight() resets partsDelivered, assembliesDelivered, defectiveDiscards to 0', () => {
+      // GIVEN
+      sim.partsDelivered = 5
+      sim.assembliesDelivered = 3
+      sim.defectiveDiscards = 2
+
+      // WHEN
+      sim.clearInFlight()
+
+      // THEN
+      expect(sim.partsDelivered).toBe(0)
+      expect(sim.assembliesDelivered).toBe(0)
+      expect(sim.defectiveDiscards).toBe(0)
+    })
+  })
+
+  describe('redefined qualityPercent contract', () => {
+    // Spec: qualityPercent is computed against ALL delivered outputs vs
+    // defective discards, not just robots. Formula:
+    //   total = outputsDelivered + defectiveDiscards
+    //   qualityPercent = total > 0 ? (outputsDelivered / total) * 100 : 100
+
+    it('fresh simulation reports 100% quality', () => {
+      // THEN
+      expect(sim.getStats().qualityPercent).toBe(100)
+    })
+
+    it('8 non-defective deliveries and 0 defective discards → 100%', () => {
+      // GIVEN
+      sim.outputsDelivered = 8
+      sim.defectiveDiscards = 0
+
+      // THEN
+      expect(sim.getStats().qualityPercent).toBe(100)
+    })
+
+    it('8 non-defective deliveries and 2 defective discards → 80%', () => {
+      // GIVEN
+      sim.outputsDelivered = 8
+      sim.defectiveDiscards = 2
+
+      // THEN
+      // total = 10, quality = 8/10 * 100 = 80
+      expect(sim.getStats().qualityPercent).toBeCloseTo(80)
+    })
+
+    it('0 non-defective deliveries and 5 defective discards → 0%', () => {
+      // GIVEN
+      sim.outputsDelivered = 0
+      sim.defectiveDiscards = 5
+
+      // THEN
+      expect(sim.getStats().qualityPercent).toBe(0)
+    })
+
+    it('parts count toward quality numerator (not just robots)', () => {
+      // GIVEN — only parts delivered, no robots, no defective discards.
+      // Under the OLD formula (robotsProduced / (robotsProduced + defects))
+      // this would be 0/0 → 100, but with any defect → 0%. Under the NEW
+      // formula, parts count toward the numerator.
+      sim.outputsDelivered = 3
+      sim.partsDelivered = 3
+      sim.defectiveDiscards = 1
+
+      // THEN — quality reflects parts contribution: 3 / (3 + 1) = 75%
+      expect(sim.getStats().qualityPercent).toBeCloseTo(75)
     })
   })
 })

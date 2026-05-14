@@ -22,6 +22,8 @@ export interface SimulationStats {
   timeElapsed: number
   qualityPercent: number
   outputsDelivered: number
+  partsDelivered: number
+  assembliesDelivered: number
 }
 
 export class Simulation {
@@ -40,6 +42,9 @@ export class Simulation {
   itemsDelivered = 0
   outputsDelivered = 0
   robotsProduced = 0
+  partsDelivered = 0
+  assembliesDelivered = 0
+  defectiveDiscards = 0
   defects = 0
   totalIdleTicks = 0
 
@@ -146,6 +151,9 @@ export class Simulation {
     this.itemsDelivered += result.itemsDelivered
     this.outputsDelivered += result.outputsDelivered
     this.robotsProduced += result.robotsProduced
+    this.partsDelivered += result.partsDelivered
+    this.assembliesDelivered += result.assembliesDelivered
+    this.defectiveDiscards += result.defectsDiscarded
     this.defects += result.defectsDiscarded
     if (result.newGameOver !== null && this._gameOver === null) {
       this._gameOver = result.newGameOver
@@ -270,18 +278,12 @@ export class Simulation {
 
   private advanceBelts(): void {
     const dt = 1 / this.tickRate
-    for (const belt of this.belts.values()) {
-      belt.advance(dt)
-    }
+    for (const belt of this.belts.values()) belt.advance(dt)
   }
 
   /** Find a belt whose start position matches the given coordinates. */
   private findBeltStartingAt(x: number, z: number): ConveyorBelt | undefined {
-    for (const belt of this.belts.values()) {
-      if (belt.fromX === x && belt.fromZ === z) {
-        return belt
-      }
-    }
+    for (const belt of this.belts.values()) if (belt.fromX === x && belt.fromZ === z) return belt
     return undefined
   }
 
@@ -300,9 +302,7 @@ export class Simulation {
 
   private updateScoring(): void {
     for (const machine of this.machines.values()) {
-      if (machine.state === 'idle' && machine.currentRecipe !== null) {
-        this.totalIdleTicks++
-      }
+      if (machine.state === 'idle' && machine.currentRecipe !== null) this.totalIdleTicks++
     }
   }
 
@@ -327,39 +327,36 @@ export class Simulation {
   private emit(type: SimulationEventType, data: Record<string, unknown>, tick = this.currentTick): void {
     const event: SimulationEvent = { type, tick, data }
     const list = this.handlers.get(type)
-    if (list) {
-      for (const handler of list) {
-        handler(event)
-      }
-    }
+    if (list) for (const handler of list) handler(event)
   }
 
   getStats(): SimulationStats {
-    const total = this.robotsProduced + this.defects
+    const total = this.outputsDelivered + this.defectiveDiscards
     return {
       itemsProduced: this.itemsProduced,
       robotsCompleted: this.robotsProduced,
       timeElapsed: this.currentTick / this.tickRate,
-      qualityPercent: total > 0 ? (this.robotsProduced / total) * 100 : 100,
+      qualityPercent: total > 0 ? (this.outputsDelivered / total) * 100 : 100,
       outputsDelivered: this.outputsDelivered,
+      partsDelivered: this.partsDelivered,
+      assembliesDelivered: this.assembliesDelivered,
     }
   }
 
   /** Soft reset: clear runtime state but preserve factory layout. */
   clearInFlight(): void {
     this.stop()
-    for (const belt of this.belts.values()) {
-      belt.clear()
-    }
-    for (const machine of this.machines.values()) {
-      machine.clearRuntimeState()
-    }
+    for (const belt of this.belts.values()) belt.clear()
+    for (const machine of this.machines.values()) machine.clearRuntimeState()
     this.queueRunner.clear()
     this.currentTick = 0
     this.itemsProduced = 0
     this.itemsDelivered = 0
     this.outputsDelivered = 0
     this.robotsProduced = 0
+    this.partsDelivered = 0
+    this.assembliesDelivered = 0
+    this.defectiveDiscards = 0
     this.defects = 0
     this.totalIdleTicks = 0
     this._gameOver = null

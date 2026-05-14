@@ -1,5 +1,5 @@
 import type { GameOverCause, GameOverInfo, SimulationEventType } from './types.ts'
-import { isRobotItemType } from './types.ts'
+import { getItemCategory } from './types.ts'
 import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
 
@@ -44,6 +44,9 @@ export interface DeliveryResult {
   itemsDelivered: number
   outputsDelivered: number
   robotsProduced: number
+  partsDelivered: number
+  assembliesDelivered: number
+  robotsDelivered: number
   defectsDiscarded: number
   newGameOver: GameOverInfo | null
   events: DeliveryEvent[]
@@ -78,6 +81,9 @@ export class ItemDeliveryEngine {
       itemsDelivered: 0,
       outputsDelivered: 0,
       robotsProduced: 0,
+      partsDelivered: 0,
+      assembliesDelivered: 0,
+      robotsDelivered: 0,
       defectsDiscarded: 0,
       newGameOver: existingGameOver,
       events: [],
@@ -158,8 +164,22 @@ export class ItemDeliveryEngine {
             })
             if (targetMachine.machineType === 'factory_output') {
               result.outputsDelivered++
-              if (isRobotItemType(item.type)) {
-                result.robotsProduced++
+              const category = getItemCategory(item.type)
+              switch (category) {
+                case 'part':
+                  result.partsDelivered++
+                  break
+                case 'assembly':
+                  result.assembliesDelivered++
+                  break
+                case 'robot':
+                  result.robotsDelivered++
+                  result.robotsProduced++
+                  break
+                default: {
+                  const _exhaustive: never = category
+                  void _exhaustive
+                }
               }
               result.events.push({
                 type: 'output_delivered',

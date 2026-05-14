@@ -255,6 +255,8 @@
   "hud": {
     "items_produced": "Items",
     "items_delivered": "Items Delivered",
+    "parts_delivered": "Parts",
+    "assemblies_delivered": "Assemblies",
     "robots_completed": "Robots",
     "time": "Time",
     "quality": "Quality"

@@ -220,8 +220,25 @@ async function main(): Promise<void> {
   }
 
   function getHUDStats() {
-    return gameManager.simulation?.getStats()
-      ?? { itemsProduced: 0, robotsCompleted: 0, timeElapsed: 0, qualityPercent: 100, outputsDelivered: 0 }
+    const stats = gameManager.simulation?.getStats()
+    if (!stats) {
+      return {
+        partsDelivered: 0,
+        assembliesDelivered: 0,
+        robotsCompleted: 0,
+        timeElapsed: 0,
+        qualityPercent: 100,
+        outputsDelivered: 0,
+      }
+    }
+    return {
+      partsDelivered: stats.partsDelivered,
+      assembliesDelivered: stats.assembliesDelivered,
+      robotsCompleted: stats.robotsCompleted,
+      timeElapsed: stats.timeElapsed,
+      qualityPercent: stats.qualityPercent,
+      outputsDelivered: stats.outputsDelivered,
+    }
   }
 
   function getPausableSimulation(): PausableSimulation | undefined {

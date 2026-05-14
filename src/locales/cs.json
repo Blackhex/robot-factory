@@ -255,6 +255,8 @@
   "hud": {
     "items_produced": "Položky",
     "items_delivered": "Dodané díly",
+    "parts_delivered": "Díly",
+    "assemblies_delivered": "Sestavy",
     "robots_completed": "Roboti",
     "time": "Čas",
     "quality": "Kvalita"

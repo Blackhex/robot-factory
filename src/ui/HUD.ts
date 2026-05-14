@@ -1,7 +1,8 @@
 import i18next from 'i18next'
 
 export interface HUDStats {
-  itemsProduced: number
+  partsDelivered: number
+  assembliesDelivered: number
   robotsCompleted: number
   timeElapsed: number
   qualityPercent: number
@@ -11,7 +12,8 @@ export interface HUDStats {
 export class HUD {
   private container: HTMLDivElement
   private levelNameEl: HTMLDivElement
-  private itemsEl: HTMLSpanElement
+  private partsEl: HTMLSpanElement
+  private assembliesEl: HTMLSpanElement
   private robotsEl: HTMLSpanElement
   private timeEl: HTMLSpanElement
   private qualityEl: HTMLSpanElement
@@ -29,7 +31,8 @@ export class HUD {
     const metrics = document.createElement('div')
     metrics.className = 'ui-hud-metrics'
 
-    this.itemsEl = this.createMetric(metrics, 'hud.items_delivered')
+    this.partsEl = this.createMetric(metrics, 'hud.parts_delivered')
+    this.assembliesEl = this.createMetric(metrics, 'hud.assemblies_delivered')
     this.robotsEl = this.createMetric(metrics, 'hud.robots_completed')
     this.timeEl = this.createMetric(metrics, 'hud.time')
     this.qualityEl = this.createMetric(metrics, 'hud.quality')
@@ -67,7 +70,8 @@ export class HUD {
   }
 
   update(stats: HUDStats): void {
-    this.itemsEl.textContent = String(stats.outputsDelivered)
+    this.partsEl.textContent = String(stats.partsDelivered)
+    this.assembliesEl.textContent = String(stats.assembliesDelivered)
     this.robotsEl.textContent = String(stats.robotsCompleted)
     const minutes = Math.floor(stats.timeElapsed / 60)
     const seconds = Math.floor(stats.timeElapsed % 60)
