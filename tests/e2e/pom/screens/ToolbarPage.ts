@@ -39,6 +39,10 @@ export class ToolbarPage {
     await expect(this.root).toBeVisible()
   }
 
+  async expectHidden(): Promise<void> {
+    await expect(this.root).toBeHidden()
+  }
+
   async expectEditorButtonVisible(): Promise<void> {
     await expect(this.editorBtn).toBeVisible()
   }
@@ -111,6 +115,53 @@ export class ToolbarPage {
     await this.page.keyboard.press('e')
   }
 
+  /** Press the global "Q" key shortcut for the Projects panel. */
+  async pressProjectsShortcut(): Promise<void> {
+    await this.page.keyboard.press('q')
+  }
+
+  /** Press the global "F" key shortcut: start / pause / resume the simulation. */
+  async pressSimulationToggleShortcut(): Promise<void> {
+    await this.page.keyboard.press('f')
+  }
+
+  /** Press the global "R" key shortcut: restart the current simulation. */
+  async pressSimulationRestartShortcut(): Promise<void> {
+    await this.page.keyboard.press('r')
+  }
+
+  /** Press the global Space key shortcut: reset the camera view. */
+  async pressResetViewShortcut(): Promise<void> {
+    await this.page.keyboard.press(' ')
+  }
+
+  /** Press the global Escape key shortcut: back to the main menu. */
+  async pressBackToMenuShortcut(): Promise<void> {
+    await this.page.keyboard.press('Escape')
+  }
+
+  /** Move keyboard focus to the toolbar Start button. */
+  async focusStartButton(): Promise<void> {
+    await expect(this.startBtn).toBeVisible()
+    await this.startBtn.focus()
+    await expect(this.startBtn).toBeFocused()
+  }
+
+  /** Assert the Pause button shows the "paused" visual state (`is-paused` class). */
+  async expectPauseButtonHasPausedClass(): Promise<void> {
+    await expect(this.pauseBtn).toHaveClass(/is-paused/)
+  }
+
+  /** Assert the Pause button is in its non-paused (running) visual state. */
+  async expectPauseButtonNoPausedClass(): Promise<void> {
+    await expect(this.pauseBtn).not.toHaveClass(/is-paused/)
+  }
+
+  /** Read the current value of `window.scrollY`. */
+  async readWindowScrollY(): Promise<number> {
+    return this.page.evaluate(() => window.scrollY || document.documentElement.scrollTop || 0)
+  }
+
   async clickProjects(): Promise<void> {
     await expect(this.projectsBtn).toBeVisible()
     await this.projectsBtn.click()
@@ -122,6 +173,16 @@ export class ToolbarPage {
 
   async expectProjectsButtonHidden(): Promise<void> {
     await expect(this.projectsBtn).toHaveCount(0)
+  }
+
+  /** Assert the Projects toolbar button reflects the open panel state. */
+  async expectProjectsButtonOpen(): Promise<void> {
+    await expect(this.projectsBtn).toHaveClass(/is-panel-open/)
+  }
+
+  /** Assert the Projects toolbar button reflects the closed panel state. */
+  async expectProjectsButtonClosed(): Promise<void> {
+    await expect(this.projectsBtn).not.toHaveClass(/is-panel-open/)
   }
 
   /** Wait for the camera zoom-to-fit animation that runs after entering a level/sandbox. */

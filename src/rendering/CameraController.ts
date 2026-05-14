@@ -166,6 +166,15 @@ export class CameraController {
     }
   }
 
+  panBy(delta: THREE.Vector3): void {
+    this.camera.position.add(delta)
+    this.controls.target.add(delta)
+  }
+
+  cancelTransition(): void {
+    this.transition = null
+  }
+
   update(dt: number): void {
     if (this.transition) {
       this.transition.elapsed += dt

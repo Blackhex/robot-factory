@@ -8,6 +8,7 @@ import { FactoryRenderer } from './rendering/FactoryRenderer'
 import { ItemRenderer } from './rendering/ItemRenderer'
 import { GridInteraction, type PausableSimulation } from './rendering/GridInteraction'
 import { CameraController } from './rendering/CameraController'
+import { CameraKeyboardPanController } from './rendering/CameraKeyboardPanController'
 import { EditorViewportController } from './rendering/EditorViewportController'
 import { ParticleEffects } from './rendering/ParticleEffects'
 import { createTerminalDrainGraceDecider } from './rendering/TerminalDrainGraceAcceptability'
@@ -62,6 +63,12 @@ async function main(): Promise<void> {
     sceneManager.getCamera(),
     sceneManager.getControls(),
   )
+  const keyboardPan = new CameraKeyboardPanController({
+    cameraController,
+    getCamera: () => sceneManager.getCamera(),
+    getTarget: () => sceneManager.getControls().target,
+  })
+  keyboardPan.enable()
 
   let particleEffects: ParticleEffects | null = null
 
@@ -410,6 +417,7 @@ async function main(): Promise<void> {
     audio,
   }))
 
+  const resetView = (): void => editorViewport.refitCameraToCurrentLevel()
   wireToolbarAndOutcomeCallbacks({
     toolbar,
     scoreScreen,
@@ -424,8 +432,17 @@ async function main(): Promise<void> {
     getItemRenderer: () => itemRenderer,
     getNextLevelId,
     toggleEditor,
-    resetView: () => cameraController.resetView(),
+    resetView,
   })
+
+  const toggleSimulation = (): void => {
+    const sim = gameManager.simulation
+    if (sim?.running && !sim.paused) {
+      toolbar.onPause()
+    } else {
+      toolbar.onStart()
+    }
+  }
 
   wireMenuAndPanelCallbacks({
     mainMenu,
@@ -439,14 +456,6 @@ async function main(): Promise<void> {
     getFactoryRenderer: () => factoryRenderer,
     syncFactoryToEditor,
     autoSaveFactory,
-  })
-
-  wireWindowEvents({
-    canvasContainer,
-    getState: () => gameManager.getCurrentState(),
-    toggleEditor,
-    resizeScene: (width, height) => sceneManager.resize(width, height),
-    refitCamera: () => editorViewport.refitCameraToCurrentLevel(),
   })
 
   // --- Initial state ---
@@ -493,7 +502,7 @@ async function main(): Promise<void> {
   ])
   projectsPanel.onRequestClose = closeProjects
 
-  toolbar.onOpenProjects = () => {
+  const toggleProjects = (): void => {
     audio.playUIClick()
     if (projectsPanel.isOpen()) {
       closeProjects()
@@ -509,9 +518,29 @@ async function main(): Promise<void> {
       editorViewport.refitCameraToCurrentLevel()
     }
   }
+  toolbar.onOpenProjects = toggleProjects
+
+  wireWindowEvents({
+    canvasContainer,
+    getState: () => gameManager.getCurrentState(),
+    toggleEditor,
+    toggleProjects,
+    toggleSimulation,
+    restartSimulation: () => toolbar.onRestart(),
+    resetView: () => toolbar.onResetView(),
+    backToMainMenu: () => toolbar.onBackToMenu(),
+    isEscapeBlocked: () => {
+      // Modal owns Esc first (capture-phase handler fires before bubble).
+      if (document.querySelector('.ui-modal-backdrop')) return true
+      // Projects panel owns Esc when open.
+      if (projectsPanel.isOpen()) return true
+      return false
+    },
+    resizeScene: (width, height) => sceneManager.resize(width, height),
+    refitCamera: () => editorViewport.refitCameraToCurrentLevel(),
+  })
 
   gameManager.enterMainMenu()
-
   // --- Animation loop with HUD updates ---
 
   sceneManager.onAnimate((dt) => {
@@ -530,6 +559,7 @@ async function main(): Promise<void> {
           ConveyorBelt.getBeltSpeedByLogicalId(sim, beltLogicalId)
       : undefined
     factoryRenderer?.tick(dt, paused, getSpeed)
+    keyboardPan.update(dt)
     cameraController.update(dt)
     particleEffects?.update(dt)
 

@@ -33,6 +33,11 @@ export class ProjectsPanelPage {
     await expect(this.container).not.toHaveClass(/open/)
   }
 
+  /** Assert the panel's resize handle is not visible (panel is closed). */
+  async expectResizeHandleHidden(): Promise<void> {
+    await expect(this.page.locator('#projects-resize-handle')).toBeHidden()
+  }
+
   /** True when the panel currently has the `open` class. */
   async isOpen(): Promise<boolean> {
     const classes = (await this.container.getAttribute('class')) ?? ''
@@ -121,6 +126,13 @@ export class ProjectsPanelPage {
   /** Assert no modal is currently mounted. */
   async expectNoModal(): Promise<void> {
     await expect(this.page.locator('.ui-modal')).toHaveCount(0)
+  }
+
+  /** Assert exactly one modal is currently mounted and visible. */
+  async expectModalVisible(): Promise<void> {
+    const modal = this.page.locator('.ui-modal')
+    await expect(modal).toHaveCount(1)
+    await expect(modal).toBeVisible()
   }
 
   async clickSlot(name: string): Promise<void> {
@@ -600,6 +612,45 @@ export class ProjectsPanelPage {
     const input = this.slotNameInput(currentName)
     await expect(input).toBeVisible()
     await input.fill(newName)
+  }
+
+  /**
+   * Place keyboard focus inside the named slot's name input via the
+   * canonical inline-rename flow (click → assert focused). Used by
+   * tests that then dispatch raw keystrokes through `page.keyboard`
+   * to assert input-routing behavior.
+   */
+  async focusSlotNameInput(currentName: string): Promise<void> {
+    const input = this.slotNameInput(currentName)
+    await expect(input).toBeVisible()
+    await input.click()
+    await expect(input).toBeFocused()
+  }
+
+  /**
+   * Read the live `.value` of the named slot's name input. Reads the
+   * property (not the static `[value]` attribute) so callers can
+   * observe in-flight typing before the input commits / re-renders.
+   */
+  async getSlotNameInputValue(currentName: string): Promise<string> {
+    const input = this.slotNameInput(currentName)
+    await expect(input).toBeVisible()
+    return input.inputValue()
+  }
+
+  /**
+   * Blur whatever currently owns `document.activeElement` so subsequent
+   * `page.keyboard` presses target `<body>` and reach the window-level
+   * keydown listeners (without dispatching a synthetic mouse click that
+   * would trigger the panel's outside-click-to-close behavior).
+   */
+  async blurActiveElement(): Promise<void> {
+    await this.page.evaluate(() => {
+      const active = document.activeElement as HTMLElement | null
+      if (active && active !== document.body) {
+        try { active.blur() } catch { /* ignore */ }
+      }
+    })
   }
 
   /**

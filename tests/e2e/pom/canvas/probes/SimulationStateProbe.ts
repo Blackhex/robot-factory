@@ -22,6 +22,22 @@ export class SimulationStateProbe {
     })
   }
 
+  /** Read the current `GameManager` state string (e.g. `'main_menu'`, `'sandbox'`, `'build_phase'`). */
+  async getGameState(): Promise<string> {
+    return this.page.evaluate(() => {
+      const gm = (window as any).__gameManager
+      return (gm?.getCurrentState?.() ?? '') as string
+    })
+  }
+
+  /** Polling assertion that the GameManager state equals `expected`. */
+  async expectGameState(expected: string, timeoutMs = 5000): Promise<void> {
+    await expect(async () => {
+      const actual = await this.getGameState()
+      expect(actual).toBe(expected)
+    }).toPass({ timeout: timeoutMs, intervals: [100] })
+  }
+
   async getMachines(): Promise<MachineInfo[]> {
     return this.page.evaluate(() => {
       const t = (window as any).__test

@@ -51,6 +51,12 @@ export class SimulationProbe {
 
   async isPaused(): Promise<boolean> { return this.simulation.isPaused() }
 
+  async getGameState(): Promise<string> { return this.simulation.getGameState() }
+
+  async expectGameState(expected: string, timeoutMs?: number): Promise<void> {
+    return this.simulation.expectGameState(expected, timeoutMs)
+  }
+
   async getMachines(): Promise<MachineInfo[]> { return this.simulation.getMachines() }
 
   async getMachineCount(): Promise<number> { return this.simulation.getMachineCount() }
