@@ -45,7 +45,6 @@ function createBaseOptions(
   const base = {
     getSimulation: () => sim as never,
     getFactory: () => ({ getMachines: () => [{ id: 'machine_X', x: 4, z: 7 }] }),
-    getParticleEffects: () => ({ emitSparksAt: vi.fn() }),
     modal: { show: vi.fn() } as never,
     resolveFallbackMachineType: vi.fn(() => undefined),
     resolveFallbackMachineName: vi.fn(() => undefined),

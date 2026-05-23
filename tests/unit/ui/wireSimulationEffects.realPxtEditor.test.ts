@@ -49,7 +49,6 @@ function buildOptions(sim: FakeSimulation, editor: PxtEditor): WireUpOptions {
   const base = {
     getSimulation: () => sim as never,
     getFactory: () => ({ getMachines: () => [{ id: 'machine_1', x: 0, z: 0 }] }),
-    getParticleEffects: () => ({ emitSparksAt: vi.fn() }),
     modal: { show: vi.fn() } as never,
     resolveFallbackMachineType: vi.fn(() => undefined),
     resolveFallbackMachineName: vi.fn(() => undefined),

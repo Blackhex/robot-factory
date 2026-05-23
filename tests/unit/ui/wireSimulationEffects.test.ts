@@ -63,7 +63,6 @@ function createBaseOptions(sim: FakeSimulation): WireUpOptions {
   return {
     getSimulation: () => sim as never,
     getFactory: () => ({ getMachines: () => [{ id: 'machine_X', x: 4, z: 7 }] }),
-    getParticleEffects: () => ({ emitSparksAt: vi.fn() }),
     modal: { show: vi.fn() } as never,
     resolveFallbackMachineType: vi.fn(() => undefined),
     resolveFallbackMachineName: vi.fn(() => undefined),
@@ -229,24 +228,16 @@ describe('createSimulationEffectsWireUp — machine_idle event bridge', () => {
 })
 
 describe('createSimulationEffectsWireUp — pre-existing behavior must not regress', () => {
-  it('still emits sparks for machine_state_changed -> processing transitions', () => {
+  it('does not crash on machine_state_changed -> processing (no particle hook plumbed)', () => {
     const sim = createFakeSimulation()
-    const emitSparksAt = vi.fn()
-    const base = createBaseOptions(sim)
     const wireUp = createSimulationEffectsWireUp(
-      withPxtEditor(
-        {
-          ...base,
-          getParticleEffects: () => ({ emitSparksAt }),
-        },
-        () => null,
-      ),
+      withPxtEditor(createBaseOptions(sim), () => null),
     )
 
     wireUp()
-    sim.emitMachineStateChanged({ to: 'processing', machineId: 'machine_X' })
-
-    expect(emitSparksAt).toHaveBeenCalledWith(4.5, 0.5, 7.5)
+    expect(() =>
+      sim.emitMachineStateChanged({ to: 'processing', machineId: 'machine_X' }),
+    ).not.toThrow()
   })
 
   it('still subscribes to the game_over event via wireGameOverModal', () => {

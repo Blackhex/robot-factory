@@ -349,7 +349,6 @@ describe('Architecture', () => {
       'ItemRenderer.ts',
       'CameraController.ts',
       'GridInteraction.ts',
-      'ParticleEffects.ts',
       'RobotPreview.ts',
       'RenderingAssets.ts',
     ]

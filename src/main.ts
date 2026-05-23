@@ -10,7 +10,6 @@ import { GridInteraction, type PausableSimulation } from './rendering/GridIntera
 import { CameraController } from './rendering/CameraController'
 import { CameraKeyboardPanController } from './rendering/CameraKeyboardPanController'
 import { EditorViewportController } from './rendering/EditorViewportController'
-import { ParticleEffects } from './rendering/ParticleEffects'
 import { createTerminalDrainGraceDecider } from './rendering/TerminalDrainGraceAcceptability'
 import { MainMenu } from './ui/MainMenu'
 import { LevelSelect } from './ui/LevelSelect'
@@ -69,8 +68,6 @@ async function main(): Promise<void> {
     getTarget: () => sceneManager.getControls().target,
   })
   keyboardPan.enable()
-
-  let particleEffects: ParticleEffects | null = null
 
   const gameManager = new GameManager()
   // Expose for E2E tests (dev only)
@@ -256,7 +253,6 @@ async function main(): Promise<void> {
     gridInteraction?.dispose(); gridInteraction = null
     factoryRenderer?.dispose(); factoryRenderer = null
     itemRenderer?.dispose(); itemRenderer = null
-    particleEffects?.dispose(); particleEffects = null
     audio.stopBeltRolling()
   }
 
@@ -305,7 +301,6 @@ async function main(): Promise<void> {
       getMachineAt: (x, z) => gameManager.factory?.getMachineAt(x, z),
       getMachineById: (id) => gameManager.simulation?.getMachine(id),
     }))
-    particleEffects = new ParticleEffects(sceneManager.getScene())
 
     gridInteraction = new GridInteraction(sceneManager, factory, () => {
       factoryRenderer?.syncMeshes()
@@ -398,7 +393,6 @@ async function main(): Promise<void> {
   const wireSimulationEffects = createSimulationEffectsWireUp({
     getSimulation: () => gameManager.simulation,
     getFactory: () => gameManager.factory,
-    getParticleEffects: () => particleEffects,
     getPxtEditor: () => pxtEditor,
     modal: gameOverModal,
     ...createFactoryBackedGameOverFallbackResolvers(() => gameManager.factory),
@@ -570,7 +564,6 @@ async function main(): Promise<void> {
     factoryRenderer?.tick(dt, paused, getSpeed)
     keyboardPan.update(dt)
     cameraController.update(dt)
-    particleEffects?.update(dt)
 
     // Update item meshes on belts when simulation is running
     if (itemRenderer && sim?.running && factory) {

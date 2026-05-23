@@ -18,7 +18,6 @@ import { resolve } from 'path'
 const ROOT = resolve(__dirname, '..', '..', '..')
 const MAIN_TS_PATH = resolve(ROOT, 'src', 'main.ts')
 const TUTORIALS_TS_PATH = resolve(ROOT, 'src', 'game', 'Tutorials.ts')
-const PARTICLE_EFFECTS_PATH = resolve(ROOT, 'src', 'rendering', 'ParticleEffects.ts')
 
 function readSource(path: string): string {
   return readFileSync(path, 'utf8')
@@ -100,7 +99,7 @@ describe('main.ts extractions', () => {
     })
   })
 
-  describe('2. THREE import removed; spark emission via coordinate-form API', () => {
+  describe('2. THREE import removed; particle effect system removed', () => {
     it("src/main.ts does NOT import from 'three'", () => {
       const source = readSource(MAIN_TS_PATH)
       expect(source).not.toMatch(/\bfrom\s+['"]three['"]/)
@@ -111,12 +110,8 @@ describe('main.ts extractions', () => {
       expect(source).not.toMatch(/new\s+THREE\.Vector3\b/)
     })
 
-    it('src/rendering/ParticleEffects.ts exposes a coordinate-form spark API (e.g. emitSparksAt)', () => {
-      const source = readSource(PARTICLE_EFFECTS_PATH)
-      // Accept any method whose name starts with `emitSparks` and takes
-      // numeric coordinates rather than a Vector3 (e.g. `emitSparksAt(x, y, z)`,
-      // `emitSparksXYZ(...)`, etc.).
-      expect(source).toMatch(/\bemitSparks[A-Za-z]+\s*\([^)]*\bx\b[^)]*\by\b[^)]*\bz\b[^)]*\)/)
+    it('src/rendering/ParticleEffects.ts no longer exists', () => {
+      expect(existsSync(resolve(ROOT, 'src', 'rendering', 'ParticleEffects.ts'))).toBe(false)
     })
   })
 

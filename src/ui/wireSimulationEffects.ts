@@ -12,10 +12,6 @@ interface FactoryLike {
   getMachines(): readonly MachineInfoLike[]
 }
 
-interface ParticleEffectsLike {
-  emitSparksAt(x: number, y: number, z: number): void
-}
-
 interface SimulationEventLike {
   data: unknown
 }
@@ -39,7 +35,6 @@ interface PxtEditorLike {
 interface CreateSimulationEffectsWireUpOptions extends GameOverModalFallbackResolvers {
   getSimulation: () => SimulationLike | null
   getFactory: () => FactoryLike | null
-  getParticleEffects: () => ParticleEffectsLike | null
   getPxtEditor?: () => PxtEditorLike | null
   modal: Parameters<typeof wireGameOverModal>[0]['modal']
 }
@@ -92,18 +87,6 @@ export function createSimulationEffectsWireUp(
     sim.on('machine_state_changed', (event) => {
       const data = event.data as { to?: string; machineId?: string }
       if (!data.machineId) return
-
-      if (data.to === 'processing') {
-        const factory = options.getFactory()
-        const particleEffects = options.getParticleEffects()
-        if (factory && particleEffects) {
-          const info = factory.getMachines().find((machine) => machine.id === data.machineId)
-          if (info) {
-            particleEffects.emitSparksAt(info.x + 0.5, 0.5, info.z + 0.5)
-          }
-        }
-        return
-      }
 
       if (data.to === 'idle') {
         dispatchMachineIdle(sim, data.machineId)

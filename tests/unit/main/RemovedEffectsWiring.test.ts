@@ -194,7 +194,7 @@ describe('extracted removed audio and celebration wiring', () => {
     expect(hud.show).toHaveBeenCalled()
   })
 
-  it('wires sparks for processing machines without machine-process audio', () => {
+  it('does not emit any particles or audio for processing machines', () => {
     const listeners = new Map<string, (event: { data: unknown }) => void>()
     const simulation = {
       on: vi.fn((event: 'game_over' | 'machine_state_changed' | 'machine_cycle_completed', listener: (event: { data: unknown }) => void) => {
@@ -204,25 +204,22 @@ describe('extracted removed audio and celebration wiring', () => {
       enqueueCommands: vi.fn(),
       setItemArrivalBridge: vi.fn(),
     }
-    const particleEffects = {
-      emitSparksAt: vi.fn(),
-    }
     const playMachineProcess = vi.fn()
 
     const wireSimulationEffects = createSimulationEffectsWireUp({
       getSimulation: () => simulation,
       getFactory: () => ({ getMachines: () => [{ id: 'machine-1', x: 4, z: 7 }] }),
-      getParticleEffects: () => particleEffects,
       modal: { show: vi.fn() } as never,
       resolveFallbackMachineType: vi.fn(() => undefined),
       resolveFallbackMachineName: vi.fn(() => undefined),
     })
 
     wireSimulationEffects()
-    listeners.get('machine_state_changed')?.({ data: { to: 'processing', machineId: 'machine-1' } })
+    expect(() =>
+      listeners.get('machine_state_changed')?.({ data: { to: 'processing', machineId: 'machine-1' } }),
+    ).not.toThrow()
 
     expect(playMachineProcess).not.toHaveBeenCalled()
-    expect(particleEffects.emitSparksAt).toHaveBeenCalledWith(4.5, 0.5, 7.5)
   })
 
   it('plays success audio on score_screen without requiring any confetti hook', () => {
