@@ -48,22 +48,6 @@ test.describe('Navigation — Smoke Tests', () => {
     expect(box!.height).toBeGreaterThan(0)
   })
 
-  test('language toggle changes toolbar text to Czech', async ({ mainMenu, levelSelect, toolbar, tutorial }) => {
-    await mainMenu.clickStartGame()
-    await levelSelect.expectVisible()
-    await levelSelect.clickFirstUnlocked()
-    await toolbar.expectVisible()
-
-    await tutorial.dismissIfPresent()
-
-    await toolbar.expectEditorButtonText('Code')
-    await toolbar.expectLanguageButtonText('CS')
-    await toolbar.clickLanguageToggle()
-
-    await toolbar.expectEditorButtonText('Kód')
-    await toolbar.expectLanguageButtonText('EN')
-  })
-
   test('"E" key opens and closes the editor panel', async ({ mainMenu, levelSelect, toolbar, tutorial, editorPanel }) => {
     await mainMenu.clickStartGame()
     await levelSelect.expectVisible()

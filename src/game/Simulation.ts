@@ -41,8 +41,8 @@ export class Simulation {
   private _paused = false
   private _gameOver: GameOverInfo | null = null
   currentTick = 0
-  readonly tickRate: number
-
+  private _tickRate: number
+  get tickRate(): number { return this._tickRate }
   // Scoring accumulators
   itemsProduced = 0
   itemsDelivered = 0
@@ -70,7 +70,7 @@ export class Simulation {
   private readonly rng: () => number
 
   constructor(tickRate = DEFAULT_TICK_RATE, rng: () => number = Math.random) {
-    this.tickRate = tickRate
+    this._tickRate = tickRate
     this.rng = rng
     this.commandDispatcher = new SimulationCommandDispatcher({
       getMachine: (id) => this.machines.get(id),
@@ -119,11 +119,14 @@ export class Simulation {
 
   pause(): void { this._paused = true }
   resume(): void { this._paused = false }
+  setTickRate(rate: number): void {
+    if (!Number.isFinite(rate) || rate <= 0) throw new RangeError('tickRate must be a finite positive number')
+    this._tickRate = rate
+    if (this._running && this.intervalId !== null) { clearInterval(this.intervalId); this.intervalId = setInterval(() => { if (!this._paused) this.tick() }, 1000 / rate) }
+  }
   get running(): boolean { return this._running }
   get paused(): boolean { return this._paused }
-  /** Fatal game-over state, or `null` while the simulation runs normally. */
   get gameOver(): GameOverInfo | null { return this._gameOver }
-
   tick(): void {
     if (this._gameOver !== null) return
     this.queueRunner.tick()
@@ -311,10 +314,8 @@ export class Simulation {
     }
     return undefined
   }
-
   /** Machine position map (set from Factory grid data). */
   private machinePositions: Map<string, { x: number; z: number }> = new Map()
-
   setMachinePosition(machineId: string, x: number, z: number): void { this.machinePositions.set(machineId, { x, z }) }
 
   private updateScoring(): void {

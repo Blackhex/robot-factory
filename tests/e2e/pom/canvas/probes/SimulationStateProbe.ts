@@ -36,6 +36,35 @@ export class SimulationStateProbe {
     })
   }
 
+  /**
+   * Read the simulation's current tick rate (ticks per second). Defaults
+   * to 10 in production code. Returns 10 if the simulation is not yet
+   * attached so callers can safely restore after fast-forwarding.
+   */
+  async getTickRate(): Promise<number> {
+    return this.page.evaluate(() => {
+      const gm = (window as any).__gameManager
+      const r = gm?.simulation?.tickRate
+      return typeof r === 'number' && r > 0 ? r : 10
+    })
+  }
+
+  /**
+   * Set the simulation's tick rate via `Simulation.setTickRate(rate)`.
+   * Game-time semantics are preserved (`dt = 1/tickRate`), so belt
+   * speeds and machine cycle times remain correct in game-time while
+   * wall-clock throughput scales with `rate`.
+   */
+  async setTickRate(rate: number): Promise<void> {
+    await this.page.evaluate((r: number) => {
+      const gm = (window as any).__gameManager
+      if (typeof gm?.simulation?.setTickRate !== 'function') {
+        throw new Error('SimulationProbe.setTickRate: gm.simulation.setTickRate is not available')
+      }
+      gm.simulation.setTickRate(r)
+    }, rate)
+  }
+
   /** Read the current `GameManager` state string (e.g. `'main_menu'`, `'sandbox'`, `'build_phase'`). */
   async getGameState(): Promise<string> {
     return this.page.evaluate(() => {

@@ -10,7 +10,8 @@ test.describe('Simulation keyboard shortcuts — F / R / Space / Esc', () => {
   clearStorageBeforeEach()
 
   // -------------------------------------------------------------------
-  // F — start / pause / resume cycle
+  // F — start / pause / resume cycle (keyboard equivalent of the button
+  // flow covered in Toolbar.spec.ts)
   // -------------------------------------------------------------------
 
   test('F starts, pauses, and resumes the sandbox simulation', async ({
@@ -51,22 +52,59 @@ test.describe('Simulation keyboard shortcuts — F / R / Space / Esc', () => {
     expect(await probe.isRunning()).toBe(true)
   })
 
-  test('F is ignored on the main menu', async ({
-    mainMenu, toolbar, projectsPanel, probe,
-  }) => {
-    await mainMenu.open()
-    await mainMenu.expectVisible()
-    expect(await probe.getGameState()).toBe('main_menu')
+  // ---- Parameterised: F / R / Space / Esc on the main menu ----------
+  // Each shortcut must be a no-op while the main menu owns the screen.
+  // The per-key extra assertions (isRunning, isPaused, scrollY) are
+  // preserved verbatim from the previous individual tests.
+  for (const variant of [
+    {
+      key: 'F',
+      press: (toolbar: import('./pom/screens/ToolbarPage').ToolbarPage) =>
+        toolbar.pressSimulationToggleShortcut(),
+      extra: async (probe: import('./pom/canvas/SimulationProbe').SimulationProbe) => {
+        expect(await probe.isRunning()).toBe(false)
+      },
+    },
+    {
+      key: 'R',
+      press: (toolbar: import('./pom/screens/ToolbarPage').ToolbarPage) =>
+        toolbar.pressSimulationRestartShortcut(),
+      extra: async (_probe: import('./pom/canvas/SimulationProbe').SimulationProbe) => {},
+    },
+    {
+      key: 'Space',
+      press: (toolbar: import('./pom/screens/ToolbarPage').ToolbarPage) =>
+        toolbar.pressResetViewShortcut(),
+      extra: async (
+        _probe: import('./pom/canvas/SimulationProbe').SimulationProbe,
+        toolbar: import('./pom/screens/ToolbarPage').ToolbarPage,
+      ) => {
+        expect(await toolbar.readWindowScrollY()).toBe(0)
+      },
+    },
+    {
+      key: 'Esc',
+      press: (toolbar: import('./pom/screens/ToolbarPage').ToolbarPage) =>
+        toolbar.pressBackToMenuShortcut(),
+      extra: async (_probe: import('./pom/canvas/SimulationProbe').SimulationProbe) => {},
+    },
+  ]) {
+    test(`${variant.key} is ignored on the main menu`, async ({
+      mainMenu, toolbar, projectsPanel, probe,
+    }) => {
+      await mainMenu.open()
+      await mainMenu.expectVisible()
+      expect(await probe.getGameState()).toBe('main_menu')
 
-    await projectsPanel.blurActiveElement()
-    await toolbar.pressSimulationToggleShortcut()
+      await projectsPanel.blurActiveElement()
+      await variant.press(toolbar)
 
-    // No transition — main menu still owns the screen, no toolbar, sim idle.
-    await mainMenu.expectVisible()
-    await toolbar.expectHidden()
-    expect(await probe.isRunning()).toBe(false)
-    expect(await probe.getGameState()).toBe('main_menu')
-  })
+      await mainMenu.expectVisible()
+      await toolbar.expectHidden()
+      expect(await probe.getGameState()).toBe('main_menu')
+      await variant.extra(probe, toolbar)
+    })
+  }
 
   // -------------------------------------------------------------------
   // R — restart
@@ -93,20 +131,6 @@ test.describe('Simulation keyboard shortcuts — F / R / Space / Esc', () => {
     await expect.poll(() => probe.isPaused()).toBe(false)
     await hud.expectHidden()
     await toolbar.expectPauseButtonNoPausedClass()
-  })
-
-  test('R is ignored on the main menu', async ({
-    mainMenu, toolbar, projectsPanel, probe,
-  }) => {
-    await mainMenu.open()
-    await mainMenu.expectVisible()
-
-    await projectsPanel.blurActiveElement()
-    await toolbar.pressSimulationRestartShortcut()
-
-    await mainMenu.expectVisible()
-    await toolbar.expectHidden()
-    expect(await probe.getGameState()).toBe('main_menu')
   })
 
   // -------------------------------------------------------------------
@@ -215,21 +239,6 @@ test.describe('Simulation keyboard shortcuts — F / R / Space / Esc', () => {
     await camera.waitUntilSettled()
     const afterSpace = await camera.getCameraState()
     await camera.expectCameraStateApproxEqual(afterSpace, beforeSpace, 0.05)
-  })
-
-  test('Space is ignored on the main menu', async ({
-    mainMenu, toolbar, projectsPanel, probe,
-  }) => {
-    await mainMenu.open()
-    await mainMenu.expectVisible()
-
-    await projectsPanel.blurActiveElement()
-    await toolbar.pressResetViewShortcut()
-
-    await mainMenu.expectVisible()
-    await toolbar.expectHidden()
-    expect(await probe.getGameState()).toBe('main_menu')
-    expect(await toolbar.readWindowScrollY()).toBe(0)
   })
 
   // -------------------------------------------------------------------
@@ -355,18 +364,4 @@ test.describe('Simulation keyboard shortcuts — F / R / Space / Esc', () => {
     // The pre-existing ProjectsPanel.handleKeyDown closes the panel on Esc regardless of focus; that's out of scope. We only assert the new back-to-menu shortcut did NOT fire.
   })
 
-  test('Esc on the main menu does nothing', async ({
-    mainMenu, toolbar, projectsPanel, probe,
-  }) => {
-    await mainMenu.open()
-    await mainMenu.expectVisible()
-    expect(await probe.getGameState()).toBe('main_menu')
-
-    await projectsPanel.blurActiveElement()
-    await toolbar.pressBackToMenuShortcut()
-
-    await mainMenu.expectVisible()
-    await toolbar.expectHidden()
-    expect(await probe.getGameState()).toBe('main_menu')
-  })
 })

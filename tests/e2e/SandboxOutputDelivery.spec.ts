@@ -52,40 +52,52 @@ test.describe('Sandbox — Destination machine migration', () => {
     expect(await probe.isRunning()).toBe(true)
     expect(await probe.isPaused()).toBe(false)
 
-    const occupiedCells = new Set(machinesBefore.map((machine) => `${machine.x},${machine.z}`))
-    const movedDestination = [1, 2, 3, 4, 5, 6, 7]
-      .map((offset) => ({ x: sink!.x + offset, z: sink!.z }))
-      .find((cell) =>
-        cell.x >= 0 && cell.x < 20 &&
-        cell.z >= 0 && cell.z < 20 &&
-        !occupiedCells.has(`${cell.x},${cell.z}`),
-      )
-    expect(movedDestination, 'destination move needs an empty cell to the right').toBeTruthy()
-    await grid.dragMachineToCell({ x: sink!.x, z: sink!.z }, movedDestination!)
-    await probe.flushAnimationFrame()
+    // After capturing inFlight, slow the simulation to 1 tick/sec (vs. the
+    // default 10) for the drag → migration-verify window. The belt is only
+    // 3 cells long, so under parallel-worker CPU contention the item can
+    // drain past delivery before post-drag polling sees it. Game-time
+    // semantics are preserved — only wall-clock throughput scales — so all
+    // migration assertions are unaffected.
+    const { migrated, movedSink } = await probe.withFastForward(1, async () => {
+      const occupiedCells = new Set(machinesBefore.map((machine) => `${machine.x},${machine.z}`))
+      const movedDestination = [1, 2, 3, 4, 5, 6, 7]
+        .map((offset) => ({ x: sink!.x + offset, z: sink!.z }))
+        .find((cell) =>
+          cell.x >= 0 && cell.x < 20 &&
+          cell.z >= 0 && cell.z < 20 &&
+          !occupiedCells.has(`${cell.x},${cell.z}`),
+        )
+      expect(movedDestination, 'destination move needs an empty cell to the right').toBeTruthy()
+      await grid.dragMachineToCell({ x: sink!.x, z: sink!.z }, movedDestination!)
+      await probe.flushAnimationFrame()
 
-    const machinesAfter = await probe.getMachines()
-    const movedSink = machinesAfter.find((m) => m.id === sink!.id)
-    expect(movedSink, 'same destination machine must still exist after drag').toBeTruthy()
-    expect(movedSink!.x).toBeGreaterThan(sink!.x)
-    expect(movedSink!.z).toBe(sink!.z)
+      const machinesAfter = await probe.getMachines()
+      const moved = machinesAfter.find((m) => m.id === sink!.id)
+      expect(moved, 'same destination machine must still exist after drag').toBeTruthy()
+      expect(moved!.x).toBeGreaterThan(sink!.x)
+      expect(moved!.z).toBe(sink!.z)
 
-    const beltsAfter = await probe.getBeltsDetailed()
-    expect(
-      beltsAfter.some((belt) =>
-        belt.sourceX === fabricator!.x &&
-        belt.sourceZ === fabricator!.z &&
-        belt.destX === movedSink!.x &&
-        belt.destZ === movedSink!.z,
-      ),
-      'belt must be recomputed to the moved destination machine',
-    ).toBe(true)
+      const beltsAfter = await probe.getBeltsDetailed()
+      expect(
+        beltsAfter.some((belt) =>
+          belt.sourceX === fabricator!.x &&
+          belt.sourceZ === fabricator!.z &&
+          belt.destX === moved!.x &&
+          belt.destZ === moved!.z,
+        ),
+        'belt must be recomputed to the moved destination machine',
+      ).toBe(true)
 
-    const migrated = await probe.waitForBeltItem({
-      itemId: inFlight.id,
-      timeoutMs: 15000,
+      const migratedItem = await probe.waitForBeltItem({
+        itemId: inFlight.id,
+        timeoutMs: 15000,
+      })
+      expect(migratedItem.beltId).not.toBe(inFlight.beltId)
+
+      return { migrated: migratedItem, movedSink: moved! }
     })
-    expect(migrated.beltId).not.toBe(inFlight.beltId)
+    void migrated
+    void movedSink
 
     const delivered = await probe.waitForOutputDelivery(inFlight.id, sink!.id, 30000)
     expect(delivered.itemId).toBe(inFlight.id)

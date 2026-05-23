@@ -2,7 +2,9 @@ import { test, expect } from './pom'
 
 test.use({ viewport: { width: 1600, height: 900 } })
 
-test.describe('Toolbar — Pause / Resume', () => {
+test.describe('Toolbar — Pause / Resume button', () => {
+  // Keyboard shortcut coverage for the same lifecycle lives in
+  // SimulationKeyboardShortcuts.spec.ts so the suite keeps distinct click-vs-hotkey assertions.
   test('Pause button toggles to Resume and pauses the simulation, then back', async ({
     mainMenu,
     toolbar,

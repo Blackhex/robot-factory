@@ -180,7 +180,10 @@ test.describe('Repeated machine moves during running simulation', () => {
     // Drag #1: move the producer one cell upstream of its current position.
     const target1 = { x: fabricator!.x, z: fabricator!.z - 1 }
     await grid.dragMachineToCell({ x: fabricator!.x, z: fabricator!.z }, target1)
-    await probe.settle(300)
+    await expect.poll(
+      async () => (await probe.getMachines()).some((m) => m.x === target1.x && m.z === target1.z),
+      { timeout: 5000, intervals: [50, 100, 250] },
+    ).toBe(true)
     const N1 = (await probe.readSnapshot()).itemsOnBelts
     expect(
       N1,
@@ -191,7 +194,10 @@ test.describe('Repeated machine moves during running simulation', () => {
     // Drag #2: move the same machine again to another empty cell.
     const target2 = { x: fabricator!.x, z: fabricator!.z - 2 }
     await grid.dragMachineToCell(target1, target2)
-    await probe.settle(300)
+    await expect.poll(
+      async () => (await probe.getMachines()).some((m) => m.x === target2.x && m.z === target2.z),
+      { timeout: 5000, intervals: [50, 100, 250] },
+    ).toBe(true)
     const N2 = (await probe.readSnapshot()).itemsOnBelts
     expect(
       N2,
@@ -202,7 +208,10 @@ test.describe('Repeated machine moves during running simulation', () => {
     // Drag #3: move once more.
     const target3 = { x: fabricator!.x, z: fabricator!.z - 3 }
     await grid.dragMachineToCell(target2, target3)
-    await probe.settle(300)
+    await expect.poll(
+      async () => (await probe.getMachines()).some((m) => m.x === target3.x && m.z === target3.z),
+      { timeout: 5000, intervals: [50, 100, 250] },
+    ).toBe(true)
     const N3 = (await probe.readSnapshot()).itemsOnBelts
     expect(
       N3,
@@ -321,41 +330,56 @@ test.describe('Rendered item count matches simulation truth', () => {
     const t1 = { x: fab0.x, z: fab0.z - 3 }
     expect(await probe.moveMachineDirect(fab0.x, fab0.z, t1.x, t1.z)).toBe(true)
     await probe.flushAnimationFrame()
-    await probe.settle(300)
+    await expect.poll(
+      async () => (await probe.getMachines()).some((m) => m.x === t1.x && m.z === t1.z),
+      { timeout: 5000, intervals: [50, 100, 250] },
+    ).toBe(true)
 
     const ms1 = await probe.getMachines()
     const fab1 = ms1.find((m) => m.type === 'part_fabricator')!
     const t2 = { x: fab1.x, z: fab1.z + 3 }
     expect(await probe.moveMachineDirect(fab1.x, fab1.z, t2.x, t2.z)).toBe(true)
     await probe.flushAnimationFrame()
-    await probe.settle(300)
+    await expect.poll(
+      async () => (await probe.getMachines()).some((m) => m.x === t2.x && m.z === t2.z),
+      { timeout: 5000, intervals: [50, 100, 250] },
+    ).toBe(true)
 
     const ms2 = await probe.getMachines()
     const fab2 = ms2.find((m) => m.type === 'part_fabricator')!
     const t3 = { x: fab2.x, z: fab2.z - 3 }
     expect(await probe.moveMachineDirect(fab2.x, fab2.z, t3.x, t3.z)).toBe(true)
     await probe.flushAnimationFrame()
-    await probe.settle(300)
+    await expect.poll(
+      async () => (await probe.getMachines()).some((m) => m.x === t3.x && m.z === t3.z),
+      { timeout: 5000, intervals: [50, 100, 250] },
+    ).toBe(true)
 
     const ms3 = await probe.getMachines()
     const fab3 = ms3.find((m) => m.type === 'part_fabricator')!
     const t4 = { x: fab3.x, z: fab3.z + 5 }
     expect(await probe.moveMachineDirect(fab3.x, fab3.z, t4.x, t4.z)).toBe(true)
     await probe.flushAnimationFrame()
-    await probe.settle(300)
+    await expect.poll(
+      async () => (await probe.getMachines()).some((m) => m.x === t4.x && m.z === t4.z),
+      { timeout: 5000, intervals: [50, 100, 250] },
+    ).toBe(true)
 
     const ms4 = await probe.getMachines()
     const fab4 = ms4.find((m) => m.type === 'part_fabricator')!
     const t5 = { x: fab4.x, z: fab4.z - 4 }
     expect(await probe.moveMachineDirect(fab4.x, fab4.z, t5.x, t5.z)).toBe(true)
     await probe.flushAnimationFrame()
-    await probe.settle(500)
+    await expect.poll(
+      async () => (await probe.getMachines()).some((m) => m.x === t5.x && m.z === t5.z),
+      { timeout: 5000, intervals: [50, 100, 250] },
+    ).toBe(true)
 
     // Pause so simulator truth is stable while we compare.
     await toolbar.clickPause()
     await toolbar.expectPauseButtonText('Resume')
     await expect.poll(() => probe.isPaused(), { timeout: 2000 }).toBe(true)
-    await probe.settle(300)
+    await probe.flushAnimationFrame()
 
     const snap = await probe.readSnapshot()
     const rendered = await probe.readItemInstancePositions()
@@ -421,7 +445,10 @@ test.describe('Belt mesh count matches simulation truth', () => {
     for (const off of offsets) {
       const target = { x: fab.x + off.dx, z: fab.z + off.dz }
       await grid.dragMachineToCell({ x: fab.x, z: fab.z }, target)
-      await probe.settle(250)
+      await expect.poll(
+        async () => (await probe.getMachines()).some((m) => m.x === target.x && m.z === target.z),
+        { timeout: 5000, intervals: [50, 100, 250] },
+      ).toBe(true)
       await probe.flushAnimationFrame()
       ms = await probe.getMachines()
       fab = ms.find((m) => m.type === 'part_fabricator')!
@@ -432,7 +459,6 @@ test.describe('Belt mesh count matches simulation truth', () => {
     await toolbar.expectPauseButtonText('Resume')
     await expect.poll(() => probe.isPaused(), { timeout: 2000 }).toBe(true)
     await probe.flushAnimationFrame()
-    await probe.settle(200)
     await probe.flushAnimationFrame()
 
     const counts = await probe.getBeltMeshCounts()
@@ -538,7 +564,15 @@ test.describe('Bug B regression — same-shape source move preserves all items a
       await probe.moveMachineDirect(fab.x, fab.z, fab.x, fab.z + dz),
     ).toBe(true)
     await probe.flushAnimationFrame()
-    await probe.settle(200)
+    await expect.poll(
+      async () => {
+        const ms = await probe.getMachines()
+        const fabAt = ms.some((m) => m.x === fab.x && m.z === fab.z + dz)
+        const outAt = ms.some((m) => m.x === output.x && m.z === output.z + dz)
+        return fabAt && outAt
+      },
+      { timeout: 5000, intervals: [50, 100, 250] },
+    ).toBe(true)
 
     const after = await probe.readSimItemsByCellKey()
     const afterIds = new Set<string>()

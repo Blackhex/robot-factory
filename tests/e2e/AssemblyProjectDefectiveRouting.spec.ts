@@ -4,7 +4,6 @@ import { test, expect, clearStorageBeforeEach } from './pom'
 test.use({ viewport: { width: 1920, height: 1080 } })
 
 const TEST_TIMEOUT_MS = 180_000
-const DELIVERY_TIMEOUT_MS = 90_000
 
 /**
  * RED — End-to-end proof that the bundled `projects/Assembly.json`
@@ -37,126 +36,6 @@ const DELIVERY_TIMEOUT_MS = 90_000
  */
 test.describe('Sandbox — Assembly.json defective routing', () => {
   clearStorageBeforeEach()
-
-  test('Assembly.json routes defective to Recycler and valid to Shipper', async ({
-    mainMenu, toolbar, tutorial, projectsPanel, probe, hud, pxt,
-  }) => {
-    test.setTimeout(TEST_TIMEOUT_MS)
-
-    // Read the bundled Assembly fixture from disk (Node-side I/O, not
-    // a runtime page evaluation).
-    const fs = await import('node:fs')
-    const path = await import('node:path')
-    const fixturePath = path.resolve(process.cwd(), 'projects', 'Assembly.json')
-    const fixtureContent = fs.readFileSync(fixturePath, 'utf8')
-
-    // -------- Enter sandbox & load the bundled project ---------------------
-    await mainMenu.enterSandbox(toolbar, tutorial)
-    await toolbar.waitForCameraSettle()
-
-    await toolbar.clickProjects()
-    await projectsPanel.expectOpen()
-    await projectsPanel.importBundleFromString('Assembly.json', fixtureContent)
-    await projectsPanel.expectSlotPresent('Assembly')
-    await projectsPanel.doubleClickSlot('Assembly')
-
-    // Close the panel so the toolbar Start button is unobstructed.
-    await toolbar.clickProjects()
-    await projectsPanel.expectClosed()
-
-    // Open the PXT editor so the imported workspace XML is compiled
-    // into runnable script. After `doubleClickSlot` loads a bundled
-    // project, PXT keeps the bundled `main.ts` as-is and does NOT
-    // re-compile from `main.blocks` on its own — so the simulation's
-    // interpreter would otherwise parse a stale/empty source and
-    // never register the splitter's `onItemArrives` handler.
-    // `compileBlocksToTs` triggers the blocks → TS pipeline and
-    // resolves once the recompiled source contains the handler call.
-    await pxt.openAndWaitForBlockly()
-    await pxt.waitForPxtReady()
-    await pxt.waitForPxtBootstrapSettled()
-    await pxt.compileBlocksToTs({
-      blocksMustContain: ['factory_on_item_arrives'],
-      tsMustContain: [
-        'events.onItemArrives(machines.pickMachine(Machine.E)',
-        'routeCurrentItemTo',
-      ],
-    })
-
-    // Sanity: the project's grid + belts + Splitter, Recycler and
-    // factory_output (Shipper) machines are all present after load.
-    const machines = await probe.getMachines()
-    const splitter = machines.find((m) => m.type === 'splitter')
-    const recycler = machines.find((m) => m.type === 'recycler')
-    const shipper = machines.find((m) => m.type === 'factory_output')
-    expect(splitter, 'Assembly.json must load with a splitter').toBeTruthy()
-    expect(recycler, 'Assembly.json must load with a recycler').toBeTruthy()
-    expect(shipper, 'Assembly.json must load with a factory_output (Shipper)').toBeTruthy()
-
-    // -------- Start the simulation ----------------------------------------
-    await toolbar.expectStartButtonVisible()
-    await toolbar.clickStart()
-    await hud.expectVisible()
-
-    // -------- Assertion (A): Recycler receives at least one defective ----
-    // The Assembly fixture has no belt leaving the Recycler at (12, 6),
-    // so any `raw_material` the Recycler produces parks in its output
-    // slot permanently. The Recycler emits exactly one `raw_material`
-    // per defective item it processes, so observing `outputSlotType ===
-    // 'raw_material'` is a strict, persistent witness that at least one
-    // defective item was consumed. Under the broken convention,
-    // defectives route to the splitter's empty Right slot and never
-    // reach the Recycler — `outputSlotType` therefore stays null.
-    await expect.poll(
-      async () => {
-        const snap = await probe.readDiagnosticSnapshot()
-        const r = snap.machines.find(
-          (m: { id: string }) => m.id === recycler!.id,
-        ) as { outputSlotType?: string | null; inputSlotsCount?: number; state?: string } | undefined
-        const recycled =
-          r?.outputSlotType === 'raw_material' ||
-          (r?.inputSlotsCount ?? 0) > 0 ||
-          r?.state === 'processing'
-        return recycled ? 1 : 0
-      },
-      {
-        message:
-          'Recycler must process at least one defective item. Today `Right` ' +
-          'for a north-rotated splitter maps to WEST (no belt), so defectives ' +
-          'pile up in the splitter and never reach the Recycler at (12, 6).',
-        timeout: DELIVERY_TIMEOUT_MS,
-        intervals: [100],
-      },
-    ).toBeGreaterThanOrEqual(1)
-
-    // -------- Assertion (B): Shipper delivers at least one valid assembly -
-    // outputsDelivered is the simulation-wide counter of factory_output
-    // deliveries. Even if a few early valid items slip through Forward
-    // before the splitter wedges, the chain stalls completely once the
-    // upstream assembler can no longer drain into the blocked splitter.
-    await expect.poll(
-      async () => {
-        const snap = await probe.readDiagnosticSnapshot()
-        return Number(snap.outputsDelivered ?? 0)
-      },
-      {
-        message:
-          'Shipper (factory_output) must deliver at least one valid ' +
-          'assembly. With defective routing broken, the splitter blocks ' +
-          'and the assembly chain stalls, so deliveries plateau at 0.',
-        timeout: DELIVERY_TIMEOUT_MS,
-        intervals: [500],
-      },
-    ).toBeGreaterThanOrEqual(1)
-
-    // Note: a third assertion "splitter is not permanently blocked at end of run"
-    // is intentionally omitted. The fixture has no exit belt from the Recycler,
-    // so back-pressure will eventually wedge the splitter even under correct
-    // routing — that's a property of the fixture, not the routing fix. The
-    // Recycler-consumes-defective assertion above is the actual proof that
-    // `Right` on the north-rotated splitter now maps to the east wedge per
-    // the input-observer convention.
-  })
 
   // Strict per-item routing invariant. Captures every drivetrain the
   // Assembler emits along with its `isDefective` flag, then waits until

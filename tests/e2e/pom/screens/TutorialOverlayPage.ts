@@ -60,9 +60,15 @@ export class TutorialOverlayPage {
     await this.skipBtn.click()
   }
 
-  /** Skip the tutorial if the skip button is visible within `timeout` ms. */
-  async dismissIfPresent(timeout = 1000): Promise<void> {
-    if (await this.isSkipVisibleNow(timeout)) {
+  // Default timeout is 0 (instant DOM check) since the tutorial is shown
+  // synchronously on level setup; callers that genuinely need to wait for it
+  // to mount must pass an explicit timeout. Burns no wall time when absent.
+  async dismissIfPresent(timeout = 0): Promise<void> {
+    if (await this.skipBtn.isVisible().catch(() => false)) {
+      await this.skipBtn.click()
+      return
+    }
+    if (timeout > 0 && await this.skipBtn.isVisible({ timeout }).catch(() => false)) {
       await this.skipBtn.click()
     }
   }

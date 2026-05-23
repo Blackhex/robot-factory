@@ -1,4 +1,5 @@
 import { test, expect } from './pom'
+import { seedThreeMachineChain } from './pom/scenarios/threeMachineChain'
 import type { MainMenuPage } from './pom/screens/MainMenuPage'
 import type { LevelSelectPage } from './pom/screens/LevelSelectPage'
 import type { ToolbarPage } from './pom/screens/ToolbarPage'
@@ -14,6 +15,28 @@ import type { GridSize } from './pom/types'
  */
 
 test.use({ viewport: { width: 1920, height: 1080 } })
+
+/**
+ * Wall-time optimization: the goal-poll window of each level
+ * play-through is wrapped in `probe.withFastForward(FAST_FORWARD_RATE,
+ * ...)` so the simulation runs 20× the default 10 Hz cadence during
+ * delivery polling. Game-time semantics (belt speed, machine cycle
+ * time) are preserved — only wall-clock throughput scales.
+ *
+ * Rate selection: 200 (20×) chosen as the highest rate that gave two
+ * consecutive green runs on chromium without flakes. Higher rates
+ * (500, 1000) were not required to meet the wall-time target and
+ * leave more headroom for the host event loop / Three.js renderer.
+ */
+const FAST_FORWARD_RATE = 10
+const DEFAULT_TICK_RATE = 10
+
+// Defensive restore: even if a test bypasses `withFastForward` (early
+// throw outside the wrapper, etc.), reset the tick rate before the
+// next test inherits a sped-up simulation.
+test.afterEach(async ({ probe }) => {
+  try { await probe.setTickRate(DEFAULT_TICK_RATE) } catch { /* page closed */ }
+})
 
 function buildProgram(lines: string[]): string {
   return lines.join('\n')
@@ -225,7 +248,9 @@ test.describe('Level 1 — First Part', () => {
     await hud.expectVisible()
 
     // ===================== STEP 16: Wait for items delivered ≥ 3 ============
-    await hud.expectItemsDeliveredAtLeast(3, 30000)
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await hud.expectItemsDeliveredAtLeast(3, 30000)
+    })
 
     await hud.expectTimeAdvancing(10000)
 
@@ -327,7 +352,9 @@ test.describe('Level 2 — Assembly Line', () => {
     // Level 2 requires 3 robot_explorer outputs. Restarting before the goal
     // is met routes to the Level Failed screen (B1 contract), so we wait
     // for the full target before stopping.
-    await hud.expectItemsDeliveredAtLeast(3, 60000)
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await hud.expectItemsDeliveredAtLeast(3, 60000)
+    })
 
     await hud.expectTimeAdvancing(10000)
 
@@ -417,7 +444,9 @@ test.describe('Level 3 — Mass Production', () => {
     await hud.expectVisible()
 
     // ===================== STEP 9: Wait for items delivered ≥ 10 ============
-    await hud.expectItemsDeliveredAtLeast(10, 60000)
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await hud.expectItemsDeliveredAtLeast(10, 60000)
+    })
     await hud.expectTimeAdvancing(10000)
 
     // ===================== STEP 10: Stop simulation → score screen ==========
@@ -476,53 +505,14 @@ test.describe('Level 4 — Quality Matters', () => {
     await tutorial.clickNext()
     await tutorial.expectHidden()
 
-    // ===================== STEP 3: Place Fabricator at (4, 7) ===============
-    await grid.dblClickCell({ x: 4, z: 7 })
-    let machines = await probe.getMachines()
-    expect(machines.length).toBe(1)
-    expect(machines[0].type).toBe('part_fabricator')
-
-    // ===================== STEP 4: Place Splitter at (7, 7) ================
-    await grid.dblClickCell({ x: 7, z: 7 })
-    machines = await probe.getMachines()
-    expect(machines.length).toBe(2)
-    await grid.clickCell({ x: 7, z: 7 })
-    await machinePanel.expectVisible()
-    await machinePanel.selectType('splitter')
-    await machinePanel.expectTypeValue('splitter')
-    await machinePanel.clickClose()
-    await machinePanel.expectHidden()
-
-    // ===================== STEP 5: Place Shipper at (10, 7) =================
-    await grid.dblClickCell({ x: 10, z: 7 })
-    machines = await probe.getMachines()
-    expect(machines.length).toBe(3)
-    await grid.clickCell({ x: 10, z: 7 })
-    await machinePanel.expectVisible()
-    await machinePanel.selectType('factory_output')
-    await machinePanel.expectTypeValue('factory_output')
-    await machinePanel.clickClose()
-    await machinePanel.expectHidden()
-
-    machines = await probe.getMachines()
-    const fabricator = machines.find((m) => m.type === 'part_fabricator')
-    const splitter = machines.find((m) => m.type === 'splitter')
-    const factoryOutput = machines.find((m) => m.type === 'factory_output')
-    expect(fabricator).toBeTruthy()
-    expect(splitter).toBeTruthy()
-    expect(factoryOutput).toBeTruthy()
-
-    // ===================== STEP 6: Connect belts ============================
-    const belt1 = await probe.placeBeltViaTestApi(
-      fabricator!.x, fabricator!.z, splitter!.x, splitter!.z,
-    )
-    expect(belt1).toBe(true)
-    const belt2 = await probe.placeBeltViaTestApi(
-      splitter!.x, splitter!.z, factoryOutput!.x, factoryOutput!.z,
-    )
-    expect(belt2).toBe(true)
-
-    expect(await probe.getBeltCount()).toBeGreaterThanOrEqual(2)
+    // ===================== STEPS 3-6: Place fabricator + splitter + output =
+    await seedThreeMachineChain({
+      grid, machinePanel, tutorial, probe,
+      fabricatorAt: { x: 4, z: 7 },
+      middleAt: { x: 7, z: 7 }, middleType: 'splitter',
+      outputAt: { x: 10, z: 7 },
+      dismissTutorial: false,
+    })
 
     // ===================== STEP 7: Open editor & write program ==============
     await toolbar.clickEditor()
@@ -542,7 +532,9 @@ test.describe('Level 4 — Quality Matters', () => {
     // ===================== STEP 9: Wait for items delivered ≥ goal ==========
     // Level 4 requires 5 robot_explorer outputs. Restarting before the goal
     // is met routes to Level Failed (B1 contract).
-    await hud.expectItemsDeliveredAtLeast(5, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await hud.expectItemsDeliveredAtLeast(5, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    })
     await hud.expectTimeAdvancing(10000)
 
     // ===================== STEP 10: Stop simulation → score screen ==========
@@ -570,43 +562,14 @@ test.describe('Level 5 — Smart Routing', () => {
     await navigateToLevel(saves, mainMenu, levelSelect, toolbar, grid, SIZE, 4)
     await grid.expectCanvasVisible()
 
-    // ===================== STEP 2: Verify NO tutorial appears ===============
-    if (await tutorial.isVisibleNow(2000)) {
-      await tutorial.dismissIfPresent(1000)
-    }
-
-    // ===================== STEP 3: Place Fabricator at (4, 8) ===============
-    await grid.dblClickCell({ x: 4, z: 8 })
-    let machines = await probe.getMachines()
-    expect(machines.length).toBe(1)
-    expect(machines[0].type).toBe('part_fabricator')
-
-    // ===================== STEP 4: Place Splitter at (8, 8) =================
-    await placeAndChangeType(grid, machinePanel, { x: 8, z: 8 }, 'splitter')
-    machines = await probe.getMachines()
-    expect(machines.length).toBe(2)
-
-    // ===================== STEP 5: Place Shipper at (12, 8) =================
-    await placeAndChangeType(grid, machinePanel, { x: 12, z: 8 }, 'factory_output')
-    machines = await probe.getMachines()
-    expect(machines.length).toBe(3)
-
-    // ===================== STEP 6: Verify all machines have correct types ====
-    const fabricator = machines.find((m) => m.type === 'part_fabricator')
-    const splitter = machines.find((m) => m.type === 'splitter')
-    const factoryOutput = machines.find((m) => m.type === 'factory_output')
-    expect(fabricator).toBeTruthy()
-    expect(splitter).toBeTruthy()
-    expect(factoryOutput).toBeTruthy()
-
-    // ===================== STEP 7: Connect belts ============================
-    expect(await probe.placeBeltViaTestApi(
-      fabricator!.x, fabricator!.z, splitter!.x, splitter!.z,
-    )).toBe(true)
-    expect(await probe.placeBeltViaTestApi(
-      splitter!.x, splitter!.z, factoryOutput!.x, factoryOutput!.z,
-    )).toBe(true)
-    expect(await probe.getBeltCount()).toBeGreaterThanOrEqual(2)
+    // ===================== STEPS 2-7: Dismiss tutorial, seed 3-machine chain
+    await seedThreeMachineChain({
+      grid, machinePanel, tutorial, probe,
+      fabricatorAt: { x: 4, z: 8 },
+      middleAt: { x: 8, z: 8 }, middleType: 'splitter',
+      outputAt: { x: 12, z: 8 },
+      dismissTutorial: true,
+    })
 
     // ===================== STEP 8: Open editor & write program ==============
     await toolbar.clickEditor()
@@ -624,7 +587,9 @@ test.describe('Level 5 — Smart Routing', () => {
     // ===================== STEP 10: Wait for items delivered ≥ goal =========
     // Level 5 requires 6 outputs total (3 explorer + 3 worker robots).
     // Restarting before the goal is met routes to Level Failed (B1 contract).
-    await hud.expectItemsDeliveredAtLeast(6, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await hud.expectItemsDeliveredAtLeast(6, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    })
     await hud.expectTimeAdvancing(10000)
 
     // ===================== STEP 11: Stop simulation → score screen ==========
@@ -720,7 +685,9 @@ test.describe('Level 6 — Custom Robots', () => {
     // item to flow past it. A stuck assembler now trips `reason: 'starvation'`
     // instead of silently buffering wheels, so this assertion fails fast if
     // the chain isn't truly producing.
-    await hud.expectItemsDeliveredAtLeast(6, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await hud.expectItemsDeliveredAtLeast(6, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    })
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()
@@ -754,37 +721,13 @@ test.describe('Level 7 — Rush Order!', () => {
     await navigateToLevel(saves, mainMenu, levelSelect, toolbar, grid, SIZE, 6)
     await grid.expectCanvasVisible()
 
-    if (await tutorial.isVisibleNow(2000)) {
-      await tutorial.dismissIfPresent(1000)
-    }
-
-    await grid.dblClickCell({ x: 4, z: 9 })
-    let machines = await probe.getMachines()
-    expect(machines.length).toBe(1)
-    expect(machines[0].type).toBe('part_fabricator')
-
-    await placeAndChangeType(grid, machinePanel, { x: 9, z: 9 }, 'splitter')
-    machines = await probe.getMachines()
-    expect(machines.length).toBe(2)
-
-    await placeAndChangeType(grid, machinePanel, { x: 14, z: 9 }, 'factory_output')
-    machines = await probe.getMachines()
-    expect(machines.length).toBe(3)
-
-    const fabricator = machines.find((m) => m.type === 'part_fabricator')
-    const splitter = machines.find((m) => m.type === 'splitter')
-    const factoryOutput = machines.find((m) => m.type === 'factory_output')
-    expect(fabricator).toBeTruthy()
-    expect(splitter).toBeTruthy()
-    expect(factoryOutput).toBeTruthy()
-
-    expect(await probe.placeBeltViaTestApi(
-      fabricator!.x, fabricator!.z, splitter!.x, splitter!.z,
-    )).toBe(true)
-    expect(await probe.placeBeltViaTestApi(
-      splitter!.x, splitter!.z, factoryOutput!.x, factoryOutput!.z,
-    )).toBe(true)
-    expect(await probe.getBeltCount()).toBeGreaterThanOrEqual(2)
+    await seedThreeMachineChain({
+      grid, machinePanel, tutorial, probe,
+      fabricatorAt: { x: 4, z: 9 },
+      middleAt: { x: 9, z: 9 }, middleType: 'splitter',
+      outputAt: { x: 14, z: 9 },
+      dismissTutorial: true,
+    })
 
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
@@ -801,7 +744,9 @@ test.describe('Level 7 — Rush Order!', () => {
     // is met routes to Level Failed (B1 contract). PROGRAM_PASS_THROUGH_CHAIN produces
     // wheel_small but `outputsDelivered` (the GameManager fail check input)
     // counts every delivered item, so wait for the raw threshold.
-    await hud.expectItemsDeliveredAtLeast(10, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await hud.expectItemsDeliveredAtLeast(10, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    })
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()
@@ -828,37 +773,13 @@ test.describe('Level 8 — Optimize Everything', () => {
     await navigateToLevel(saves, mainMenu, levelSelect, toolbar, grid, SIZE, 7)
     await grid.expectCanvasVisible()
 
-    if (await tutorial.isVisibleNow(2000)) {
-      await tutorial.dismissIfPresent(1000)
-    }
-
-    await grid.dblClickCell({ x: 4, z: 10 })
-    let machines = await probe.getMachines()
-    expect(machines.length).toBe(1)
-    expect(machines[0].type).toBe('part_fabricator')
-
-    await placeAndChangeType(grid, machinePanel, { x: 10, z: 10 }, 'recycler')
-    machines = await probe.getMachines()
-    expect(machines.length).toBe(2)
-
-    await placeAndChangeType(grid, machinePanel, { x: 16, z: 10 }, 'factory_output')
-    machines = await probe.getMachines()
-    expect(machines.length).toBe(3)
-
-    const fabricator = machines.find((m) => m.type === 'part_fabricator')
-    const recycler = machines.find((m) => m.type === 'recycler')
-    const factoryOutput = machines.find((m) => m.type === 'factory_output')
-    expect(fabricator).toBeTruthy()
-    expect(recycler).toBeTruthy()
-    expect(factoryOutput).toBeTruthy()
-
-    expect(await probe.placeBeltViaTestApi(
-      fabricator!.x, fabricator!.z, recycler!.x, recycler!.z,
-    )).toBe(true)
-    expect(await probe.placeBeltViaTestApi(
-      recycler!.x, recycler!.z, factoryOutput!.x, factoryOutput!.z,
-    )).toBe(true)
-    expect(await probe.getBeltCount()).toBeGreaterThanOrEqual(2)
+    await seedThreeMachineChain({
+      grid, machinePanel, tutorial, probe,
+      fabricatorAt: { x: 4, z: 10 },
+      middleAt: { x: 10, z: 10 }, middleType: 'recycler',
+      outputAt: { x: 16, z: 10 },
+      dismissTutorial: true,
+    })
 
     await toolbar.clickEditor()
     await editorPanel.expectOpen()
@@ -874,7 +795,9 @@ test.describe('Level 8 — Optimize Everything', () => {
     // Level 8 requires 10 robot_explorer outputs. Restarting before the goal
     // is met routes to Level Failed (B1 contract). `outputsDelivered` counts
     // every delivered item regardless of recipe.
-    await hud.expectItemsDeliveredAtLeast(10, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await hud.expectItemsDeliveredAtLeast(10, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    })
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()
@@ -973,7 +896,9 @@ test.describe('Level 9 — Robot Expo', () => {
 
     await hud.expectVisible()
 
-    await hud.expectItemsDeliveredGreaterThan(0, 20000)
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await hud.expectItemsDeliveredGreaterThan(0, 20000)
+    })
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()
@@ -1103,7 +1028,9 @@ test.describe('Level 10 — Factory Tycoon', () => {
     // 5 guardian). Restarting before the goal is met routes to Level
     // Failed (B1 contract). `outputsDelivered` counts every delivered
     // item regardless of recipe.
-    await hud.expectItemsDeliveredAtLeast(15, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await hud.expectItemsDeliveredAtLeast(15, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    })
     await hud.expectTimeAdvancing(10000)
 
     await toolbar.expectRestartButtonVisible()

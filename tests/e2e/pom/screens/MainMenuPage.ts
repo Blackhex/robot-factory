@@ -114,11 +114,38 @@ export class MainMenuPage extends BasePage {
    * Full Sandbox entry flow: open the main menu, click Sandbox, wait for the
    * toolbar, dismiss the tutorial if present, and wait for the camera to settle.
    */
-  async enterSandbox(toolbar: ToolbarPage, tutorial: TutorialOverlayPage): Promise<void> {
+  async enterSandbox(toolbar: ToolbarPage, _tutorial: TutorialOverlayPage): Promise<void> {
+    // Sandbox has no tutorial; no dismiss step needed.
     await this.open()
     await this.clickSandbox()
     await toolbar.expectVisible()
-    await tutorial.dismissIfPresent(500)
+    await toolbar.waitForCameraSettle()
+  }
+
+  /**
+   * Fast-path Sandbox entry used by tests that do NOT assert the
+   * MainMenu → Sandbox transition. Navigates to `/`, waits for the
+   * dev-only `window.__gameManager` global to be set, then drives
+   * `gameManager.enterSandbox()` directly — bypassing the main-menu
+   * render + Sandbox button click. Preserves the post-conditions of
+   * `enterSandbox` (toolbar visible, tutorial dismissed, camera settled).
+   *
+   * Requires `import.meta.env.DEV` (vite dev server). The CI dev
+   * server matches that, but a production build would not expose
+   * `__gameManager` — in that case fall back to `enterSandbox`.
+   */
+  async enterSandboxFast(toolbar: ToolbarPage, _tutorial: TutorialOverlayPage): Promise<void> {
+    // Sandbox has no tutorial; no dismiss step needed.
+    await this.open()
+    await this.page.waitForFunction(
+      () => Boolean((window as unknown as { __gameManager?: { enterSandbox?: () => void } }).__gameManager?.enterSandbox),
+      undefined,
+      { timeout: 15_000 },
+    )
+    await this.page.evaluate(() => {
+      ;(window as unknown as { __gameManager: { enterSandbox: () => void } }).__gameManager.enterSandbox()
+    })
+    await toolbar.expectVisible()
     await toolbar.waitForCameraSettle()
   }
 

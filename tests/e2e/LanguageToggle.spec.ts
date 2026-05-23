@@ -51,4 +51,21 @@ test.describe('Language Toggle — UX Blocker B2', () => {
     await mainMenu.clickLanguageToggle()
     await mainMenu.expectHtmlLang('en')
   })
+
+  test('language toggle changes toolbar text to Czech', async ({ mainMenu, levelSelect, toolbar, tutorial }) => {
+    await mainMenu.open()
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickFirstUnlocked()
+    await toolbar.expectVisible()
+
+    await tutorial.dismissIfPresent()
+
+    await toolbar.expectEditorButtonText('Code')
+    await toolbar.expectLanguageButtonText('CS')
+    await toolbar.clickLanguageToggle()
+
+    await toolbar.expectEditorButtonText('Kód')
+    await toolbar.expectLanguageButtonText('EN')
+  })
 })

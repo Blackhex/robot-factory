@@ -10,7 +10,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Projects button is visible in Sandbox mode', async ({
     mainMenu, toolbar, tutorial,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.expectProjectsButtonVisible()
   })
 
@@ -30,7 +30,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Clicking Projects opens the panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
   })
@@ -38,7 +38,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Clicking Projects again closes the panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
     await toolbar.clickProjects()
@@ -48,7 +48,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Empty slot list shows only the empty placeholder', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
     await projectsPanel.expectSlotCount(0)
@@ -58,7 +58,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Clicking the empty row\'s Save creates a new slot', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -72,7 +72,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Clicking a slot\'s inline Save overwrites it', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -94,7 +94,7 @@ test.describe('Sandbox — Projects panel', () => {
     mainMenu, toolbar, tutorial, projectsPanel, grid,
   }) => {
     const errors = mainMenu.collectPageErrors()
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
 
     // Save current (empty) state as "Beta".
     await toolbar.clickProjects()
@@ -120,7 +120,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Delete slot removes it from the list', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
 
     await projectsPanel.clickEmptyPlaceholderSave()
@@ -137,7 +137,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Import button is present in Projects panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
     await projectsPanel.expectImportButtonVisible()
@@ -146,7 +146,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Export button is present in Projects panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
     await projectsPanel.expectExportButtonVisible()
@@ -155,7 +155,7 @@ test.describe('Sandbox — Projects panel', () => {
   test('Multi-export bundles selected projects into one file', async ({
     page, mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -201,6 +201,135 @@ test.describe('Sandbox — Projects panel', () => {
   })
 })
 
+test.describe('Sandbox — Projects panel: keyboard toggle (Q)', () => {
+  clearStorageBeforeEach()
+
+  test('Q opens the Projects panel in Sandbox', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, grid,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await grid.waitReady()
+
+    await projectsPanel.expectClosed()
+    await toolbar.expectProjectsButtonClosed()
+    const beforeBox = await grid.getCanvasContainerBoundingBox()
+    expect(beforeBox, 'canvas container has a bounding box before opening projects').not.toBeNull()
+
+    await projectsPanel.blurActiveElement()
+    await toolbar.pressProjectsShortcut()
+
+    await projectsPanel.expectOpen()
+    await toolbar.expectProjectsButtonOpen()
+
+    const afterBox = await grid.getCanvasContainerBoundingBox()
+    expect(afterBox, 'canvas container has a bounding box after opening projects').not.toBeNull()
+    expect(
+      afterBox!.x,
+      `canvas left edge (x=${afterBox!.x}) must move right of the pre-open ` +
+        `left edge (x=${beforeBox!.x}) — the existing --rf-canvas-left reflow ` +
+        `must run when Q opens the Projects panel.`,
+    ).toBeGreaterThan(beforeBox!.x)
+  })
+
+  test('Q closes the Projects panel in Sandbox', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, grid,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await grid.waitReady()
+
+    const baseline = await grid.getCanvasContainerBoundingBox()
+    expect(baseline, 'canvas container has a bounding box at the all-closed baseline').not.toBeNull()
+
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    await toolbar.expectProjectsButtonOpen()
+    const opened = await grid.getCanvasContainerBoundingBox()
+    expect(opened, 'canvas container has a bounding box while projects are open').not.toBeNull()
+    expect(opened!.width, 'canvas shrank when Projects opened').toBeLessThan(baseline!.width)
+
+    await projectsPanel.blurActiveElement()
+    await toolbar.pressProjectsShortcut()
+
+    await projectsPanel.expectClosed()
+    await toolbar.expectProjectsButtonClosed()
+    await projectsPanel.expectResizeHandleHidden()
+
+    const restored = await grid.getCanvasContainerBoundingBox()
+    expect(restored, 'canvas container has a bounding box after closing').not.toBeNull()
+    expect(
+      Math.abs(restored!.x - baseline!.x),
+      `canvas left edge (x=${restored!.x}) must restore to the baseline ` +
+        `(x=${baseline!.x}) once Q closes the Projects panel.`,
+    ).toBeLessThanOrEqual(1)
+    expect(
+      Math.abs(restored!.width - baseline!.width),
+      `canvas width (${restored!.width}) must restore to the baseline ` +
+        `(${baseline!.width}) once Q closes the Projects panel.`,
+    ).toBeLessThanOrEqual(1)
+  })
+
+  test('Q does NOT trigger while typing in a project-name input', async ({
+    mainMenu, toolbar, tutorial, projectsPanel,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    await projectsPanel.clickEmptyPlaceholderSave()
+    await projectsPanel.fillPromptAndConfirm('Test')
+    await projectsPanel.expectSlotPresent('Test')
+
+    await projectsPanel.focusSlotNameInput('Test')
+    await projectsPanel.pressKey('End')
+    await projectsPanel.pressKey('q')
+
+    await projectsPanel.expectSlotName('Testq')
+    await projectsPanel.expectOpen()
+    await toolbar.expectProjectsButtonOpen()
+
+    await projectsPanel.blurActiveElement()
+    await toolbar.pressProjectsShortcut()
+    await projectsPanel.expectClosed()
+    await toolbar.expectProjectsButtonClosed()
+  })
+
+  test('Q is ignored on the main menu', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, grid,
+  }) => {
+    await mainMenu.open()
+    await mainMenu.expectVisible()
+
+    const before = await grid.getCanvasContainerBoundingBox()
+    expect(before, 'canvas container has a bounding box on the main menu').not.toBeNull()
+
+    await projectsPanel.blurActiveElement()
+    await toolbar.pressProjectsShortcut()
+
+    await projectsPanel.expectClosed()
+
+    const after = await grid.getCanvasContainerBoundingBox()
+    expect(after, 'canvas container has a bounding box after pressing Q on main menu').not.toBeNull()
+    expect(
+      Math.abs(after!.x - before!.x),
+      `canvas left edge (x=${after!.x}) must not change when Q is pressed ` +
+        `on the main menu (baseline x=${before!.x}).`,
+    ).toBeLessThanOrEqual(1)
+    expect(
+      Math.abs(after!.width - before!.width),
+      `canvas width (${after!.width}) must not change when Q is pressed ` +
+        `on the main menu (baseline width=${before!.width}).`,
+    ).toBeLessThanOrEqual(1)
+
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await grid.waitReady()
+    await projectsPanel.expectClosed()
+    await projectsPanel.blurActiveElement()
+    await toolbar.pressProjectsShortcut()
+    await projectsPanel.expectOpen()
+    await toolbar.expectProjectsButtonOpen()
+  })
+})
+
 test.describe('Sandbox — Projects panel: dblclick "+ New project" resets factory + program', () => {
   clearStorageBeforeEach()
 
@@ -240,7 +369,7 @@ test.describe('Sandbox — Projects panel: dblclick "+ New project" resets facto
     mainMenu, toolbar, tutorial, projectsPanel, grid, editorPanel, pxt, probe,
   }) => {
     test.setTimeout(60_000)
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
 
     const seeded = await seedFactoryAndProgram(grid, toolbar, editorPanel, pxt, probe)
 
@@ -274,7 +403,7 @@ test.describe('Sandbox — Projects panel: dblclick "+ New project" resets facto
     mainMenu, toolbar, tutorial, projectsPanel, grid, editorPanel, pxt, probe,
   }) => {
     test.setTimeout(60_000)
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
 
     await seedFactoryAndProgram(grid, toolbar, editorPanel, pxt, probe)
 
@@ -322,7 +451,7 @@ test.describe('Sandbox — Projects panel: dblclick "+ New project" resets facto
 
   for (const lang of ['en', 'cs'] as Lang[]) {
     test(`Confirm modal uses the ${lang.toUpperCase()} translation of projects.confirm_new_title`, async ({
-      mainMenu, toolbar, tutorial, projectsPanel, grid, editorPanel, pxt, probe,
+      mainMenu, toolbar, projectsPanel, grid, editorPanel, pxt, probe,
     }) => {
       test.setTimeout(60_000)
       await mainMenu.open()
@@ -335,7 +464,6 @@ test.describe('Sandbox — Projects panel: dblclick "+ New project" resets facto
       }
       await mainMenu.clickSandbox()
       await toolbar.expectVisible()
-      await tutorial.dismissIfPresent(500)
       await toolbar.waitForCameraSettle()
 
       await seedFactoryAndProgram(grid, toolbar, editorPanel, pxt, probe)
@@ -361,7 +489,7 @@ test.describe('Sandbox — Projects panel: outside click and Escape dismiss', ()
   test('clicking the 3D canvas while panel is open closes the panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel, grid,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -374,7 +502,7 @@ test.describe('Sandbox — Projects panel: outside click and Escape dismiss', ()
   test('clicking the toolbar Projects button while open closes the panel (toggle preserved)', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
 
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
@@ -397,7 +525,7 @@ test.describe('Sandbox — Projects panel: outside click and Escape dismiss', ()
   test('dragging the resize handle does NOT close the panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -409,7 +537,7 @@ test.describe('Sandbox — Projects panel: outside click and Escape dismiss', ()
   test('clicks inside the new-project confirm modal do not close the panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel, grid, page,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
 
     // Place a machine so that the dblclick on "+ New project" produces a
     // meaningful destructive confirmation.
@@ -436,7 +564,7 @@ test.describe('Sandbox — Projects panel: outside click and Escape dismiss', ()
   test('pressing Escape while panel is open closes the panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel, page,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -448,7 +576,7 @@ test.describe('Sandbox — Projects panel: outside click and Escape dismiss', ()
   test('Escape closes a modal first; second Escape closes the panel', async ({
     mainMenu, toolbar, tutorial, projectsPanel, grid, page,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await grid.dblClickCell({ x: 10, z: 10 })
 
     await toolbar.clickProjects()
@@ -495,7 +623,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
   test('drag handle is present on saved-project rows but NOT on the "+ New project" placeholder', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -513,7 +641,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
   test('dragging Beta above Alpha reorders the rendered list to ["Beta", "Alpha", "Gamma"]', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -527,7 +655,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
   test('multi-select drag preserves relative order of the selected rows', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -553,7 +681,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
   test('"+ New project" placeholder stays pinned to the bottom even when a row is dropped onto it', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -571,7 +699,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
   test('Alt+ArrowDown / Alt+ArrowUp reorder the focused slot row', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -596,7 +724,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
   test('keyboard reorder keeps focus on the moved row across consecutive Alt+Arrow presses', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -651,7 +779,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
   test('dragging a slot row does NOT trigger the destructive load flow', async ({
     mainMenu, toolbar, tutorial, projectsPanel, grid, probe,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
 
     // Place a machine so that an accidental load (which clears the
     // factory back to the saved snapshot) would be observable as a
@@ -694,7 +822,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
   test('mid-drag, the dragged row visually moves to its would-be drop position (live preview)', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -724,7 +852,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
   test('cancelling an in-flight drag (release outside the panel) restores the original order', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -773,7 +901,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering — persiste
       }
     })
 
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -790,7 +918,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering — persiste
     // Reload — `setSlotOrder` should have persisted the new order.
     await page.reload()
 
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -812,7 +940,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering — persiste
       }
     })
 
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -836,7 +964,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering — persiste
 
     await page.reload()
 
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -858,7 +986,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering — persiste
       }
     })
 
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -879,7 +1007,7 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering — persiste
 
     await page.reload()
 
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -899,7 +1027,7 @@ test.describe('Sandbox — Projects panel: unified export/import format', () => 
   test('Single-project export uses bundle envelope and sanitized-name filename', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -934,7 +1062,7 @@ test.describe('Sandbox — Projects panel: unified export/import format', () => 
   test('Round-trip export → delete → import preserves project name without prompting and leaves live factory intact', async ({
     mainMenu, toolbar, tutorial, projectsPanel, grid, probe, page,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
 
     // Seed: place a single machine BEFORE saving so the bundled save
     // contains real factory state (not just an empty grid).
@@ -989,7 +1117,7 @@ test.describe('Sandbox — Projects panel: unified export/import format', () => 
   test('Multi-import creates one slot per bundled entry without prompting', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1028,7 +1156,7 @@ test.describe('Sandbox — Projects panel: unified export/import format', () => 
   test('0-selected export prompts for a name when no slot is loaded (EN)', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1046,14 +1174,13 @@ test.describe('Sandbox — Projects panel: unified export/import format', () => 
   })
 
   test('0-selected export prompt uses the CS translation', async ({
-    mainMenu, toolbar, tutorial, projectsPanel,
+    mainMenu, toolbar, projectsPanel,
   }) => {
     await mainMenu.open()
     await mainMenu.clickLanguageToggle()
     await mainMenu.expectHtmlLang('cs')
     await mainMenu.clickSandbox()
     await toolbar.expectVisible()
-    await tutorial.dismissIfPresent(500)
     await toolbar.waitForCameraSettle()
 
     await toolbar.clickProjects()
@@ -1067,7 +1194,7 @@ test.describe('Sandbox — Projects panel: unified export/import format', () => 
   test('0-selected export: cancelling the prompt aborts with no download', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
     await projectsPanel.expectSlotCount(0)
@@ -1080,7 +1207,7 @@ test.describe('Sandbox — Projects panel: unified export/import format', () => 
   test('0-selected export: uses the currently-loaded slot name without prompting', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1123,7 +1250,7 @@ test.describe('Sandbox — Projects panel: inline rename', () => {
   test('Project name is an editable input that persists every keystroke', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1149,7 +1276,7 @@ test.describe('Sandbox — Projects panel: inline rename', () => {
   test('Renaming and exporting uses the new name as the filename', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1173,7 +1300,7 @@ test.describe('Sandbox — Projects panel: inline rename', () => {
   test('Clicking the name input does not load the project', async ({
     mainMenu, toolbar, tutorial, projectsPanel, grid, probe,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
 
     // Save the (currently empty) factory as "Project".
     await toolbar.clickProjects()
@@ -1217,7 +1344,7 @@ test.describe('Sandbox — Projects panel: inline rename', () => {
   test('Pressing Enter in the project name input blurs it without changing the value', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1258,7 +1385,7 @@ test.describe('Sandbox — Projects panel: inline rename', () => {
   test('Multi-keystroke typing keeps the input focused throughout', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1295,7 +1422,7 @@ test.describe('Sandbox — Projects panel: inline rename', () => {
   test('Clearing the input and blurring restores the persisted name', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1332,7 +1459,7 @@ test.describe('Sandbox — Projects panel: inline rename', () => {
   test(
     'Re-editing after a committed live rename, then clearing and blurring, restores to the LATEST committed name (not the original)',
     async ({ mainMenu, toolbar, tutorial, projectsPanel }) => {
-      await mainMenu.enterSandbox(toolbar, tutorial)
+      await mainMenu.enterSandboxFast(toolbar, tutorial)
       await toolbar.clickProjects()
       await projectsPanel.expectOpen()
 
@@ -1386,7 +1513,7 @@ test.describe('Sandbox — Projects panel: inline name input width', () => {
   test('inline name input width matches the rendered text width (not the full row width)', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1441,7 +1568,7 @@ test.describe('Sandbox — Projects panel: inline name input width', () => {
   test('inline name input has a minimum width so very short names remain a usable click target', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1472,7 +1599,7 @@ test.describe('Sandbox — Projects panel: inline name input width', () => {
   test('inline name input text is left-aligned', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1495,7 +1622,7 @@ test.describe('Sandbox — Projects panel: inline name input width', () => {
   test('inline name input grows when the project name grows and shrinks when it shrinks', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 
@@ -1555,7 +1682,7 @@ test.describe('Sandbox — Projects panel: inline name input width', () => {
   test('inline name input has the same left edge across all rows regardless of name length', async ({
     mainMenu, toolbar, tutorial, projectsPanel,
   }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
+    await mainMenu.enterSandboxFast(toolbar, tutorial)
     await toolbar.clickProjects()
     await projectsPanel.expectOpen()
 

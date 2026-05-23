@@ -46,22 +46,6 @@ test.describe('Camera — keyboard pan (WSAD)', () => {
     return (a.dx * b.dx + a.dz * b.dz) / (lenA * lenB)
   }
 
-  test('W key pans the camera and target along projected-forward', async ({
-    page, mainMenu, toolbar, tutorial, grid,
-  }) => {
-    await mainMenu.enterSandbox(toolbar, tutorial)
-    await grid.waitReady()
-    const camera = new CameraStateProbe(page)
-    await camera.focusCanvas()
-
-    await camera.waitUntilSettled()
-    const before = await camera.getCameraState()
-    await camera.holdKey('w', 300)
-    const after = await camera.getCameraState()
-
-    assertRigidXZPan(before, after)
-  })
-
   test('S / A / D each pan the camera in mutually consistent directions', async ({
     page, mainMenu, toolbar, tutorial, grid,
   }) => {

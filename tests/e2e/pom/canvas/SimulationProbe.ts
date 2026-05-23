@@ -56,6 +56,27 @@ export class SimulationProbe {
 
   async getCurrentTick(): Promise<number> { return this.simulation.getCurrentTick() }
 
+  async getTickRate(): Promise<number> { return this.simulation.getTickRate() }
+
+  async setTickRate(rate: number): Promise<void> { return this.simulation.setTickRate(rate) }
+
+  /**
+   * Run `fn` with the simulation tick rate temporarily set to `rate`,
+   * restoring the previous rate in a `finally` so it is always reset
+   * even if `fn` throws or times out. Game-time semantics (belt speed,
+   * machine cycle time) are preserved — only wall-clock throughput
+   * scales by `rate / previous`.
+   */
+  async withFastForward<T>(rate: number, fn: () => Promise<T>): Promise<T> {
+    const previous = await this.getTickRate()
+    await this.setTickRate(rate)
+    try {
+      return await fn()
+    } finally {
+      await this.setTickRate(previous)
+    }
+  }
+
   async getGameState(): Promise<string> { return this.simulation.getGameState() }
 
   async expectGameState(expected: string, timeoutMs?: number): Promise<void> {

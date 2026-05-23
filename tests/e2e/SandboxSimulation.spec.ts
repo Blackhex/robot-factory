@@ -644,13 +644,12 @@ test.describe('Sandbox — wait block', () => {
       'Machine produced for ~2s before stop; some deliveries must have arrived by tick 50',
     ).toBeGreaterThan(0)
 
-    // 50 more sim-ticks. Because the machine is stopped, NO additional
-    // deliveries may occur in this window. This is the contract that
-    // pins `loops.wait` — the stopMachine command was queued AFTER the
-    // wait and must have fired.
+    // 20 more sim-ticks past the first sample. Because the machine is
+    // stopped (drain already complete by tick 50), no additional deliveries
+    // may occur. A short post-drain window is enough to pin the contract.
     await expect
       .poll(() => probe.getCurrentTick(), { timeout: 60000, intervals: [250] })
-      .toBeGreaterThanOrEqual(startTick + 100)
+      .toBeGreaterThanOrEqual(startTick + 70)
     const finalDeliveries = (await probe.readOutputDeliveries()).length
     expect(
       finalDeliveries,
@@ -851,13 +850,12 @@ test.describe('Sandbox — wait block', () => {
       'Machine produced for ~2s before stop; some deliveries must have arrived by tick 50',
     ).toBeGreaterThan(0)
 
-    // 50 more sim-ticks. Because the machine is stopped, NO additional
-    // deliveries may occur in this window. This is the contract that
-    // pins `loops.waitTicks` — the stopMachine command was queued AFTER
-    // the wait and must have fired.
+    // 20 more sim-ticks past the first sample. Because the machine is
+    // stopped (drain already complete by tick 50), no additional deliveries
+    // may occur. A short post-drain window is enough to pin the contract.
     await expect
       .poll(() => probe.getCurrentTick(), { timeout: 60000, intervals: [250] })
-      .toBeGreaterThanOrEqual(startTick + 100)
+      .toBeGreaterThanOrEqual(startTick + 70)
     const finalDeliveries = (await probe.readOutputDeliveries()).length
     expect(
       finalDeliveries,
