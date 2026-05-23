@@ -48,12 +48,18 @@ export class CameraController {
   private shake: ShakeState | null = null
   private defaultPosition: THREE.Vector3
   private defaultTarget: THREE.Vector3
+  private defaultDirection: THREE.Vector3
 
   constructor(camera: THREE.PerspectiveCamera, controls: OrbitControls) {
     this.camera = camera
     this.controls = controls
     this.defaultPosition = camera.position.clone()
     this.defaultTarget = controls.target.clone()
+    const defaultDir = new THREE.Vector3().subVectors(this.defaultPosition, this.defaultTarget)
+    if (defaultDir.lengthSq() < 1e-12) {
+      defaultDir.set(0, 1, 0)
+    }
+    this.defaultDirection = defaultDir.normalize()
   }
 
   focusPosition(target: THREE.Vector3, duration = 0.8): void {
@@ -120,18 +126,22 @@ export class CameraController {
     const maxDim = Math.max(effectiveWidth, height)
     const distance = (maxDim / (2 * halfFovTan)) * 1.2
 
-    const center = new THREE.Vector3(0, 0, 0)
-    const endPosition = new THREE.Vector3(distance * 0.7, distance * 0.7, distance * 0.7)
-    const endTarget = center.clone()
+    const camTargetDist = distance * 0.7 * Math.sqrt(3)
+
+    const currentDirection = new THREE.Vector3().subVectors(this.camera.position, this.controls.target)
+    if (currentDirection.lengthSq() < 1e-12) {
+      currentDirection.copy(this.defaultDirection)
+    }
+    currentDirection.normalize()
+
+    const endTarget = new THREE.Vector3(0, 0, 0)
+    const endPosition = endTarget.clone().addScaledVector(currentDirection, camTargetDist)
 
     if (useViewport) {
       // Shift target + position along the camera's screen-right axis so
       // the grid centre (world origin) projects to canvas-X =
       // visibleWidth / 2 instead of canvasWidth / 2.
       const aspect = this.camera.aspect
-      // Camera-target distance for an isometric position scaled by 0.7 on
-      // each axis: |(0.7d, 0.7d, 0.7d)| = 0.7 * d * sqrt(3).
-      const camTargetDist = distance * 0.7 * Math.sqrt(3)
       const worldPerPixel =
         (2 * camTargetDist * halfFovTan * aspect) / viewport!.canvasWidth
       const pixelShift = (viewport!.canvasWidth - viewport!.visibleWidth) / 2

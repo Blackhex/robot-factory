@@ -19,7 +19,7 @@ export class SceneManager {
     this.scene.background = new THREE.Color(0x0f1117)
 
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000)
-    this.camera.position.set(15, 15, 15)
+    this.camera.position.set(-15, 15, 15)
     this.camera.lookAt(0, 0, 0)
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })

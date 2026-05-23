@@ -43,7 +43,7 @@ export class GridDoubleClickHandler {
   }
 
   private placeFabricator(cell: GridPosition): void {
-    let rotation: Direction = 'south'
+    let rotation: Direction = 'east'
     for (let i = 0; i < 4; i++) {
       const placed = this.factory.placeMachine(cell.x, cell.z, 'part_fabricator', rotation)
       if (placed) {

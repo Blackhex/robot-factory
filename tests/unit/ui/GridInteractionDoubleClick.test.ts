@@ -16,11 +16,11 @@ beforeAll(async () => {
 
 describe('GridInteraction double-click placement', () => {
   // Contract: double-clicking an empty cell places a part_fabricator. The
-  // default rotation is 'south'. If 'south' would violate the slot-blocking
-  // constraint (Direction 2: own slot points at an existing neighbor),
-  // handleDblClick must try CW rotations in order south→west→north→east
-  // and commit the first one that succeeds. If all four fail, no machine
-  // is placed and onFactoryChanged is not called.
+  // default rotation is 'east' (input west, output east). If 'east' would
+  // violate the slot-blocking constraint (Direction 2: own slot points at
+  // an existing neighbor), handleDblClick must try CW rotations in order
+  // east→south→west→north and commit the first one that succeeds. If all
+  // four fail, no machine is placed and onFactoryChanged is not called.
   describe('handleDblClick — auto-rotate on slot-block', () => {
     let factory: Factory
     let interaction: GridInteraction
@@ -42,7 +42,7 @@ describe('GridInteraction double-click placement', () => {
       factory = new Factory(10, 10)
     })
 
-    it('uses default south rotation when no slot-blocking conflict exists', () => {
+    it('uses default east rotation when no slot-blocking conflict exists', () => {
       // GIVEN an empty 10×10 factory and the user dbl-clicks (5,5).
       setupAt({ x: 5, z: 5 })
       expect(factory.getMachineAt(5, 5)).toBeNull()
@@ -50,25 +50,26 @@ describe('GridInteraction double-click placement', () => {
       // WHEN dblclick fires.
       ;(interaction as any).handleDblClick(fakeMouseEvent())
 
-      // THEN a part_fabricator is placed with default 'south' rotation.
+      // THEN a part_fabricator is placed with default 'east' rotation.
       const placed = factory.getMachineAt(5, 5)
       expect(placed).not.toBeNull()
       expect(placed!.type).toBe('part_fabricator')
-      expect(placed!.rotation).toBe('south')
+      expect(placed!.rotation).toBe('east')
       expect(onFactoryChanged).toHaveBeenCalledTimes(1)
     })
 
-    it('auto-rotates when default south orientation is slot-blocked by a neighbor', () => {
-      // GIVEN a part_fabricator neighbor at (5,4) facing 'east' — its slots
-      // (back→(4,4), front→(6,4)) do NOT point at (5,5), so Direction 1
-      // does NOT block (5,5). However a south-facing fab at (5,5) has its
-      // 'back' slot at (5,4), pointing AT this neighbor, triggering
-      // Direction 2 → south is rejected. CW rotation 'west' has slots at
-      // (4,5) and (6,5) — both empty — so 'west' is the first valid.
-      const neighbor = factory.placeMachine(5, 4, 'part_fabricator', 'east')
+    it('auto-rotates to south when default east orientation is slot-blocked by a neighbor', () => {
+      // GIVEN a part_fabricator neighbor at (6,5) facing 'south' — its
+      // slots (front=(6,6), back=(6,4)) do NOT point at (5,5), so
+      // Direction 1 does NOT block (5,5). However an east-facing fab at
+      // (5,5) has its 'front' slot at (6,5), pointing AT this neighbor,
+      // triggering Direction 2 → 'east' is rejected. CW chain is
+      // east→south→west→north; 'south' has slots at (5,6)/(5,4) — both
+      // empty — so 'south' is the first valid fallback.
+      const neighbor = factory.placeMachine(6, 5, 'part_fabricator', 'south')
       expect(neighbor, 'neighbor setup must succeed').not.toBeNull()
-      // Sanity-check the bug scenario: south at (5,5) is rejected, west works.
-      expect(factory.placeMachine(5, 5, 'part_fabricator', 'south')).toBeNull()
+      // Sanity-check the bug scenario: east at (5,5) is rejected, south works.
+      expect(factory.placeMachine(5, 5, 'part_fabricator', 'east')).toBeNull()
       // (placeMachine only mutates on success, so the cell is still empty.)
       expect(factory.getMachineAt(5, 5)).toBeNull()
 
@@ -77,13 +78,13 @@ describe('GridInteraction double-click placement', () => {
       // WHEN dblclick fires on (5,5).
       ;(interaction as any).handleDblClick(fakeMouseEvent())
 
-      // THEN a fabricator is placed at (5,5) with a non-south rotation —
-      // specifically the first CW-valid rotation, which is 'west'.
+      // THEN a fabricator is placed at (5,5) with the first CW-valid
+      // rotation, which is 'south'.
       const placed = factory.getMachineAt(5, 5)
-      expect(placed, 'machine must be placed despite south being blocked').not.toBeNull()
+      expect(placed, 'machine must be placed despite east being blocked').not.toBeNull()
       expect(placed!.type).toBe('part_fabricator')
-      expect(placed!.rotation, 'rotation must NOT be the slot-blocked default south').not.toBe('south')
-      expect(placed!.rotation).toBe('west')
+      expect(placed!.rotation, 'rotation must NOT be the slot-blocked default east').not.toBe('east')
+      expect(placed!.rotation).toBe('south')
       expect(onFactoryChanged).toHaveBeenCalledTimes(1)
     })
 
