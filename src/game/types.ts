@@ -12,10 +12,25 @@ export interface SlotPositions {
   outputs: SlotPosition[]
 }
 
+export type MachineOutputPort = 'primary' | 'secondary' | 'tertiary'
+
+export const SLOT_FIELD: Record<MachineOutputPort, 'outputSlot' | 'secondaryOutputSlot' | 'tertiaryOutputSlot'> = {
+  primary: 'outputSlot',
+  secondary: 'secondaryOutputSlot',
+  tertiary: 'tertiaryOutputSlot',
+}
+
+/**
+ * Canonical iteration order for machine output ports. Single source of
+ * truth — `Simulation` and `StarvationGuard` both import this rather
+ * than re-declaring the tuple inline (avoids silent drift if a 4th
+ * port is ever added to {@link MachineOutputPort}).
+ */
+export const OUTPUT_PORTS = ['primary', 'secondary', 'tertiary'] as const satisfies readonly MachineOutputPort[]
+
 export type MachineType =
   | 'part_fabricator'
   | 'assembler'
-  | 'quality_checker'
   | 'painter'
   | 'recycler'
   | 'splitter'
@@ -29,7 +44,6 @@ export type MachineType =
 export const ALL_MACHINE_TYPES = [
   'part_fabricator',
   'assembler',
-  'quality_checker',
   'painter',
   'recycler',
   'splitter',
@@ -53,7 +67,6 @@ void _machineTypeExhaustive
 export const PLACEABLE_MACHINE_TYPES = [
   'part_fabricator',
   'assembler',
-  'quality_checker',
   'painter',
   'recycler',
   'splitter',
@@ -272,25 +285,68 @@ export interface SetMachineSpeedCommand {
   readonly speed: number
 }
 
-export interface SetQualityThresholdCommand {
-  readonly type: 'SET_QUALITY_THRESHOLD'
+export interface SetOutputSidesCommand {
+  readonly type: 'SET_OUTPUT_SIDES'
   readonly machineId: string
-  readonly threshold: number
+  /** Bitmask: SPLITTER_SIDE_BIT.left | .forward | .right (subset of 1..7). */
+  readonly sidesBitmask: number
+  /**
+   * When set, the command was emitted from inside an `on item arrives`
+   * handler. The dispatcher records a per-item routing override on the
+   * target splitter (consumed once by `tickSplitter` when this item is
+   * routed) in addition to updating the sticky `outputSidesConfig`.
+   * Required to make per-item routing deterministic when multiple
+   * items arrive at the same splitter in the same tick.
+   */
+  readonly itemId?: string
 }
 
-export type SplitterConditionType = 'by_item_type' | 'by_quality' | 'alternating'
-
-export interface SplitterCondition {
-  readonly conditionType: SplitterConditionType
-  readonly itemType?: ItemType
-  readonly qualityThreshold?: number
-}
-
-export interface SetSplitterConditionCommand {
-  readonly type: 'SET_SPLITTER_CONDITION'
+/**
+ * Per-item routing override emitted by the `route current item to`
+ * block. Targets a Splitter only. Unlike `SET_OUTPUT_SIDES`, this
+ * command MUST NOT mutate the splitter's sticky `outputSidesConfig`
+ * — it only records a one-shot override in `perItemRouteOverrides`
+ * for the named item. Last write to the same itemId wins.
+ */
+export interface RouteCurrentItemToCommand {
+  readonly type: 'ROUTE_CURRENT_ITEM_TO'
   readonly machineId: string
-  readonly condition: SplitterCondition
+  readonly itemId: string
+  /** Bitmask using SPLITTER_SIDE_BIT values (typically a single side). */
+  readonly sidesBitmask: number
 }
+
+/**
+ * Splitter routing decision. `forward` is the default when no
+ * `route current item to` block fires inside an `on item arrives`
+ * handler. The mapping to the machine's three output slots is fixed
+ * in {@link SPLITTER_SIDE_TO_PORT} and shared by simulation + editor.
+ */
+export type SplitterSide = 'left' | 'forward' | 'right'
+
+export const SPLITTER_SIDE_TO_PORT: Record<SplitterSide, MachineOutputPort> = {
+  forward: 'primary',
+  right: 'secondary',
+  left: 'tertiary',
+}
+
+/** Bit value of each splitter side in the `outputSidesConfig` bitfield. */
+export const SPLITTER_SIDE_BIT: Record<SplitterSide, number> = {
+  left: 1,
+  forward: 2,
+  right: 4,
+}
+
+/** Default `outputSidesConfig` value: all three sides enabled. */
+export const SPLITTER_ALL_SIDES_BITS =
+  SPLITTER_SIDE_BIT.left | SPLITTER_SIDE_BIT.forward | SPLITTER_SIDE_BIT.right
+
+/**
+ * Splitter sides in the canonical iteration order used by `tickSplitter`
+ * to decode `outputSidesConfig`. The order encodes the round-robin walk:
+ * with config = ALL, items cycle left → forward → right → left → …
+ */
+export const SPLITTER_SIDES_IN_BIT_ORDER: readonly SplitterSide[] = ['left', 'forward', 'right']
 
 /**
  * Queue-level control command that pauses dispatch of subsequent
@@ -309,8 +365,8 @@ export type SimulationCommand =
   | StopMachineCommand
   | SetBeltSpeedCommand
   | SetMachineSpeedCommand
-  | SetQualityThresholdCommand
-  | SetSplitterConditionCommand
+  | SetOutputSidesCommand
+  | RouteCurrentItemToCommand
   | WaitCommand
 
 export type SimulationEventType =

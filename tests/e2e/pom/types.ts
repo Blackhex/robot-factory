@@ -239,3 +239,12 @@ export interface EventBlockInfoEntry {
   hasNext: boolean
   color: string
 }
+
+export interface PlacedBlockEnabledInfo {
+  blockExists: boolean
+  isEnabled: boolean
+  hasDisabledClass: boolean
+  hasDisabledPatternRef: boolean
+  svgPathClasses: string[]
+  svgFillRefs: string[]
+}

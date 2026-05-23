@@ -202,6 +202,7 @@ describe('extracted removed audio and celebration wiring', () => {
       }),
       getMachine: vi.fn(() => ({ machineType: 'assembler' as const, name: 'Assembler 1' })),
       enqueueCommands: vi.fn(),
+      setItemArrivalBridge: vi.fn(),
     }
     const particleEffects = {
       emitSparksAt: vi.fn(),

@@ -1,7 +1,8 @@
 import { beltEndpointKey } from './BeltInventoryMigration'
 import { BeltInventoryMigrationCoordinator } from './BeltInventoryMigrationCoordinator'
 import { ConveyorBelt } from './ConveyorBelt'
-import type { BeltInfo } from './types'
+import { derivePortFromBeltSource } from './SplitterPortRouting'
+import type { BeltInfo, MachineOutputPort } from './types'
 
 /**
  * Minimal simulation surface needed to keep live factory edits synchronized
@@ -11,7 +12,7 @@ export interface FactorySimulationLike {
   addBelt(belt: ConveyorBelt): void
   removeBelt(id: string): boolean
   getBelt(id: string): ConveyorBelt | undefined
-  setMachineOutputBelt(machineId: string, beltId: string, port?: 'primary' | 'secondary'): void
+  setMachineOutputBelt(machineId: string, beltId: string, port?: MachineOutputPort): void
   setMachinePosition(machineId: string, x: number, z: number): void
 }
 
@@ -120,7 +121,8 @@ export class FactorySimulationSync {
         this.sim.addBelt(segment)
       }
     }
-    this.sim.setMachineOutputBelt(belt.sourceMachine.id, ConveyorBelt.segmentIdFor(belt.id, 0))
+    const port = derivePortFromBeltSource(belt)
+    this.sim.setMachineOutputBelt(belt.sourceMachine.id, ConveyorBelt.segmentIdFor(belt.id, 0), port)
     this.beltInventoryMigration.markBeltAdded()
   }
 
@@ -128,3 +130,4 @@ export class FactorySimulationSync {
     this.sim?.setMachinePosition(machineId, x, z)
   }
 }
+

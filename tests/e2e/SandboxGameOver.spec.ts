@@ -81,31 +81,4 @@ test.describe('Sandbox — Game Over modal', () => {
     )
     await gameOverModal.expectRestartButtonVisible()
   })
-
-  test('game-over modal appears when an item reaches a disabled quality_checker on first arrival', async ({
-    mainMenu, toolbar, grid, machinePanel, editorPanel, probe, gameOverModal,
-  }) => {
-    test.setTimeout(90000)
-
-    await buildFabricatorToDestinationLayout(
-      mainMenu,
-      toolbar,
-      grid,
-      machinePanel,
-      probe,
-      'quality_checker',
-    )
-
-    await setProgramAndStart(toolbar, editorPanel, FABRICATOR_ONLY_PROGRAM)
-
-    await gameOverModal.expectVisible(30_000)
-    await gameOverModal.expectTitleText('Game Over')
-    await gameOverModal.expectMessageText(
-      "The Checker is stopped, so it can't accept Small Wheel. Start the Checker and try again.",
-    )
-    await gameOverModal.expectRestartButtonVisible()
-
-    await gameOverModal.clickRestart()
-    await gameOverModal.expectHidden()
-  })
 })

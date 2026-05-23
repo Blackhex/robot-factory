@@ -47,7 +47,8 @@ describe('SaveLoad', () => {
       const save = saveFactory(factory, '<xml></xml>', 'level-1')
 
       // THEN
-      expect(save).toHaveProperty('version', 2)
+      // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
+      expect(save).toHaveProperty('version', 3)
       expect(save).toHaveProperty('grid')
       expect(save).toHaveProperty('belts')
       expect(save).toHaveProperty('pxtWorkspace', '<xml></xml>')
@@ -56,7 +57,8 @@ describe('SaveLoad', () => {
       expect(Array.isArray(save.belts)).toBe(true)
     })
 
-    it('version field is 2', () => {
+    // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
+    it('version field is 3', () => {
       // GIVEN
       const factory = new Factory()
 
@@ -64,7 +66,7 @@ describe('SaveLoad', () => {
       const save = saveFactory(factory, '')
 
       // THEN
-      expect(save.version).toBe(2)
+      expect(save.version).toBe(3)
     })
 
     it('saves empty factory correctly', () => {
@@ -180,7 +182,7 @@ describe('SaveLoad', () => {
       const factory = new Factory(10, 10)
       factory.placeMachine(0, 0, 'part_fabricator', 'south')
       factory.placeMachine(1, 0, 'painter', 'south')
-      factory.placeMachine(2, 0, 'quality_checker', 'south')
+      factory.placeMachine(2, 0, 'recycler', 'south')
       factory.restoreState([], [
         { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] },
         { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 1, z: 0 }, { x: 2, z: 0 }] },
@@ -189,7 +191,7 @@ describe('SaveLoad', () => {
         grid: {
           box: [0, 0, 4, 2],
           expected: [
-            '|F|P|Q| | |',
+            '|F|P|R| | |',
             '| | | | | |',
             '| | | | | |',
           ].join('\n'),
@@ -350,6 +352,118 @@ describe('SaveLoad', () => {
       expect(factory.getMachines()).toHaveLength(0)
       expect(factory.getBelts()).toHaveLength(0)
     })
+
+    // -----------------------------------------------------------------
+    // RED contract: legacy `quality_checker` cells must be silently
+    // dropped on load. The Quality Checker machine has been removed
+    // from the game; old saves must not throw — instead, the affected
+    // cell is omitted, and any belt whose source or destination
+    // references that cell is also omitted. All other machines and
+    // belts in the save load normally.
+    // -----------------------------------------------------------------
+    describe('Checker removal — legacy `quality_checker` cells', () => {
+      it('silently drops a `quality_checker` cell (no throw, no machine at that position)', () => {
+        // GIVEN — a save containing a quality_checker plus an unrelated assembler.
+        const save: FactorySave = {
+          version: 2,
+          grid: [
+            { x: 1, z: 1, machineType: 'assembler', rotation: 'south' },
+            { x: 2, z: 0, machineType: 'quality_checker', rotation: 'south' },
+          ],
+          belts: [],
+          pxtWorkspace: '',
+        }
+
+        // WHEN — must NOT throw.
+        const result = loadFactory(save)
+
+        // THEN — the legacy cell is gone but the rest is intact.
+        const machines = result.factory.getMachines()
+        expect(machines.find(m => m.x === 2 && m.z === 0)).toBeUndefined()
+        expect(machines.find(m => m.x === 1 && m.z === 1)).toBeDefined()
+        expect(machines.find(m => m.x === 1 && m.z === 1)!.type).toBe('assembler')
+      })
+
+      it('drops belts whose source or destination references a dropped `quality_checker` cell', () => {
+        // GIVEN — a save with a fabricator → checker → output topology
+        // where the checker is the legacy machine. Both belts must be
+        // dropped because each touches the removed cell.
+        const save: FactorySave = {
+          version: 2,
+          grid: [
+            { x: 0, z: 0, machineType: 'part_fabricator', rotation: 'south' },
+            { x: 1, z: 0, machineType: 'quality_checker', rotation: 'south' },
+            { x: 2, z: 0, machineType: 'factory_output', rotation: 'west' },
+          ],
+          belts: [
+            // fab → checker (touches dropped cell at destination)
+            {
+              sourceSlot: 'front',
+              destinationSlot: 'back',
+              path: [[0, 0], [1, 0]],
+            },
+            // checker → output (touches dropped cell at source)
+            {
+              sourceSlot: 'front',
+              destinationSlot: 'front',
+              path: [[1, 0], [2, 0]],
+            },
+          ],
+          pxtWorkspace: '',
+        }
+
+        // WHEN — must NOT throw.
+        const result = loadFactory(save)
+
+        // THEN — checker gone, both touching belts gone.
+        const machines = result.factory.getMachines()
+        expect(machines.find(m => m.x === 1 && m.z === 0)).toBeUndefined()
+        // The two surviving machines must still load.
+        expect(machines.find(m => m.x === 0 && m.z === 0)?.type).toBe('part_fabricator')
+        expect(machines.find(m => m.x === 2 && m.z === 0)?.type).toBe('factory_output')
+        // No belts because both endpoints touched the dropped cell.
+        expect(result.factory.getBelts()).toHaveLength(0)
+      })
+
+      it('keeps unaffected belts when only some touch the dropped `quality_checker` cell', () => {
+        // GIVEN — a save with three machines and two belts; only one
+        // belt touches the dropped checker.
+        const save: FactorySave = {
+          version: 2,
+          grid: [
+            { x: 0, z: 0, machineType: 'part_fabricator', rotation: 'south' },
+            { x: 1, z: 0, machineType: 'assembler', rotation: 'south' },
+            { x: 2, z: 0, machineType: 'quality_checker', rotation: 'south' },
+          ],
+          belts: [
+            // fab → assembler (NOT touching checker — must survive)
+            {
+              sourceSlot: 'front',
+              destinationSlot: 'back',
+              path: [[0, 0], [1, 0]],
+            },
+            // assembler → checker (touches dropped cell — must be dropped)
+            {
+              sourceSlot: 'front',
+              destinationSlot: 'back',
+              path: [[1, 0], [2, 0]],
+            },
+          ],
+          pxtWorkspace: '',
+        }
+
+        // WHEN
+        const result = loadFactory(save)
+
+        // THEN
+        const belts = result.factory.getBelts()
+        expect(belts).toHaveLength(1)
+        // Surviving belt is the fab→assembler one.
+        const surviving = belts[0]
+        expect(surviving.path[0]).toEqual({ x: 0, z: 0 })
+        expect(surviving.path[surviving.path.length - 1]).toEqual({ x: 1, z: 0 })
+      })
+    })
   })
 
   describe('round-trip', () => {
@@ -440,32 +554,32 @@ describe('SaveLoad', () => {
       const factory = new Factory(10, 10)
       factory.placeMachine(0, 0, 'part_fabricator', 'south')
       factory.placeMachine(1, 0, 'painter', 'south')
-      factory.placeMachine(2, 0, 'quality_checker', 'south')
       factory.placeMachine(3, 0, 'recycler', 'south')
+      factory.placeMachine(2, 2, 'splitter', 'south')
       factory.restoreState([], [
         { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] },
-        { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 1, z: 0 }, { x: 2, z: 0 }] },
-        { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 2, z: 0 }, { x: 3, z: 0 }] },
+        { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 1, z: 0 }, { x: 2, z: 0 }, { x: 2, z: 1 }, { x: 2, z: 2 }] },
+        { sourceSlot: 'front', destinationSlot: 'front', path: [{ x: 2, z: 2 }, { x: 2, z: 1 }, { x: 2, z: 0 }, { x: 3, z: 0 }] },
       ])
       const MULTI_INITIAL = {
         grid: {
           box: [0, 0, 5, 2] as [number, number, number, number],
           expected: [
-            '|F|P|Q|R| | |',
-            '| | | | | | |',
-            '| | | | | | |',
+            '|F|P|+|R| | |',
+            '| | |+| | | |',
+            '| | |S| | | |',
           ].join('\n'),
         },
         machines: [
           { x: 0, z: 0, rotation: 'south' as const },
           { x: 1, z: 0, rotation: 'south' as const },
-          { x: 2, z: 0, rotation: 'south' as const },
           { x: 3, z: 0, rotation: 'south' as const },
+          { x: 2, z: 2, rotation: 'south' as const },
         ],
         belts: [
           { source: { x: 0, z: 0 }, destination: { x: 1, z: 0 }, path: [{ x: 0, z: 0 }, { x: 1, z: 0 }] },
-          { source: { x: 1, z: 0 }, destination: { x: 2, z: 0 }, path: [{ x: 1, z: 0 }, { x: 2, z: 0 }] },
-          { source: { x: 2, z: 0 }, destination: { x: 3, z: 0 }, path: [{ x: 2, z: 0 }, { x: 3, z: 0 }] },
+          { source: { x: 1, z: 0 }, destination: { x: 2, z: 2 }, path: [{ x: 1, z: 0 }, { x: 2, z: 0 }, { x: 2, z: 1 }, { x: 2, z: 2 }] },
+          { source: { x: 2, z: 2 }, destination: { x: 3, z: 0 }, path: [{ x: 2, z: 2 }, { x: 2, z: 1 }, { x: 2, z: 0 }, { x: 3, z: 0 }] },
         ],
       }
       expectFactoryState(factory, MULTI_INITIAL)

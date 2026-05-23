@@ -17,6 +17,7 @@ import { DirectFactoryProbe } from './probes/DirectFactoryProbe'
 import { ItemInstanceProbe } from './probes/ItemInstanceProbe'
 import { OutputDeliveryProbe } from './probes/OutputDeliveryProbe'
 import { ProjectionProbe } from './probes/ProjectionProbe'
+import { RoutingRecorderProbe, type RoutingSnapshot } from './probes/RoutingRecorderProbe'
 import { RenderingProbe } from './probes/RenderingProbe'
 import { SimulationStateProbe } from './probes/SimulationStateProbe'
 import { TimingProbe } from './probes/TimingProbe'
@@ -30,6 +31,7 @@ export class SimulationProbe {
   private readonly simulation: SimulationStateProbe
   private readonly beltItems: BeltItemProbe
   private readonly outputDelivery: OutputDeliveryProbe
+  private readonly routingRecorder: RoutingRecorderProbe
   private readonly itemInstances: ItemInstanceProbe
   private readonly rendering: RenderingProbe
   private readonly projection: ProjectionProbe
@@ -40,6 +42,7 @@ export class SimulationProbe {
     this.simulation = new SimulationStateProbe(page)
     this.beltItems = new BeltItemProbe(page)
     this.outputDelivery = new OutputDeliveryProbe(page)
+    this.routingRecorder = new RoutingRecorderProbe(page)
     this.itemInstances = new ItemInstanceProbe(page)
     this.rendering = new RenderingProbe(page, this.itemInstances, this.simulation)
     this.projection = new ProjectionProbe(page)
@@ -50,6 +53,8 @@ export class SimulationProbe {
   async isRunning(): Promise<boolean> { return this.simulation.isRunning() }
 
   async isPaused(): Promise<boolean> { return this.simulation.isPaused() }
+
+  async getCurrentTick(): Promise<number> { return this.simulation.getCurrentTick() }
 
   async getGameState(): Promise<string> { return this.simulation.getGameState() }
 
@@ -132,6 +137,18 @@ export class SimulationProbe {
     timeoutMs = 30000,
   ): Promise<OutputDeliverySnapshot> {
     return this.outputDelivery.waitForOutputDelivery(itemId, machineId, timeoutMs)
+  }
+
+  async startRoutingRecording(producerMachineId: string): Promise<void> {
+    return this.routingRecorder.startRecording(producerMachineId)
+  }
+
+  async readRoutingSnapshot(): Promise<RoutingSnapshot> {
+    return this.routingRecorder.readSnapshot()
+  }
+
+  async getRoutingProducedCount(): Promise<number> {
+    return this.routingRecorder.getProducedCount()
   }
 
   async inspectBeltMeshes(): Promise<BeltMeshInspection | null> {

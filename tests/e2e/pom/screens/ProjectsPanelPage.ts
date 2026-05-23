@@ -262,15 +262,86 @@ export class ProjectsPanelPage {
    * Reads each row's name from its `<input>.value` (live property)
    * because saved rows render the name as an editable input — there
    * is no plain `<span class="ui-projects-slot-name">` to read text from.
+   *
+   * Polls until the row count and input count agree (rows have finished
+   * hydrating their name inputs) before reading values, so a transient
+   * state where slot rows exist but their inputs have not yet rendered
+   * is not observed as 0 inputs.
    */
   async getProjectOrder(): Promise<string[]> {
     const inputs = this.slots.locator('.ui-projects-slot-name-input')
+    await expect
+      .poll(
+        async () => {
+          const rowCount = await this.slots.count()
+          const inputCount = await inputs.count()
+          return rowCount === inputCount ? rowCount : -1
+        },
+        { timeout: 10_000, intervals: [50, 100, 200] },
+      )
+      .toBeGreaterThanOrEqual(0)
     const count = await inputs.count()
     const values: string[] = []
     for (let i = 0; i < count; i++) {
       values.push(await inputs.nth(i).inputValue())
     }
     return values
+  }
+
+  /**
+   * Poll `localStorage` until the persisted slot order matches `expected`
+   * (an array of project display names, in top-to-bottom order). Use
+   * before `page.reload()` in persistence tests to confirm the reorder
+   * has been flushed to storage, eliminating the race where the reload
+   * fires before the post-drop synchronous write has actually run in the
+   * page event loop.
+   */
+  async waitForPersistedSlotOrder(expected: readonly string[]): Promise<void> {
+    await expect
+      .poll(
+        async () => this.readPersistedSlotNames(),
+        { timeout: 10_000, intervals: [50, 100, 200] },
+      )
+      .toEqual([...expected])
+  }
+
+  /**
+   * Read the persisted slot order from `localStorage`, joining the
+   * index document (`rf_sandbox_projects_index`) with the explicit
+   * order document (`rf_sandbox_projects_index:order`) and resolving
+   * to the human-readable names so callers can assert against test
+   * input data instead of opaque slot ids.
+   */
+  private async readPersistedSlotNames(): Promise<string[]> {
+    return this.page.evaluate(() => {
+      try {
+        const INDEX_KEY = 'rf_sandbox_projects_index'
+        const ORDER_KEY = 'rf_sandbox_projects_index:order'
+        const idxRaw = localStorage.getItem(INDEX_KEY)
+        if (!idxRaw) return []
+        const idx = JSON.parse(idxRaw) as {
+          slots?: Array<{ id?: unknown; name?: unknown }>
+        }
+        const nameById = new Map<string, string>()
+        for (const s of idx.slots ?? []) {
+          if (typeof s?.id === 'string' && typeof s?.name === 'string') {
+            nameById.set(s.id, s.name)
+          }
+        }
+        const orderRaw = localStorage.getItem(ORDER_KEY)
+        if (orderRaw) {
+          const order = JSON.parse(orderRaw) as unknown
+          if (Array.isArray(order)) {
+            return order
+              .filter((id): id is string => typeof id === 'string' && nameById.has(id))
+              .map((id) => nameById.get(id) as string)
+          }
+        }
+        return [...nameById.values()]
+      } catch {
+        return []
+      }
+    })
   }
 
   /**

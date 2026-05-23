@@ -239,7 +239,7 @@ describe('FactoryRenderer', () => {
     const sm = createMockSceneManager()
     const wideRenderer = new FactoryRenderer(wideFactory, sm as any)
     const types: MachineType[] = [
-      'part_fabricator', 'assembler', 'quality_checker',
+      'part_fabricator', 'assembler',
       'painter', 'recycler', 'splitter',
     ]
     types.forEach((type, i) => {
@@ -247,7 +247,7 @@ describe('FactoryRenderer', () => {
     })
     expectFactoryState(wideFactory, {
       grid: { box: [0, 0, 11, 1], expected: [
-          '|F| |A| |Q| |P| |R| |S| |',
+          '|F| |A| |P| |R| |S| | | |',
           '| | | | | | | | | | | | |',
         ].join('\n') },
       machines: [
@@ -256,7 +256,6 @@ describe('FactoryRenderer', () => {
         { x: 4,  z: 0, rotation: 'south' },
         { x: 6,  z: 0, rotation: 'south' },
         { x: 8,  z: 0, rotation: 'south' },
-        { x: 10, z: 0, rotation: 'south' },
       ],
       belts: [],
     })
@@ -313,11 +312,11 @@ describe('FactoryRenderer', () => {
 
   it('removes arrow meshes when a machine is deleted', () => {
     // GIVEN
-    factory.placeMachine(3, 3, 'quality_checker', 'south')
+    factory.placeMachine(3, 3, 'splitter', 'south')
     expectFactoryState(factory, {
       grid: { box: [2, 2, 4, 4], expected: [
           '| | | |',
-          '| |Q| |',
+          '| |S| |',
           '| | | |',
         ].join('\n') },
       machines: [{ x: 3, z: 3, rotation: 'south' }],
@@ -426,7 +425,7 @@ describe('FactoryRenderer', () => {
     // WHEN + THEN
     const materials = iconMats(renderer)
     const types: MachineType[] = [
-      'part_fabricator', 'assembler', 'quality_checker',
+      'part_fabricator', 'assembler',
       'painter', 'recycler', 'splitter', 'factory_output',
     ]
     expect(materials.size).toBe(types.length)

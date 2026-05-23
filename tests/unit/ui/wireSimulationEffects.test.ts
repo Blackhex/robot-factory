@@ -21,6 +21,7 @@ interface FakeSimulation {
   on: ReturnType<typeof vi.fn>
   getMachine: ReturnType<typeof vi.fn>
   enqueueCommands: ReturnType<typeof vi.fn>
+  setItemArrivalBridge: ReturnType<typeof vi.fn>
   emitMachineStateChanged: (data: unknown) => void
   emitMachineCycleCompleted: (data: unknown) => void
   machineStateListenerCount: () => number
@@ -35,10 +36,12 @@ function createFakeSimulation(): FakeSimulation {
   })
   const getMachine = vi.fn(() => ({ machineType: 'assembler' as const, name: 'M1' }))
   const enqueueCommands = vi.fn()
+  const setItemArrivalBridge = vi.fn()
   return {
     on,
     getMachine,
     enqueueCommands,
+    setItemArrivalBridge,
     emitMachineStateChanged(data: unknown) {
       const subs = listeners['machine_state_changed'] ?? []
       for (const sub of subs) sub({ data })

@@ -355,13 +355,13 @@ describe('BeltRouter', () => {
       // GIVEN
       factory.placeMachine(0, 0, 'part_fabricator', 'south')
       factory.placeMachine(3, 2, 'assembler', 'south')
-      factory.placeMachine(2, 0, 'quality_checker', 'south') // block X-first path
+      factory.placeMachine(2, 0, 'splitter', 'south') // block X-first path
       const router = new BeltRouter(factory)
       expectFactoryState(factory, {
         grid: {
           box: [0, 0, 5, 5],
           expected: [
-            '|F| |Q| | | |',
+            '|F| |S| | | |',
             '| | | | | | |',
             '| | | |A| | |',
             '| | | | | | |',
@@ -393,10 +393,10 @@ describe('BeltRouter', () => {
         { x: 2, z: 2, type: 'assembler', rotation: 'south' },
         { x: 1, z: 0, type: 'painter', rotation: 'south' },
         { x: 0, z: 1, type: 'recycler', rotation: 'south' },
-        { x: 1, z: 1, type: 'quality_checker', rotation: 'south' },
+        { x: 1, z: 1, type: 'splitter', rotation: 'south' },
         { x: 2, z: 0, type: 'painter', rotation: 'south' },
         { x: 0, z: 2, type: 'recycler', rotation: 'south' },
-        { x: 2, z: 1, type: 'quality_checker', rotation: 'south' },
+        { x: 2, z: 1, type: 'splitter', rotation: 'south' },
         { x: 1, z: 2, type: 'painter', rotation: 'south' },
       ], [])
       const router = new BeltRouter(tiny)
@@ -405,7 +405,7 @@ describe('BeltRouter', () => {
           box: [0, 0, 2, 2],
           expected: [
             '|F|P|P|',
-            '|R|Q|Q|',
+            '|R|S|S|',
             '|R|P|A|',
           ].join('\n'),
         },
@@ -436,14 +436,14 @@ describe('BeltRouter', () => {
       // GIVEN
       const tiny = new Factory(3, 1)
       tiny.placeMachine(0, 0, 'part_fabricator', 'south')
-      tiny.placeMachine(2, 0, 'quality_checker', 'south')
+      tiny.placeMachine(2, 0, 'recycler', 'south')
       tiny.placeMachine(1, 0, 'painter', 'south') // block only path
       const router = new BeltRouter(tiny)
       expectFactoryState(tiny, {
         grid: {
           box: [0, 0, 2, 0],
           expected: [
-            '|F|P|Q|',
+            '|F|P|R|',
           ].join('\n'),
         },
         machines: [

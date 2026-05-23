@@ -1,5 +1,13 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll } from 'vitest'
 import { getToolboxForLevel } from '../../../src/editor/FactoryToolbox'
+import { initI18n, i18next } from '../../../src/i18n/i18n'
+
+beforeAll(async () => {
+  // Category names are produced by `i18next.t(...)`; without init the
+  // helper returns the same default for every key, breaking name-based
+  // category lookups in the structural guard tests below.
+  await initI18n()
+})
 
 // Helper: extract all block types from a toolbox definition
 function getBlockTypes(toolbox: ReturnType<typeof getToolboxForLevel>): string[] {
@@ -11,12 +19,6 @@ function getBlockTypes(toolbox: ReturnType<typeof getToolboxForLevel>): string[]
   }
   return types
 }
-
-// Helper: extract category names from a toolbox definition
-function _getCategoryNames(toolbox: ReturnType<typeof getToolboxForLevel>): string[] {
-  return toolbox.contents.map((c) => c.name)
-}
-void _getCategoryNames
 
 describe('FactoryToolbox', () => {
   it('should return a categoryToolbox', () => {
@@ -138,18 +140,46 @@ describe('FactoryToolbox', () => {
       // WHEN
       const types = getBlockTypes(getToolboxForLevel(4))
 
-      // THEN
-      expect(types).toContain('factory_if_quality')
-      expect(types).toContain('factory_if_item_type')
+      // THEN — factory_if_item_type was removed; the standard `if/else`
+      // block combined with `current item is <part>` covers the same
+      // expressive power without the misleading no-op stub.
+      expect(types).not.toContain('factory_if_item_type')
       expect(types).toContain('factory_if_else')
     })
 
-    it('should have 3 categories (actions + loops + conditionals)', () => {
+    it('should have 4 categories (actions + loops + conditionals + events)', () => {
       // WHEN
       const toolbox = getToolboxForLevel(4)
 
-      // THEN
-      expect(toolbox.contents).toHaveLength(3)
+      // THEN — Conditionals unlocks at level 4 (now hosting the
+      // current-item predicates moved out of the deleted Splitters
+      // category). Events also unlocks at level 4 via
+      // factory_on_item_arrives.
+      expect(toolbox.contents).toHaveLength(4)
+    })
+
+    // ------------------------------------------------------------------
+    // RED — Per-item synchronous routing block (`route current item to
+    // <side> of <machine>`) lives alongside the sticky `route items to`
+    // block in the Actions category at L4+ (when the splitter is
+    // unlocked). The toolbox has no per-machine-type grouping, so this
+    // is the closest mapping of the spec's "Splitter group" — both
+    // routing blocks are gated by the same level threshold and only
+    // meaningful when wired to a Splitter machine slot.
+    // ------------------------------------------------------------------
+    it('should include factory_route_current_item_to alongside factory_route_items_to at level 4', () => {
+      const types = getBlockTypes(getToolboxForLevel(4))
+      expect(types).toContain('factory_route_items_to')
+      expect(types).toContain('factory_route_current_item_to')
+    })
+
+    it('should NOT include factory_route_current_item_to before level 4', () => {
+      for (const level of [1, 2, 3]) {
+        const types = getBlockTypes(getToolboxForLevel(level))
+        expect(types, `level ${level} must not expose the per-item routing block`).not.toContain(
+          'factory_route_current_item_to',
+        )
+      }
     })
   })
 
@@ -164,12 +194,12 @@ describe('FactoryToolbox', () => {
       expect(types).not.toContain('factory_change_variable')
     })
 
-    it('should still have 3 factory categories at level 5 (actions + loops + conditionals)', () => {
+    it('should still have 4 factory categories at level 5 (actions + loops + conditionals + events)', () => {
       // WHEN
       const toolbox = getToolboxForLevel(5)
 
       // THEN
-      expect(toolbox.contents).toHaveLength(3)
+      expect(toolbox.contents).toHaveLength(4)
     })
   })
 
@@ -183,12 +213,12 @@ describe('FactoryToolbox', () => {
       expect(types).not.toContain('factory_call_procedure')
     })
 
-    it('should still have 3 factory categories at level 6 (actions + loops + conditionals)', () => {
+    it('should still have 4 factory categories at level 6 (actions + loops + conditionals + events)', () => {
       // WHEN
       const toolbox = getToolboxForLevel(6)
 
       // THEN
-      expect(toolbox.contents).toHaveLength(3)
+      expect(toolbox.contents).toHaveLength(4)
     })
   })
 
@@ -249,29 +279,240 @@ describe('FactoryToolbox', () => {
   describe('category colors match game UI palette', () => {
     // Use level 7+ so all factory categories are visible.
     // Categories are in fixed order: Actions(0), Loops(1), Conditionals(2),
-    // Events(3). (Variables and Functions come from the built-in Blockly
-    // categories which are added separately by PXT.)
-    const toolbox = getToolboxForLevel(7)
+    // Events(3). (Variables and Functions come from the built-in
+    // Blockly categories which are added separately by PXT.)
+    // The toolbox is captured per-test so it is built AFTER `beforeAll` has
+    // initialized i18next; otherwise category names degrade to a single
+    // default and name-based lookups below collapse to the first match.
 
     it('should have all 4 factory categories at level 7', () => {
+      const toolbox = getToolboxForLevel(7)
       expect(toolbox.contents).toHaveLength(4)
     })
 
     it('Actions category (index 0) should use machine blue (#4488ff → hue 217)', () => {
+      const toolbox = getToolboxForLevel(7)
       expect(toolbox.contents[0].colour).toBe('217')
     })
 
     it('Loops category (index 1) should use success green (hue 120)', () => {
+      const toolbox = getToolboxForLevel(7)
       expect(toolbox.contents[1].colour).toBe('120')
     })
 
-    it('Conditionals category (index 2) should use checker yellow (#cccc44 → hue 60)', () => {
-      expect(toolbox.contents[2].colour).toBe('60')
+    it('Conditionals category (index 2) should use PXT Logic yellow (#cccc44) matching built-in conditional blocks', () => {
+      // PXT's built-in Logic blocks render at the exact hex `#cccc44` in
+      // our skin (via `Blockly.Msg.LOGIC_HUE`). The Conditionals category
+      // must use the same hex so our current_item_is /
+      // current_item_is_defective predicates do not clash visually with
+      // the built-in if/else, comparison, and boolean blocks shown
+      // alongside them. UX review proved that numeric-hue specs (e.g.
+      // hue 210 / blue) do NOT match how built-in Logic blocks render.
+      // See .github/skills/pxt-blocks/SKILL.md.
+      const toolbox = getToolboxForLevel(7)
+      expect(toolbox.contents[2].colour).toBe('#cccc44')
     })
 
-    it('Events category (index 3) should use PXT standard yellow (hue 50)', () => {
+    it('Events category should use PXT standard yellow (hue 50)', () => {
       // Per .github/skills/pxt-blocks/SKILL.md, the Events category convention is hue 50.
-      expect(toolbox.contents[3].colour).toBe('50')
+      // Locate by name to stay index-agnostic.
+      const toolbox = getToolboxForLevel(7)
+      const events = toolbox.contents.find((c) => c.name === i18next.t('blocks.category_events'))
+      expect(events, 'expected an Events category at level 7').toBeDefined()
+      expect(events!.colour).toBe('50')
     })
+  })
+
+  describe('category ordering at level 7', () => {
+    it('should list categories in the canonical order: Actions → Loops → Conditionals → Events', () => {
+      // WHEN
+      const names = getToolboxForLevel(7).contents.map((c) => c.name)
+
+      // THEN — order is part of the contract; new categories must be inserted
+      // explicitly in FactoryToolbox.ts and reflected here.
+      expect(names).toEqual([
+        i18next.t('blocks.category_actions'),
+        i18next.t('blocks.category_loops'),
+        i18next.t('blocks.category_conditionals'),
+        i18next.t('blocks.category_events'),
+      ])
+    })
+  })
+
+  // ─────────────────────────────────────────────────────────────────
+  //  E4b/E4c — `factory_route_items_to` is the new persistent
+  //  multiplex-routing block. It unlocks at level 4 (alongside the
+  //  Splitter intro) and lives in the Actions category — NOT in
+  //  Splitters, because the player should think of it as a generic
+  //  machine action ("tell this splitter where to send items").
+  // ─────────────────────────────────────────────────────────────────
+  describe('factory_route_items_to (multiplex routing block, level 4+)', () => {
+    it('appears at level 4', () => {
+      const types = getBlockTypes(getToolboxForLevel(4))
+      expect(types).toContain('factory_route_items_to')
+    })
+
+    for (const level of [5, 6, 7, 8] as const) {
+      it(`stays present at level ${level} (cumulative unlock)`, () => {
+        const types = getBlockTypes(getToolboxForLevel(level))
+        expect(types).toContain('factory_route_items_to')
+      })
+    }
+
+    for (const level of [1, 2, 3] as const) {
+      it(`is ABSENT at level ${level} (gated on level >= 4)`, () => {
+        const types = getBlockTypes(getToolboxForLevel(level))
+        expect(types).not.toContain('factory_route_items_to')
+      })
+    }
+
+    it('is placed inside the Actions category (not Splitters)', () => {
+      const toolbox = getToolboxForLevel(4)
+      const actions = toolbox.contents.find(
+        (c) => c.name === i18next.t('blocks.category_actions'),
+      )
+      expect(actions, 'expected an Actions category at level 4').toBeDefined()
+      const actionTypes = actions!.contents.map((b) => b.type)
+      expect(actionTypes).toContain('factory_route_items_to')
+
+      // And: it must NOT also be duplicated under Splitters.
+      const splitters = toolbox.contents.find(
+        (c) => c.name === i18next.t('blocks.category_splitters'),
+      )
+      const splitterTypes = splitters?.contents.map((b) => b.type) ?? []
+      expect(splitterTypes).not.toContain('factory_route_items_to')
+    })
+  })
+
+  // ─────────────────────────────────────────────────────────────────
+  //  E4g — RED-step guards for the Splitters category cleanup.
+  //  After E4g, the entire Splitters category is removed from the
+  //  toolbox. Its predicates (factory_current_item_defective /
+  //  factory_current_item_is) move into the Conditionals category;
+  //  factory_route_current_item is deleted entirely (replaced by
+  //  factory_route_items_to in the Actions category — see Cycle A).
+  // ─────────────────────────────────────────────────────────────────
+  describe('Splitters category cleanup (E4g)', () => {
+    const ALL_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8] as const
+    const POST_CONDITIONALS_LEVELS = [4, 5, 6, 7, 8] as const
+
+    for (const level of ALL_LEVELS) {
+      it(`K: Splitters category is GONE at level ${level}`, () => {
+        const toolbox = getToolboxForLevel(level)
+        const splitters = toolbox.contents.find(
+          (c) => c.name === i18next.t('blocks.category_splitters'),
+        )
+        expect(
+          splitters,
+          `Toolbox at level ${level} must NOT contain a Splitters category. ` +
+            `The category is removed entirely in E4g.`,
+        ).toBeUndefined()
+      })
+    }
+
+    for (const level of ALL_LEVELS) {
+      it(`L: factory_route_current_item is NOT in any toolbox category at level ${level}`, () => {
+        const types = getBlockTypes(getToolboxForLevel(level))
+        expect(
+          types,
+          `factory_route_current_item is replaced by factory_route_items_to ` +
+            `(E4b/E4c). It must not appear in any toolbox category at any level.`,
+        ).not.toContain('factory_route_current_item')
+      })
+    }
+
+    for (const level of POST_CONDITIONALS_LEVELS) {
+      it(`M: factory_current_item_defective is in Conditionals at level ${level}`, () => {
+        const toolbox = getToolboxForLevel(level)
+        const conditionals = toolbox.contents.find(
+          (c) => c.name === i18next.t('blocks.category_conditionals'),
+        )
+        expect(
+          conditionals,
+          `Conditionals category must exist at level ${level}.`,
+        ).toBeDefined()
+        const condTypes = conditionals!.contents.map((b) => b.type)
+        expect(
+          condTypes,
+          `factory_current_item_defective moves from the (deleted) Splitters ` +
+            `category into Conditionals as part of E4e/E4g.`,
+        ).toContain('factory_current_item_defective')
+      })
+    }
+
+    for (const level of POST_CONDITIONALS_LEVELS) {
+      it(`N: factory_current_item_is is in Conditionals at level ${level}`, () => {
+        const toolbox = getToolboxForLevel(level)
+        const conditionals = toolbox.contents.find(
+          (c) => c.name === i18next.t('blocks.category_conditionals'),
+        )
+        expect(conditionals).toBeDefined()
+        const condTypes = conditionals!.contents.map((b) => b.type)
+        expect(
+          condTypes,
+          `factory_current_item_is moves from the (deleted) Splitters category ` +
+            `into Conditionals as part of E4e/E4g.`,
+        ).toContain('factory_current_item_is')
+      })
+    }
+
+    for (const level of POST_CONDITIONALS_LEVELS) {
+      it(`O: Conditionals category retains factory_if_else (and does NOT contain factory_if_item_type) at level ${level}`, () => {
+        // Regression guard: moving the splitter predicates into
+        // Conditionals must not displace factory_if_else, and the
+        // removed factory_if_item_type stub must not reappear.
+        const toolbox = getToolboxForLevel(level)
+        const conditionals = toolbox.contents.find(
+          (c) => c.name === i18next.t('blocks.category_conditionals'),
+        )
+        expect(conditionals).toBeDefined()
+        const condTypes = conditionals!.contents.map((b) => b.type)
+        expect(condTypes).not.toContain('factory_if_item_type')
+        expect(condTypes).toContain('factory_if_else')
+      })
+    }
+  })
+
+  // ─────────────────────────────────────────────────────────────────
+  //  factory_if_item_type removal (RED guards).
+  //  The `factory_if_item_type` / `logic.ifItemType` block was a
+  //  no-op stub that ignored its itemType argument and always ran
+  //  its body. It is removed entirely; players use the standard
+  //  `if/else` block combined with the existing
+  //  `factory_current_item_is` predicate instead.
+  // ─────────────────────────────────────────────────────────────────
+  describe('factory_if_item_type removal', () => {
+    const ALL_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8] as const
+    const POST_CONDITIONALS_LEVELS = [4, 5, 6, 7, 8] as const
+
+    for (const level of ALL_LEVELS) {
+      it(`is absent from the toolbox at level ${level}`, () => {
+        const types = getBlockTypes(getToolboxForLevel(level))
+        expect(
+          types,
+          `factory_if_item_type was a no-op stub and is removed; ` +
+            `it must not appear in any toolbox category at any level.`,
+        ).not.toContain('factory_if_item_type')
+      })
+    }
+
+    for (const level of POST_CONDITIONALS_LEVELS) {
+      it(`Conditionals category at level ${level} still exists with the surviving blocks (no factory_if_item_type)`, () => {
+        const toolbox = getToolboxForLevel(level)
+        const conditionals = toolbox.contents.find(
+          (c) => c.name === i18next.t('blocks.category_conditionals'),
+        )
+        expect(
+          conditionals,
+          `Conditionals category must continue to exist at level ${level} ` +
+            `even after factory_if_item_type is removed.`,
+        ).toBeDefined()
+        const condTypes = conditionals!.contents.map((b) => b.type)
+        expect(condTypes).not.toContain('factory_if_item_type')
+        expect(condTypes).toContain('factory_if_else')
+        expect(condTypes).toContain('factory_current_item_defective')
+        expect(condTypes).toContain('factory_current_item_is')
+      })
+    }
   })
 })

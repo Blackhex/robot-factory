@@ -1,9 +1,32 @@
 import { ALL_MACHINE_TYPES, type Direction, type MachineType, type SlotPosition } from '../game/types.ts'
 import { Factory } from '../game/Factory.ts'
 
-const SAVE_VERSION = 2
+const SAVE_VERSION = 3
+const SUPPORTED_SAVE_VERSIONS: ReadonlySet<number> = new Set<number>([2, 3])
 
-const VALID_MACHINE_TYPES: ReadonlySet<string> = new Set<MachineType>(ALL_MACHINE_TYPES)
+/**
+ * Pure v2→v3 migration: swap 'left'↔'right' on every belt's sourceSlot /
+ * destinationSlot so saves authored under the old machine-facing slot
+ * convention still connect to the same physical world cells under the new
+ * input-observer convention. 'front' / 'back' pass through unchanged.
+ */
+export function migrateV2ToV3(save: FactorySave): FactorySave {
+  const swap = (s: string): string => (s === 'left' ? 'right' : s === 'right' ? 'left' : s)
+  return {
+    ...save,
+    version: 3,
+    belts: save.belts.map(b => ({
+      ...b,
+      sourceSlot: swap(b.sourceSlot),
+      destinationSlot: swap(b.destinationSlot),
+    })),
+  }
+}
+
+const VALID_MACHINE_TYPES: ReadonlySet<string> = new Set<string>([
+  ...ALL_MACHINE_TYPES,
+  'quality_checker', // legacy: silently dropped at load time (see loadFactory)
+])
 
 const VALID_DIRECTIONS: ReadonlySet<string> = new Set<Direction>(['north', 'south', 'east', 'west'])
 const VALID_SLOTS: ReadonlySet<string> = new Set<SlotPosition>(['front', 'back', 'left', 'right'])
@@ -57,11 +80,30 @@ export function loadFactory(
 ): { factory: Factory; workspace: string; levelId?: string } {
   validateSave(save)
 
+  const effectiveSave = save.version === 2 ? migrateV2ToV3(save) : save
+
+  const droppedCells = new Set<string>()
+  const survivingGrid = effectiveSave.grid.filter(entry => {
+    if (entry.machineType === 'quality_checker') {
+      droppedCells.add(`${entry.x},${entry.z}`)
+      return false
+    }
+    return true
+  })
+  const survivingBelts = effectiveSave.belts.filter(belt => {
+    if (belt.path.length === 0) return true
+    const src = belt.path[0]
+    const dst = belt.path[belt.path.length - 1]
+    if (droppedCells.has(`${src[0]},${src[1]}`)) return false
+    if (droppedCells.has(`${dst[0]},${dst[1]}`)) return false
+    return true
+  })
+
   const factory = new Factory()
 
   factory.restoreState(
-    save.grid.map(entry => ({ x: entry.x, z: entry.z, type: entry.machineType as MachineType, rotation: entry.rotation as Direction, ...(typeof (entry as Record<string, unknown>).name === 'string' ? { name: (entry as Record<string, unknown>).name as string } : {}) })),
-    save.belts.map(belt => ({
+    survivingGrid.map(entry => ({ x: entry.x, z: entry.z, type: entry.machineType as MachineType, rotation: entry.rotation as Direction, ...(typeof (entry as Record<string, unknown>).name === 'string' ? { name: (entry as Record<string, unknown>).name as string } : {}) })),
+    survivingBelts.map(belt => ({
       sourceSlot: belt.sourceSlot as SlotPosition,
       destinationSlot: belt.destinationSlot as SlotPosition,
       path: belt.path.map(p => ({ x: p[0], z: p[1] })),
@@ -437,7 +479,7 @@ function validateSave(data: unknown): asserts data is FactorySave {
 
   const obj = data as Record<string, unknown>
 
-  if (typeof obj.version !== 'number' || obj.version !== SAVE_VERSION) {
+  if (typeof obj.version !== 'number' || !SUPPORTED_SAVE_VERSIONS.has(obj.version)) {
     throw new Error(
       `Unsupported save version: ${String(obj.version)} (expected ${SAVE_VERSION})`,
     )

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createItem, resetItemIdCounter } from '../../../src/game/Item'
 import { Machine } from '../../../src/game/Machine'
+import { ALL_OUTPUTS_CONNECTED_ENV } from '../../../src/game/MachineBehaviors'
 import { Simulation } from '../../../src/game/Simulation'
 import { getRecipeById } from '../../../src/game/Recipe'
 import type { Recipe } from '../../../src/game/Recipe'
@@ -15,7 +16,7 @@ import type { Recipe } from '../../../src/game/Recipe'
 //     and painter (all three roll based on `defectProbability(speed)`)
 //   - assembler/painter propagate isDefective from inputs to outputs AND
 //     additionally roll for new defects when all inputs are clean
-//   - recycler/quality_checker/splitter never invent new defects
+//   - recycler/splitter never invent new defects
 //
 // The casts below allow the test to compile against the *current* (narrower)
 // TypeScript signatures while still exercising the *future* runtime behavior.
@@ -38,7 +39,11 @@ const constRng = (v: number): (() => number) => () => v
 
 /** Call `machine.tick(rng)` against the future signature. */
 function tickWithRng(m: Machine, rng: () => number): void {
-  ;(m.tick as unknown as (this: Machine, r: () => number) => void).call(m, rng)
+  ;(m.tick as unknown as (this: Machine, r: () => number, e: typeof ALL_OUTPUTS_CONNECTED_ENV) => void).call(
+    m,
+    rng,
+    ALL_OUTPUTS_CONNECTED_ENV,
+  )
 }
 
 /** Construct a Simulation with an injected rng (future ctor signature). */
@@ -454,7 +459,7 @@ describe('recycler always produces clean raw_material', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 7. Quality checker and splitter pass items through unchanged
+// 7. Splitter passes items through unchanged
 // ---------------------------------------------------------------------------
 
 describe('pass-through machines preserve isDefective', () => {
@@ -462,29 +467,14 @@ describe('pass-through machines preserve isDefective', () => {
     resetItemIdCounter()
   })
 
-  it('quality_checker forwards a defective item with isDefective intact', () => {
-    // GIVEN
-    const m = new Machine('qc', 'quality_checker')
-    m.qualityThreshold = 80
-    m.start()
-    const dirty = createItem('wheel_small') // quality=80 → primary output
-    dirty.isDefective = true
-    m.addInput(dirty)
-
-    // WHEN
-    tickUntilOutput(m, constRng(0))
-
-    // THEN: routed to primary OR secondary, but defect flag must persist
-    const routed = m.outputSlot ?? m.secondaryOutputSlot
-    expect(routed).not.toBeNull()
-    expect(routed!.isDefective).toBe(true)
-    // Identity preserved — quality checker forwards the same item, not a clone.
-    expect(routed!.id).toBe(dirty.id)
-  })
-
   it('splitter forwards a defective item with isDefective intact', () => {
-    // GIVEN
+    // GIVEN — Step 1 of the splitter migration: routing is decided by
+    //         the persistent `outputSidesConfig` bitfield, not by an
+    //         event-handler bridge. Forward-only (bit 2) routes the
+    //         item deterministically to the primary output slot so
+    //         `tickUntilOutput` (which polls `outputSlot`) terminates.
     const m = new Machine('sp', 'splitter')
+    m.outputSidesConfig = 2 // Forward only → primary
     m.start()
     const dirty = createItem('wheel_small')
     dirty.isDefective = true
@@ -494,10 +484,9 @@ describe('pass-through machines preserve isDefective', () => {
     tickUntilOutput(m, constRng(0))
 
     // THEN
-    const routed = m.outputSlot ?? m.secondaryOutputSlot
-    expect(routed).not.toBeNull()
-    expect(routed!.isDefective).toBe(true)
-    expect(routed!.id).toBe(dirty.id)
+    expect(m.outputSlot).not.toBeNull()
+    expect(m.outputSlot!.isDefective).toBe(true)
+    expect(m.outputSlot!.id).toBe(dirty.id)
   })
 })
 

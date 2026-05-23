@@ -14,8 +14,8 @@ export function restoreEmptySiblingSplitterOutputFixture(factory: Factory): {
     ],
     [
       {
-        sourceSlot: 'right',
-        destinationSlot: 'left',
+        sourceSlot: 'left',
+        destinationSlot: 'right',
         path: [
           { x: 2, z: 3 },
           { x: 3, z: 3 },
@@ -26,8 +26,8 @@ export function restoreEmptySiblingSplitterOutputFixture(factory: Factory): {
         ],
       },
       {
-        sourceSlot: 'left',
-        destinationSlot: 'right',
+        sourceSlot: 'right',
+        destinationSlot: 'left',
         path: [
           { x: 2, z: 3 },
           { x: 1, z: 3 },
@@ -63,8 +63,8 @@ export function restoreEmptySiblingSplitterOutputFixture(factory: Factory): {
       {
         source: { x: 2, z: 3 },
         destination: { x: 7, z: 3 },
-        sourceSlot: 'right',
-        destinationSlot: 'left',
+        sourceSlot: 'left',
+        destinationSlot: 'right',
         path: [
           { x: 2, z: 3 },
           { x: 3, z: 3 },
@@ -77,8 +77,8 @@ export function restoreEmptySiblingSplitterOutputFixture(factory: Factory): {
       {
         source: { x: 2, z: 3 },
         destination: { x: 7, z: 3 },
-        sourceSlot: 'left',
-        destinationSlot: 'right',
+        sourceSlot: 'right',
+        destinationSlot: 'left',
         path: [
           { x: 2, z: 3 },
           { x: 1, z: 3 },
@@ -98,7 +98,7 @@ export function restoreEmptySiblingSplitterOutputFixture(factory: Factory): {
   })
 
   return {
-    emptySiblingLane: findBeltBySlots(factory, 'right', 'left'),
-    nonmatchingLane: findBeltBySlots(factory, 'left', 'right'),
+    emptySiblingLane: findBeltBySlots(factory, 'left', 'right'),
+    nonmatchingLane: findBeltBySlots(factory, 'right', 'left'),
   }
 }

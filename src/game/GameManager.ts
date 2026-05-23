@@ -3,6 +3,7 @@ import { Factory } from './Factory.ts'
 import { Simulation } from './Simulation.ts'
 import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
+import { derivePortFromBeltSource } from './SplitterPortRouting'
 import { getLevelById, getAllLevels } from './Level.ts'
 import type { LevelDefinition } from './Level.ts'
 import { calculateScore } from './Scoring.ts'
@@ -160,7 +161,11 @@ export class GameManager {
       for (const segment of ConveyorBelt.fromBeltInfo(info)) {
         simulation.addBelt(segment)
       }
-      simulation.setMachineOutputBelt(info.sourceMachine.id, ConveyorBelt.segmentIdFor(info.id, 0))
+      simulation.setMachineOutputBelt(
+        info.sourceMachine.id,
+        ConveyorBelt.segmentIdFor(info.id, 0),
+        derivePortFromBeltSource(info),
+      )
     }
 
     // Wire factory edits → sim sync. After this, mid-run belt edits

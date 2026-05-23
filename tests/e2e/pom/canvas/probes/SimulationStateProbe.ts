@@ -22,6 +22,20 @@ export class SimulationStateProbe {
     })
   }
 
+  /**
+   * Returns `Simulation.currentTick` — the number of ticks the simulation
+   * has executed since (re)start. Use this for tick-budget polling in
+   * specs that need to be deterministic under host throttling instead of
+   * relying on wall-clock `settle(ms)` windows.
+   */
+  async getCurrentTick(): Promise<number> {
+    return this.page.evaluate(() => {
+      const gm = (window as any).__gameManager
+      const t = gm?.simulation?.currentTick
+      return typeof t === 'number' ? t : 0
+    })
+  }
+
   /** Read the current `GameManager` state string (e.g. `'main_menu'`, `'sandbox'`, `'build_phase'`). */
   async getGameState(): Promise<string> {
     return this.page.evaluate(() => {
@@ -246,6 +260,12 @@ export class SimulationStateProbe {
           inputSlotTypes: m.inputSlots.map((it: any) => it?.type),
           outputSlotType: m.outputSlot?.type ?? null,
           secondaryOutputSlotType: m.secondaryOutputSlot?.type ?? null,
+          tertiaryOutputSlotType: m.tertiaryOutputSlot?.type ?? null,
+          // Splitter routing bitfield: persistent config mutated by the
+          // `routeItemsTo` block (via SET_OUTPUT_SIDES). Default 7 = all
+          // three sides enabled (round-robin). A value of 1/2/4 means the
+          // splitter is pinned to Left / Forward / Right respectively.
+          outputSidesConfig: typeof m.outputSidesConfig === 'number' ? m.outputSidesConfig : null,
         })
       })
       // Augment with positions from factory (sim machine map may not carry x/z directly).

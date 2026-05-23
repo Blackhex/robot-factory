@@ -11,6 +11,6 @@ export function createMigrationTestContext(width = 10, height = 10): MigrationTe
   resetItemIdCounter()
   return {
     factory: new Factory(width, height),
-    sim: new Simulation(),
+    sim: new Simulation(10, () => 0.99),
   }
 }

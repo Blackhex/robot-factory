@@ -64,7 +64,7 @@ const INITIAL_S3 = {
 const INITIAL_S4 = {
   grid: { box: [4, 4, 11, 11] as [number, number, number, number], expected: [
       '| | |┌|─|─|┐| | |',
-      '| |S|┘| | |Q| | |',
+      '| |S|┘| | |R| | |',
       '| |│| | | | | | |',
       '| |│| | | | | | |',
       '| |│| | | | | | |',
@@ -292,12 +292,12 @@ function setupS3(): Factory {
   return f
 }
 
-/** S4: Two belts from one splitter — S(5,5) → P(5,9) south + Q(9,5) east */
+/** S4: Two belts from one splitter — S(5,5) → P(5,9) south + R(9,5) east */
 function setupS4(): Factory {
   const f = new Factory(15, 15)
   f.placeMachine(5, 5, 'splitter', 'south')
   f.placeMachine(5, 9, 'painter', 'south')
-  f.placeMachine(9, 5, 'quality_checker', 'south')
+  f.placeMachine(9, 5, 'recycler', 'south')
   f.placeBeltChain(f.getMachineAt(5, 5)!, f.getMachineAt(5, 9)!)
   f.placeBeltChain(f.getMachineAt(5, 5)!, f.getMachineAt(9, 5)!)
   return f
@@ -1105,7 +1105,7 @@ describe('GhostDropParity', () => {
 
     // ── S4: Two belts from one splitter ────────────
 
-    describe('S4: Splitter S(5,5)→P(5,9) + Q(9,5)', () => {
+    describe('S4: Splitter S(5,5)→P(5,9) + R(9,5)', () => {
       it('A1: move source (S) east +2', () => {
         const factory = setupS4()
         expectFactoryState(factory, INITIAL_S4)
@@ -1114,7 +1114,7 @@ describe('GhostDropParity', () => {
         expectFactoryState(factory, {
           grid: { box: [4, 4, 11, 11], expected: [
               '| | | | |┌|┐| | |',
-              '| | | |S|┘|Q| | |',
+              '| | | |S|┘|R| | |',
               '| |┌|─|┘| | | | |',
               '| |│| | | | | | |',
               '| |│| | | | | | |',
@@ -1152,7 +1152,7 @@ describe('GhostDropParity', () => {
         expectFactoryState(factory, {
           grid: { box: [4, 4, 11, 11], expected: [
               '| | |┌|─|─|┐| | |',
-              '| | |│| | |Q| | |',
+              '| | |│| | |R| | |',
               '| | |│| | | | | |',
               '| |S|┘| | | | | |',
               '| |│| | | | | | |',
@@ -1193,7 +1193,7 @@ describe('GhostDropParity', () => {
         expectFactoryState(factory, {
           grid: { box: [4, 4, 11, 11], expected: [
               '| | | | |┌|┐| | |',
-              '| | | | |│|Q| | |',
+              '| | | | |│|R| | |',
               '| | | | |│| | | |',
               '| | | |S|┘| | | |',
               '| |┌|─|┘| | | | |',
@@ -1233,7 +1233,7 @@ describe('GhostDropParity', () => {
         expectFactoryState(factory, {
           grid: { box: [4, 4, 11, 11], expected: [
               '| | |┌|─|─|┐| | |',
-              '| |S|┘| | |Q| | |',
+              '| |S|┘| | |R| | |',
               '| |└|─|┐| | | | |',
               '| | | |│| | | | |',
               '| | | |│| | | | |',

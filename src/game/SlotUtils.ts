@@ -39,13 +39,17 @@ export function rotateOffset(offset: GridPosition, direction: Direction): GridPo
   }
 }
 
-/** Get the base grid offset for a slot position (at rotation=0, output faces +Z). */
+/**
+ * Get the base grid offset for a slot position (at rotation=0, output faces +Z).
+ * Input-observer convention: stand at the input and face into the machine —
+ * `left` is at your left hand, `right` at your right.
+ */
 function slotPositionBaseOffset(position: SlotPosition): GridPosition {
   switch (position) {
     case 'front': return { x: 0, z: 1 }
     case 'back': return { x: 0, z: -1 }
-    case 'right': return { x: 1, z: 0 }
-    case 'left': return { x: -1, z: 0 }
+    case 'right': return { x: -1, z: 0 }
+    case 'left': return { x: 1, z: 0 }
   }
 }
 
@@ -65,6 +69,17 @@ export function getSlotPositions(type: MachineType): SlotPositions {
 
 /** Convert a SlotPosition to a grid offset considering direction. */
 export function slotPositionToOffset(position: SlotPosition, direction: Direction): GridPosition {
+  // Input-observer convention: when the machine rotates, the observer at the
+  // input rotates with it. Their left/right hands trace the rotation in the
+  // opposite world handedness as the machine's front/back vector, so swap
+  // east↔west when resolving 'left'/'right'.
+  if (position === 'left' || position === 'right') {
+    const mirrored: Direction =
+      direction === 'east' ? 'west' :
+      direction === 'west' ? 'east' :
+      direction
+    return rotateOffset(slotPositionBaseOffset(position), mirrored)
+  }
   return rotateOffset(slotPositionBaseOffset(position), direction)
 }
 

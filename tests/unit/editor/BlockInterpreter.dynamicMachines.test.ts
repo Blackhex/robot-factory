@@ -183,23 +183,6 @@ describe('BlockInterpreter — dynamic machine/belt lists', () => {
       expect((commands[0] as any).machineId).toBe('machine_3')
     })
 
-    it('should affect setQualityThreshold resolution', () => {
-      // GIVEN
-      interpreter.setMachineList([
-        { slotIndex: 0, id: 'machine_3', name: 'Inspector' },
-      ])
-
-      // WHEN
-      const commands = interpreter.interpret(
-        'machines.setQualityThreshold(0, 85)',
-      )
-
-      // THEN
-      expect(commands).toHaveLength(1)
-      expect((commands[0] as any).machineId).toBe('machine_3')
-      expect((commands[0] as any).threshold).toBe(85)
-    })
-
     it('should affect setMachineSpeed resolution', () => {
       // GIVEN
       interpreter.setMachineList([

@@ -1,9 +1,10 @@
-import type { GameOverInfo, ItemType } from './types.ts'
+import type { GameOverInfo, ItemType, MachineOutputPort } from './types.ts'
+import { OUTPUT_PORTS } from './types.ts'
 import type { Machine } from './Machine.ts'
 import type { ConveyorBelt } from './ConveyorBelt.ts'
 
 export interface StarvationContext {
-  getOutputBelt(machineId: string, port: 'primary' | 'secondary'): string | undefined
+  getOutputBelt(machineId: string, port: MachineOutputPort): string | undefined
   getBelt(beltId: string): ConveyorBelt | undefined
   findMachineAt(x: number, z: number): Machine | undefined
   findBeltStartingAt(x: number, z: number): ConveyorBelt | undefined
@@ -45,7 +46,7 @@ export function detectStarvation(
   interface Edge { producer: Machine; consumer: Machine }
   const edges: Edge[] = []
   for (const producer of all) {
-    for (const port of ['primary', 'secondary'] as const) {
+    for (const port of OUTPUT_PORTS) {
       const beltId = context.getOutputBelt(producer.id, port)
       if (!beltId) continue
       const belt = context.getBelt(beltId)

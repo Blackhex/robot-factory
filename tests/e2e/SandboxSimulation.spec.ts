@@ -619,6 +619,7 @@ test.describe('Sandbox — wait block', () => {
     await setProgramAndStart(toolbar, editorPanel, waitThenStopProgram)
 
     await expect.poll(() => probe.isRunning(), { timeout: 5000 }).toBe(true)
+    const startTick = await probe.getCurrentTick()
 
     // Sanity: the machine started immediately (tick 0), so it MUST have
     // produced at least one delivery within a generous window. We poll
@@ -629,21 +630,27 @@ test.describe('Sandbox — wait block', () => {
       expect(deliveries.length).toBeGreaterThan(0)
     }).toPass({ timeout: 15000, intervals: [250] })
 
-    // ~5s after sim start: wait should have expired at ~2s, stopMachine
-    // should have fired, and any in-flight items at that point have had
-    // ~3s to drain to the Shipper. Record the "frozen" delivery count.
-    await probe.settle(5000)
+    // ~50 sim-ticks after start (≈ 5s at 10 Hz nominal): wait expires at
+    // tick 20, stopMachine fires, in-flight items have ~30 ticks to drain
+    // to the Shipper. Polling on `currentTick` keeps the contract
+    // deterministic under parallel-worker host throttling (where wall-
+    // clock seconds can yield far fewer simulation ticks than nominal).
+    await expect
+      .poll(() => probe.getCurrentTick(), { timeout: 60000, intervals: [250] })
+      .toBeGreaterThanOrEqual(startTick + 50)
     const postStopDeliveries = (await probe.readOutputDeliveries()).length
     expect(
       postStopDeliveries,
-      'Machine produced for ~2s before stop; some deliveries must have arrived by 5s',
+      'Machine produced for ~2s before stop; some deliveries must have arrived by tick 50',
     ).toBeGreaterThan(0)
 
-    // 5 more seconds. Because the machine is stopped, NO additional
+    // 50 more sim-ticks. Because the machine is stopped, NO additional
     // deliveries may occur in this window. This is the contract that
     // pins `loops.wait` — the stopMachine command was queued AFTER the
     // wait and must have fired.
-    await probe.settle(5000)
+    await expect
+      .poll(() => probe.getCurrentTick(), { timeout: 60000, intervals: [250] })
+      .toBeGreaterThanOrEqual(startTick + 100)
     const finalDeliveries = (await probe.readOutputDeliveries()).length
     expect(
       finalDeliveries,
@@ -681,18 +688,28 @@ test.describe('Sandbox — wait block', () => {
     await setProgramAndStart(toolbar, editorPanel, waitThenStopProgram)
 
     await expect.poll(() => probe.isRunning(), { timeout: 5000 }).toBe(true)
+    const startTick = await probe.getCurrentTick()
 
-    // Sample 1: ~0.5s into the wait window.
-    await probe.settle(500)
+    // Sample 1: 5 sim-ticks (~0.5s nominal) into the wait window. The
+    // `wait(2000)` command queues 20 ticks of pause for the command
+    // queue, so both samples land BEFORE the stopMachine fires at tick 20.
+    // Using `currentTick` instead of wall-clock keeps the assertion
+    // deterministic under parallel-worker host throttling where
+    // wall-clock seconds may yield far fewer ticks than nominal.
+    await expect
+      .poll(() => probe.getCurrentTick(), { timeout: 30000, intervals: [100] })
+      .toBeGreaterThanOrEqual(startTick + 5)
     const snapEarly = await probe.readSnapshot()
     const earlyOnBelt = snapEarly.itemsOnBelts
     const earlyConsumed = snapEarly.machineStates.reduce(
       (sum, m) => sum + (m.consumedItems ?? 0), 0,
     )
 
-    // Sample 2: ~1.5s into the wait window (still BEFORE the wait expires
-    // and the stopMachine fires).
-    await probe.settle(1000)
+    // Sample 2: 15 sim-ticks (~1.5s nominal) into the wait window (still
+    // BEFORE the wait expires at tick 20 and the stopMachine fires).
+    await expect
+      .poll(() => probe.getCurrentTick(), { timeout: 30000, intervals: [100] })
+      .toBeGreaterThanOrEqual(startTick + 15)
     const snapMid = await probe.readSnapshot()
     const midOnBelt = snapMid.itemsOnBelts
     const midConsumed = snapMid.machineStates.reduce(
@@ -736,20 +753,47 @@ test.describe('Sandbox — wait block', () => {
 
     await expect.poll(() => probe.isRunning(), { timeout: 5000 }).toBe(true)
 
-    // Run for 7s, mirroring the wait+stop scenario's observation window.
-    await probe.settle(7000)
+    // Mirror the wait+stop scenario's observation window as a SIMULATION-
+    // TICK budget instead of wall-clock seconds: 7s × 10 Hz nominal tick
+    // rate ≈ 70 ticks. Polling on `currentTick` keeps the contract
+    // deterministic under parallel-worker host throttling (where the
+    // browser may produce noticeably fewer ticks per real second than
+    // nominal). The wall-clock `timeout` is a generous upper bound only.
+    const startTick = await probe.getCurrentTick()
+    const targetTick = startTick + 70
 
+    await expect
+      .poll(
+        async () => {
+          const ticks = await probe.getCurrentTick()
+          const deliveries = (await probe.readOutputDeliveries()).length
+          return ticks >= targetTick && deliveries >= 4
+        },
+        {
+          timeout: 60000,
+          intervals: [250],
+          message:
+            'Simulation must advance ~70 ticks AND Fabricator must deliver ≥ 4 items unstopped',
+        },
+      )
+      .toBe(true)
+
+    const finalTick = await probe.getCurrentTick()
     const deliveries = (await probe.readOutputDeliveries()).length
+
+    expect(
+      finalTick - startTick,
+      'Simulation must have advanced at least ~70 ticks during the observation window',
+    ).toBeGreaterThanOrEqual(70)
 
     // The wait+stop variant freezes deliveries at whatever was in-flight
     // when stopMachine fired (~2s of production). Without the stop, the
-    // Fabricator runs the full 7s — that must produce strictly MORE
-    // deliveries. We assert a threshold (>= 4) that's comfortably higher
-    // than what 2s of production yields, but the contract is "noticeably
-    // more"; tune as needed once production code lands.
+    // Fabricator runs the full ~70-tick window — that must produce
+    // strictly MORE deliveries. We assert a threshold (>= 4) that's
+    // comfortably higher than what 2s of production yields.
     expect(
       deliveries,
-      'Without wait+stop, the Fabricator runs the full 7s and must deliver more items than the wait+stop scenario',
+      'Without wait+stop, the Fabricator runs the full ~70-tick window and must deliver more items than the wait+stop scenario',
     ).toBeGreaterThanOrEqual(4)
   })
 
@@ -784,6 +828,7 @@ test.describe('Sandbox — wait block', () => {
     await setProgramAndStart(toolbar, editorPanel, waitTicksThenStopProgram)
 
     await expect.poll(() => probe.isRunning(), { timeout: 5000 }).toBe(true)
+    const startTick = await probe.getCurrentTick()
 
     // Sanity: the machine started immediately (tick 0), so it MUST have
     // produced at least one delivery within a generous window.
@@ -792,22 +837,27 @@ test.describe('Sandbox — wait block', () => {
       expect(deliveries.length).toBeGreaterThan(0)
     }).toPass({ timeout: 15000, intervals: [250] })
 
-    // ~5s after sim start: waitTicks(20) should have expired at ~2s,
-    // stopMachine should have fired, and any in-flight items at that
-    // point have had ~3s to drain to the Shipper. Record the "frozen"
-    // delivery count.
-    await probe.settle(5000)
+    // ~50 sim-ticks after start (≈ 5s at 10 Hz nominal): waitTicks(20)
+    // has expired at tick 20, stopMachine has fired, in-flight items
+    // have had ~30 ticks to drain to the Shipper. Polling on
+    // `currentTick` keeps the contract deterministic under parallel-
+    // worker host throttling.
+    await expect
+      .poll(() => probe.getCurrentTick(), { timeout: 60000, intervals: [250] })
+      .toBeGreaterThanOrEqual(startTick + 50)
     const postStopDeliveries = (await probe.readOutputDeliveries()).length
     expect(
       postStopDeliveries,
-      'Machine produced for ~2s before stop; some deliveries must have arrived by 5s',
+      'Machine produced for ~2s before stop; some deliveries must have arrived by tick 50',
     ).toBeGreaterThan(0)
 
-    // 5 more seconds. Because the machine is stopped, NO additional
+    // 50 more sim-ticks. Because the machine is stopped, NO additional
     // deliveries may occur in this window. This is the contract that
     // pins `loops.waitTicks` — the stopMachine command was queued AFTER
     // the wait and must have fired.
-    await probe.settle(5000)
+    await expect
+      .poll(() => probe.getCurrentTick(), { timeout: 60000, intervals: [250] })
+      .toBeGreaterThanOrEqual(startTick + 100)
     const finalDeliveries = (await probe.readOutputDeliveries()).length
     expect(
       finalDeliveries,

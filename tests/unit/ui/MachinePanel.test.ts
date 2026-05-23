@@ -104,12 +104,11 @@ describe('MachinePanel', () => {
     it('should show all default machine types when setAvailableMachineTypes is not called', () => {
       // GIVEN a panel created without calling setAvailableMachineTypes
 
-      // THEN the dropdown contains all 6 default types
+      // THEN the dropdown contains all default types
       const values = getDropdownValues()
       expect(values).toEqual([
         'part_fabricator',
         'assembler',
-        'quality_checker',
         'painter',
         'recycler',
         'splitter',

@@ -10,7 +10,6 @@
   "machines": {
     "part_fabricator": "Vyráběč",
     "assembler": "Montážní stroj",
-    "quality_checker": "Kontrolér",
     "painter": "Lakovač",
     "recycler": "Recyklátor",
     "splitter": "Rozdělovač",
@@ -86,10 +85,6 @@
     "wait_ticks": "počkej %1 kroků",
     "wait_ticks_tooltip": "Pozastaví následující akce na zadaný počet simulačních kroků (10 kroků za vteřinu). Stroje, které už běží, během čekání pracují dál.",
     "category_conditionals": "Podmínky",
-    "if_quality": "pokud kvalita %1 %2 %3",
-    "if_quality_tooltip": "Zkontroluje kvalitu položky proti prahu",
-    "if_item_type": "pokud typ položky je %1",
-    "if_item_type_tooltip": "Rozvětvení podle typu položky",
     "if_else": "pokud %1",
     "if_else_tooltip": "Podmíněné rozvětvení",
     "else": "jinak %1",
@@ -216,7 +211,7 @@
     },
     "level_4": {
       "name": "Na kvalitě záleží",
-      "description": "Použij podmínky k přesměrování vadných dílů do recyklátoru."
+      "description": "Pomocí Rozdělovače a Recyklátoru zabraň vadným dílům dostat se do Odesílače."
     },
     "level_5": {
       "name": "Chytré směrování",
@@ -326,7 +321,9 @@
     "level2_step3": "Otevři Editor a použij bloky 'nastavit recept', aby každý stroj věděl, co má vyrábět.",
     "level3_step1": "Otevři Editor — máš nové bloky Smyčky! Použij 'opakuj' k efektivní výrobě mnoha dílů.",
     "level3_step2": "Smyčky opakují tvé instrukce automaticky, takže nemusíš psát stejné bloky znovu a znovu.",
-    "level4_step1": "Máš nový stroj: Kontrolér! Umísti ho mezi své stroje a kontroluj kvalitu dílů.",
-    "level4_step2": "Použij bloky 'pokud kvalita' v Editoru k přesměrování vadných dílů od dobrých."
+    "level4_step1": "Vadné díly kazí tvé skóre Kvality! Použij Rozdělovač a Recyklátor, abys zachytil vadné díly dříve, než se dostanou do Odesílače.",
+    "level4_step2": "Umísti Rozdělovač na cestu mezi Montážní stroj a Odesílač. Pak umísti Recyklátor stranou a spoj pás z Rozdělovače do Recyklátoru.",
+    "level4_step3": "Otevři Editor — od 4. úrovně se v kategorii Stroje objeví nová akce 'směruj položky z rozdělovače' a v Událostech 'když dorazí položka'. Spoj je dohromady, abys reagoval pokaždé, když díl vstoupí do Rozdělovače.",
+    "level4_step4": "Uvnitř obsluhy zkontroluj 'aktuální položka je vadná' (v kategorii Podmínky). Pokud ano, použij 'směruj položky z <rozdělovače> doleva' a pošli další díl do Recyklátoru; jinak 'směruj položky z <rozdělovače> rovně' a pošli ho do Odesílače. Směr musíš nastavit u každé položky — Rozdělovač si pamatuje poslední nastavení."
   }
 }

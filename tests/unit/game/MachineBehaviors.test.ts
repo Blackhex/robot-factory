@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Machine } from '../../../src/game/Machine'
+import { ALL_OUTPUTS_CONNECTED_ENV } from '../../../src/game/MachineBehaviors'
 import { createItem, resetItemIdCounter } from '../../../src/game/Item'
 import { ALL_MACHINE_TYPES } from '../../../src/game/types'
 import type { Recipe } from '../../../src/game/Recipe'
@@ -97,36 +98,14 @@ describe('MachineBehaviors strategy registry', () => {
       //   Tick 1: idle → consumeInputs(), processingTimer = 2, state = processing
       //   Tick 2: processing, processingTimer-- → 1, still processing
       //   Tick 3: processing, processingTimer-- → 0, produceOutput()
-      m.tick()
-      m.tick()
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN
       expect(m.outputSlot).not.toBeNull()
       expect(m.outputSlot?.type).toBe('wheel_small')
       expect(m.inputSlots).toHaveLength(0)
-    })
-
-    it('quality_checker routes a low-quality item to the secondary output slot', () => {
-      // GIVEN
-      resetItemIdCounter()
-      const qc = new Machine('qc1', 'quality_checker')
-      qc.qualityThreshold = 50
-      qc.start()
-      qc.addInput(createItem('wheel_small', 30)) // below threshold
-
-      // WHEN — tick until processing completes.
-      // quality_checker uses processingTimer = 1, so:
-      //   tick 1: idle → state = processing, processingTimer = 1
-      //   tick 2: processing, processingTimer-- → 0, route to secondary
-      qc.tick()
-      qc.tick()
-
-      // THEN
-      expect(qc.secondaryOutputSlot).not.toBeNull()
-      expect(qc.secondaryOutputSlot?.quality).toBe(30)
-      expect(qc.outputSlot).toBeNull()
-      expect(qc.inputSlots).toHaveLength(0)
     })
   })
 
@@ -157,13 +136,13 @@ describe('MachineBehaviors strategy registry', () => {
       m.start()
 
       // WHEN — tick 4 times: setup + 3 processing decrements (timer hits 1, not 0)
-      for (let i = 0; i < 4; i++) m.tick()
+      for (let i = 0; i < 4; i++) m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN — still processing, output not yet produced
       expect(m.outputSlot).toBeNull()
 
       // WHEN — one more tick: timer decrements to 0, output produced
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN
       expect(m.outputSlot).not.toBeNull()
@@ -179,14 +158,14 @@ describe('MachineBehaviors strategy registry', () => {
       m.start()
 
       // WHEN — tick twice: setup + 1 processing decrement (timer hits 1, not 0)
-      m.tick()
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN — still processing
       expect(m.outputSlot).toBeNull()
 
       // WHEN — one more tick: timer decrements to 0, output produced
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN
       expect(m.outputSlot).not.toBeNull()
@@ -202,13 +181,13 @@ describe('MachineBehaviors strategy registry', () => {
       m.start()
 
       // WHEN — single setup tick: timer set to ceil(4/10)=1, state=processing
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN — not yet produced (timer still 1)
       expect(m.outputSlot).toBeNull()
 
       // WHEN — second tick: timer decrements to 0, output produced
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN
       expect(m.outputSlot).not.toBeNull()
@@ -224,13 +203,13 @@ describe('MachineBehaviors strategy registry', () => {
       r.addInput(createItem('wheel_small'))
 
       // WHEN — tick 1: idle → consume input, processingTimer = ceil(3/3)=1, state=processing
-      r.tick()
+      r.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN — not yet produced
       expect(r.outputSlot).toBeNull()
 
       // WHEN — tick 2: timer-- → 0, park raw_material in primary output
-      r.tick()
+      r.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN
       expect(r.outputSlot).not.toBeNull()

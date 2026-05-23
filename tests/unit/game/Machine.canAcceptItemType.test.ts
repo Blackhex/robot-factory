@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createItem, resetItemIdCounter } from '../../../src/game/Item'
 import { Machine } from '../../../src/game/Machine'
+import { ALL_OUTPUTS_CONNECTED_ENV } from '../../../src/game/MachineBehaviors'
 import { getRecipeById } from '../../../src/game/Recipe'
 import type { Recipe } from '../../../src/game/Recipe'
 import type { ItemType, MachineType } from '../../../src/game/types'
@@ -169,25 +170,6 @@ describe('Machine.canAcceptItemType', () => {
   })
 
   describe('non-recipe-driven machines', () => {
-    it('quality_checker mirrors canAcceptInput regardless of item type', () => {
-      // GIVEN
-      const m = new Machine('qc', 'quality_checker')
-
-      // THEN — empty: both true.
-      expect(canAcceptItemType(m, 'wheel_small')).toBe(true)
-      expect(canAcceptItemType(m, 'robot_explorer')).toBe(true)
-
-      // WHEN — fill all 4 slots.
-      for (let i = 0; i < 4; i++) {
-        expect(m.addInput(createItem('wheel_small'))).toBe(true)
-      }
-
-      // THEN — both query and cheap path agree: full.
-      expect(m.canAcceptInput()).toBe(false)
-      expect(canAcceptItemType(m, 'wheel_small')).toBe(false)
-      expect(canAcceptItemType(m, 'circuit_basic')).toBe(false)
-    })
-
     it('splitter mirrors canAcceptInput regardless of item type', () => {
       // GIVEN
       const m = new Machine('sp', 'splitter')
@@ -349,7 +331,7 @@ describe('Machine.canAcceptItemType', () => {
 
       // WHEN — tick once. tryStartProcessing runs hasRequiredInputs →
       // consumeInputs → state=processing, inputSlots cleared.
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN
       expect(m.state).toBe('processing')

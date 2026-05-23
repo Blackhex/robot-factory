@@ -1,7 +1,8 @@
-import type { MachineState, MachineType, ItemType, SplitterCondition } from './types.ts'
+import type { MachineOutputPort, MachineState, MachineType, ItemType } from './types.ts'
+import { SLOT_FIELD, SPLITTER_ALL_SIDES_BITS } from './types.ts'
 import type { Item } from './Item.ts'
 import type { Recipe } from './Recipe.ts'
-import { MACHINE_BEHAVIORS } from './MachineBehaviors.ts'
+import { MACHINE_BEHAVIORS, type MachineTickEnv } from './MachineBehaviors.ts'
 
 /**
  * Per-type tick + canConsume logic lives in `MachineBehaviors.ts` as a
@@ -25,16 +26,21 @@ export class Machine {
   itemsProduced = 0
   enabled = false
 
-  // Multi-output support (QualityChecker, Splitter)
+  // Multi-output support (Splitter)
   secondaryOutputSlot: Item | null = null
+  tertiaryOutputSlot: Item | null = null
 
-  // QualityChecker configuration
-  qualityThreshold = 80
-
-  // Splitter configuration
-  splitterCondition: SplitterCondition | null = null
-  // Package-internal: read/written by MachineBehaviors.tickSplitter.
-  splitterCounter = 0
+  // Splitter routing config: bitfield (see SPLITTER_SIDE_BIT in types.ts). Default = all sides.
+  outputSidesConfig = SPLITTER_ALL_SIDES_BITS
+  // Splitter round-robin index into the enabled-sides list.
+  routingCounter = 0
+  // Per-item routing override: itemId → sides bitmask. Populated by
+  // SET_OUTPUT_SIDES commands carrying an itemId (emitted from inside
+  // `on item arrives` handlers). Consumed once by tickSplitter when
+  // the matching item is parked, so simultaneous arrivals at the same
+  // splitter route deterministically per item rather than via the
+  // last-write-wins sticky `outputSidesConfig`.
+  readonly perItemRouteOverrides: Map<string, number> = new Map()
 
   // Configuration: scales processingTimer (preserved by clearRuntimeState).
   speed = 1
@@ -86,20 +92,23 @@ export class Machine {
 
   /**
    * Reset all in-flight runtime state (slots, timers, counters), preserving
-   * configuration like recipe, qualityThreshold, splitterCondition, id, and type.
+   * configuration like recipe, id, and type.
    */
   clearRuntimeState(): void {
     this.inputSlots.length = 0
     this.outputSlot = null
     this.secondaryOutputSlot = null
+    this.tertiaryOutputSlot = null
     this.state = 'idle'
     this.processingTimer = 0
     this.consumedItems = 0
     this.itemsProduced = 0
-    this.splitterCounter = 0
     this.enabled = false
     this.pendingDefectFromInput = false
     this.firstIdleAfterStartPending = false
+    this.outputSidesConfig = SPLITTER_ALL_SIDES_BITS
+    this.routingCounter = 0
+    this.perItemRouteOverrides.clear()
   }
 
   addInput(item: Item): boolean {
@@ -133,6 +142,26 @@ export class Machine {
     return item
   }
 
+  takeTertiaryOutput(): Item | null {
+    const item = this.tertiaryOutputSlot
+    this.tertiaryOutputSlot = null
+    if (this.state === 'blocked') {
+      this.state = 'idle'
+    }
+    return item
+  }
+
+  /** Port-indexed take: dispatches to the matching output slot. */
+  takeFromPort(port: MachineOutputPort): Item | null {
+    const field = SLOT_FIELD[port]
+    const item = this[field]
+    this[field] = null
+    if (this.state === 'blocked') {
+      this.state = 'idle'
+    }
+    return item
+  }
+
   canAcceptInput(): boolean {
     if (this.machineType === 'factory_output') return true
     return this.inputSlots.length < this.maxInputSlots
@@ -143,7 +172,7 @@ export class Machine {
    * AND, for recipe-driven machines with a recipe set, accepting `itemType`
    * would not exceed the recipe's required quantity for that type. For
    * machines without a recipe, or non-recipe-driven machine types
-   * (factory_output, quality_checker, splitter, recycler), behaves like
+   * (factory_output, splitter, recycler), behaves like
    * {@link canAcceptInput}.
    *
    * Dispatches to the per-type strategy in {@link MACHINE_BEHAVIORS}.
@@ -163,10 +192,10 @@ export class Machine {
     return MACHINE_BEHAVIORS[this.machineType].canConsume(this, itemType)
   }
 
-  tick(rng: () => number = Math.random): void {
+  tick(rng: () => number, env: MachineTickEnv): void {
     // Single gate for all tickable machine types. factory_output is naturally
     // exempt because its registered behavior tick is a no-op.
     if (!this.enabled) return
-    MACHINE_BEHAVIORS[this.machineType].tick(this, rng)
+    MACHINE_BEHAVIORS[this.machineType].tick(this, rng, env)
   }
 }

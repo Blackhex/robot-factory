@@ -3,10 +3,11 @@ import { createItem, createAssembly } from './Item.ts'
 import type { Recipe } from './Recipe.ts'
 import type {
   ItemType,
+  MachineOutputPort,
   MachineState,
   MachineType,
-  SplitterCondition,
 } from './types.ts'
+import { SLOT_FIELD, SPLITTER_SIDE_TO_PORT, SPLITTER_SIDE_BIT, SPLITTER_SIDES_IN_BIT_ORDER } from './types.ts'
 import { defectProbability } from './Defect.ts'
 
 /**
@@ -23,6 +24,7 @@ import { defectProbability } from './Defect.ts'
  * without any casts.
  */
 export interface Machine {
+  readonly id: string
   readonly machineType: MachineType
   state: MachineState
   currentRecipe: Recipe | null
@@ -31,10 +33,14 @@ export interface Machine {
   readonly maxInputSlots: number
   outputSlot: Item | null
   secondaryOutputSlot: Item | null
+  tertiaryOutputSlot: Item | null
+  /** Splitter routing config: bitfield (see {@link SPLITTER_SIDE_BIT}); default {@link SPLITTER_ALL_SIDES_BITS}. */
+  outputSidesConfig: number
+  /** Splitter round-robin index; advanced once per successful park, never on a failed park. */
+  routingCounter: number
+  /** Per-item routing override map: itemId → sides bitmask. Consumed by tickSplitter. */
+  readonly perItemRouteOverrides: Map<string, number>
   itemsProduced: number
-  qualityThreshold: number
-  splitterCondition: SplitterCondition | null
-  splitterCounter: number
   enabled: boolean
   speed: number
   /**
@@ -47,6 +53,31 @@ export interface Machine {
 }
 
 /**
+ * Per-tick environment passed to {@link MachineBehavior.tick}, giving
+ * behaviors read-only access to simulation-level wiring they cannot
+ * see from a `Machine` alone. The splitter consults
+ * {@link MachineTickEnv.isOutputConnected} to skip output sides that
+ * have no downstream belt; other behaviors ignore it.
+ *
+ * Defined here (not in `Simulation.ts`) so the behavior strategies
+ * stay decoupled from `Simulation` and the Architecture cycle guard
+ * inside `src/game/` is respected.
+ */
+export interface MachineTickEnv {
+  /** True iff the given machine's output `port` has a connected downstream belt. */
+  isOutputConnected(machineId: string, port: MachineOutputPort): boolean
+}
+
+/**
+ * Test-only {@link MachineTickEnv} that reports every output port as
+ * connected. Production code constructs a real env in
+ * `Simulation.updateMachines`.
+ */
+export const ALL_OUTPUTS_CONNECTED_ENV: MachineTickEnv = Object.freeze({
+  isOutputConnected: () => true,
+})
+
+/**
  * Strategy interface for per-machine-type tick + canConsume behavior.
  *
  * Each `MachineType` has exactly one `MachineBehavior` registered in
@@ -57,8 +88,10 @@ export interface Machine {
 export interface MachineBehavior {
   /** Advance the machine state for one tick. The `rng` is consulted by
    *  defect-rolling behaviors (part_fabricator, assembler, painter); other
-   *  behaviors ignore it. */
-  tick(machine: Machine, rng: () => number): void
+   *  behaviors ignore it. The `env` exposes simulation-level wiring (e.g.,
+   *  output-belt connectivity) consulted by the splitter; other behaviors
+   *  ignore it. */
+  tick(machine: Machine, rng: () => number, env: MachineTickEnv): void
   /** Whether this machine accepts the given item type at all (regardless of slot capacity). */
   canConsume(machine: Machine, itemType: ItemType): boolean
   /** Whether this machine has room for `itemType` right now. Combines slot
@@ -95,93 +128,45 @@ function tickDefault(m: Machine, rng: () => number): void {
   }
 }
 
-// --- QualityChecker tick ---
-
-function tickQualityChecker(m: Machine, _rng: () => number): void {
-  switch (m.state) {
-    case 'idle':
-      if (m.inputSlots.length > 0) {
-        m.processingTimer = 1
-        m.state = 'processing'
-      }
-      break
-    case 'processing':
-      m.processingTimer--
-      if (m.processingTimer <= 0) {
-        tryRouteCheckedItem(m)
-      }
-      break
-    case 'blocked':
-      tryRouteCheckedItem(m)
-      break
-  }
-}
-
-function tryRouteCheckedItem(m: Machine): void {
-  if (m.inputSlots.length === 0) {
-    m.state = 'idle'
-    return
-  }
-
-  const item = m.inputSlots[0]
-  const slot: 'primary' | 'secondary' =
-    item.quality >= m.qualityThreshold ? 'primary' : 'secondary'
-
-  if (parkInOutput(m, slot, () => m.inputSlots.shift()!)) {
-    m.state = 'idle'
-  } else {
-    m.state = 'blocked'
-  }
-}
-
 // --- Splitter tick ---
-// TODO: 3-output routing will be handled at the simulation layer
+//
+// Round-robin only over configured sides whose downstream belt is
+// connected. If zero configured sides are connected (or none are
+// configured) the splitter blocks: no park, no counter advance, no
+// input drain — the held item routes next tick when a belt comes up.
+// Counter advances ONLY on a successful park; a failed park sets
+// state='blocked' and re-attempts the SAME side next tick.
 
-function tickSplitter(m: Machine, _rng: () => number): void {
-  switch (m.state) {
-    case 'idle':
-      if (m.inputSlots.length > 0) {
-        tryRouteSplitterItem(m)
-      }
-      break
-    case 'blocked':
-      tryRouteSplitterItem(m)
-      break
+function tickSplitter(m: Machine, _rng: () => number, env: MachineTickEnv): void {
+  while (m.inputSlots.length > 0) {
+    const nextItem = m.inputSlots[0]
+    const override = m.perItemRouteOverrides.get(nextItem.id)
+    const bitmask = override !== undefined ? override : m.outputSidesConfig
+    const configured = SPLITTER_SIDES_IN_BIT_ORDER.filter(
+      (s) => (bitmask & SPLITTER_SIDE_BIT[s]) !== 0,
+    )
+    const connected = configured.filter((s) =>
+      env.isOutputConnected(m.id, SPLITTER_SIDE_TO_PORT[s]),
+    )
+    if (connected.length === 0) {
+      m.state = 'blocked'
+      return
+    }
+    const side = override !== undefined
+      ? connected[0]
+      : connected[m.routingCounter % connected.length]
+    const port = SPLITTER_SIDE_TO_PORT[side]
+    if (!parkInOutput(m, port, () => m.inputSlots.shift()!)) {
+      m.state = 'blocked'
+      return
+    }
+    if (override !== undefined) {
+      m.perItemRouteOverrides.delete(nextItem.id)
+    } else {
+      m.routingCounter += 1
+    }
   }
-}
-
-function tryRouteSplitterItem(m: Machine): void {
-  if (m.inputSlots.length === 0) {
-    m.state = 'idle'
-    return
-  }
-
-  const item = m.inputSlots[0]
-  const slot = evaluateSplitterCondition(m, item)
-
-  if (parkInOutput(m, slot, () => m.inputSlots.shift()!)) {
-    m.state = 'idle'
-  } else {
-    m.state = 'blocked'
-  }
-}
-
-function evaluateSplitterCondition(m: Machine, _item: Item): 'primary' | 'secondary' {
-  if (!m.splitterCondition) return 'primary'
-
-  switch (m.splitterCondition.conditionType) {
-    case 'by_item_type':
-      return _item.type === m.splitterCondition.itemType ? 'primary' : 'secondary'
-    case 'by_quality':
-      return _item.quality >= (m.splitterCondition.qualityThreshold ?? 80)
-        ? 'primary'
-        : 'secondary'
-    case 'alternating':
-      m.splitterCounter++
-      return m.splitterCounter % 2 === 1 ? 'primary' : 'secondary'
-    default:
-      return 'primary'
-  }
+  m.state = 'idle'
 }
 
 // --- Recycler tick ---
@@ -229,23 +214,14 @@ function tickRecycler(m: Machine, _rng: () => number): void {
  */
 function parkInOutput(
   m: Machine,
-  slot: 'primary' | 'secondary',
+  slot: MachineOutputPort,
   produce: () => Item,
 ): boolean {
-  if (slot === 'primary') {
-    if (m.outputSlot === null) {
-      m.outputSlot = produce()
-      m.itemsProduced++
-      return true
-    }
-  } else {
-    if (m.secondaryOutputSlot === null) {
-      m.secondaryOutputSlot = produce()
-      m.itemsProduced++
-      return true
-    }
-  }
-  return false
+  const field = SLOT_FIELD[slot]
+  if (m[field] !== null) return false
+  m[field] = produce()
+  m.itemsProduced++
+  return true
 }
 
 function tryStartProcessing(m: Machine): void {
@@ -415,11 +391,6 @@ const painterBehavior: MachineBehavior = {
   canConsume: (m, t) => canConsumeRecipeDriven(m, t),
   canAcceptItemType: (m, t) => canAcceptItemTypeRecipeDriven(m, t),
 }
-const qualityCheckerBehavior: MachineBehavior = {
-  tick: tickQualityChecker,
-  canConsume: canConsumeWhenEnabled,
-  canAcceptItemType: canAcceptItemTypeWhenSlotFree,
-}
 const splitterBehavior: MachineBehavior = {
   tick: tickSplitter,
   canConsume: canConsumeAlways,
@@ -440,7 +411,6 @@ export const MACHINE_BEHAVIORS: Record<MachineType, MachineBehavior> = {
   part_fabricator: partFabricatorBehavior,
   assembler: assemblerBehavior,
   painter: painterBehavior,
-  quality_checker: qualityCheckerBehavior,
   splitter: splitterBehavior,
   recycler: recyclerBehavior,
   factory_output: factoryOutputBehavior,

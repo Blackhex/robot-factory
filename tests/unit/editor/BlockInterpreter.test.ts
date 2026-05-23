@@ -170,22 +170,11 @@ describe('BlockInterpreter', () => {
   // === Conditionals ======================================================
 
   describe('conditionals', () => {
-    it('should execute ifQuality body by default', () => {
-      // GIVEN
-      const source = `factory.ifQuality(80, function () {
-        factory.startMachine("recycler")
-      })`
-
-      // WHEN
-      const commands = interpreter.interpret(source)
-
-      // THEN
-      expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('START_MACHINE')
-    })
-
-    it('should execute ifItemType body by default', () => {
-      // GIVEN
+    it('should NOT recognize factory.ifItemType (removed); body must not execute', () => {
+      // GIVEN — factory.ifItemType / logic.ifItemType have been removed.
+      // The interpreter wraps execution in try/catch, so calling an
+      // unknown member of `factory` throws TypeError, gets swallowed,
+      // and the body is never invoked → zero commands emitted.
       const source = `factory.ifItemType(PartType.WheelSmall, function () {
         factory.startMachine("press_1")
       })`
@@ -194,8 +183,22 @@ describe('BlockInterpreter', () => {
       const commands = interpreter.interpret(source)
 
       // THEN
-      expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('START_MACHINE')
+      expect(commands).toHaveLength(0)
+      expect(commands.find((c) => c.type === 'START_MACHINE')).toBeUndefined()
+    })
+
+    it('should NOT recognize logic.ifItemType (removed); body must not execute', () => {
+      // GIVEN — same as above but via the dedicated `logic` namespace.
+      const source = `logic.ifItemType(PartType.WheelSmall, function () {
+        factory.startMachine("press_1")
+      })`
+
+      // WHEN
+      const commands = interpreter.interpret(source)
+
+      // THEN
+      expect(commands).toHaveLength(0)
+      expect(commands.find((c) => c.type === 'START_MACHINE')).toBeUndefined()
     })
   })
 
@@ -752,36 +755,6 @@ describe('BlockInterpreter', () => {
     })
   })
 
-  // === Quality threshold and splitter (namespaced format) ================
-
-  describe('quality threshold and splitter commands (namespaced)', () => {
-    it('should parse machines.setQualityThreshold(Machine.A, 80)', () => {
-      // WHEN
-      const commands = interpreter.interpret(
-        'machines.setQualityThreshold(Machine.A, 80)',
-      )
-
-      // THEN
-      expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('SET_QUALITY_THRESHOLD')
-      expect((commands[0] as any).machineId).toBe('machine_1')
-      expect((commands[0] as any).threshold).toBe(80)
-    })
-
-    it('should parse machines.setQualityThreshold with numeric enum (0, 90)', () => {
-      // WHEN
-      const commands = interpreter.interpret(
-        'machines.setQualityThreshold(0, 90)',
-      )
-
-      // THEN
-      expect(commands).toHaveLength(1)
-      expect(commands[0].type).toBe('SET_QUALITY_THRESHOLD')
-      expect((commands[0] as any).machineId).toBe('machine_1')
-      expect((commands[0] as any).threshold).toBe(90)
-    })
-  })
-
   // === whileCondition ====================================================
 
   describe('whileCondition', () => {
@@ -887,6 +860,72 @@ describe('BlockInterpreter', () => {
       expect(commands).toHaveLength(1)
       expect(commands[0].type).toBe('START_MACHINE')
       expect((commands[0] as any).machineId).toBe('machine_2')
+    })
+  })
+
+  // === Checker removal — legacy quality-related calls degrade gracefully =
+
+  describe('Checker removal — legacy quality calls', () => {
+    it('should ignore removed machines.setQualityThreshold(Machine.A, 50) — no command emitted, no throw', () => {
+      // WHEN — `setQualityThreshold` has been removed alongside the
+      // Quality Checker. Old programs sitting in saved workspaces must
+      // still parse without throwing; the call must simply emit no
+      // command (matches the existing `routeTo` graceful-removal pattern).
+      const commands = interpreter.interpret(
+        'machines.setQualityThreshold(Machine.A, 50)',
+      )
+
+      // THEN
+      expect(
+        commands.find((c) => c.type === ('SET_QUALITY_THRESHOLD' as never)),
+      ).toBeUndefined()
+      expect(commands).toHaveLength(0)
+    })
+
+    it('should ignore removed factory.setQualityThreshold("checker_1", 80) (legacy factory.* mirror)', () => {
+      // WHEN
+      const commands = interpreter.interpret(
+        'factory.setQualityThreshold("checker_1", 80)',
+      )
+
+      // THEN
+      expect(
+        commands.find((c) => c.type === ('SET_QUALITY_THRESHOLD' as never)),
+      ).toBeUndefined()
+      expect(commands).toHaveLength(0)
+    })
+
+    it('should ignore removed logic.ifQuality(...) — body must NOT execute', () => {
+      // WHEN — `logic.ifQuality(threshold, body)` has been removed.
+      // Old programs that wrap commands in an `ifQuality` block must
+      // degrade gracefully: the body is skipped entirely (no command
+      // emitted), and the call itself does not throw.
+      const commands = interpreter.interpret(
+        `logic.ifQuality(50, function () {
+          loops.repeatTimes(3, function () {
+            machines.startMachine(Machine.A)
+          })
+        })`,
+      )
+
+      // THEN — the inner `repeatTimes(3, START_MACHINE)` would emit 3
+      // START_MACHINE commands if the body ran. After removal the body
+      // must NOT run, so no START_MACHINE commands are produced.
+      expect(commands.find((c) => c.type === 'START_MACHINE')).toBeUndefined()
+      expect(commands).toHaveLength(0)
+    })
+
+    it('should ignore removed factory.ifQuality(...) — body must NOT execute (legacy factory.* mirror)', () => {
+      // WHEN
+      const commands = interpreter.interpret(
+        `factory.ifQuality(80, function () {
+          factory.startMachine("recycler")
+        })`,
+      )
+
+      // THEN
+      expect(commands.find((c) => c.type === 'START_MACHINE')).toBeUndefined()
+      expect(commands).toHaveLength(0)
     })
   })
 })

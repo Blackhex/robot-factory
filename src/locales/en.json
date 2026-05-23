@@ -10,7 +10,6 @@
   "machines": {
     "part_fabricator": "Fabricator",
     "assembler": "Assembler",
-    "quality_checker": "Checker",
     "painter": "Painter",
     "recycler": "Recycler",
     "splitter": "Splitter",
@@ -86,10 +85,6 @@
     "wait_ticks": "wait %1 ticks",
     "wait_ticks_tooltip": "Pause subsequent actions for the given number of simulation ticks (10 ticks per second). Already-running machines keep working during the wait.",
     "category_conditionals": "Conditionals",
-    "if_quality": "if quality of %1 %2 %3",
-    "if_quality_tooltip": "Check item quality against a threshold",
-    "if_item_type": "if item type is %1",
-    "if_item_type_tooltip": "Branch based on item type",
     "if_else": "if %1",
     "if_else_tooltip": "Conditional branching",
     "else": "else %1",
@@ -216,7 +211,7 @@
     },
     "level_4": {
       "name": "Quality Matters",
-      "description": "Use conditionals to route defective items to the recycler."
+      "description": "Use a Splitter and a Recycler to keep defective parts out of the Shipper."
     },
     "level_5": {
       "name": "Smart Routing",
@@ -326,7 +321,9 @@
     "level2_step3": "Open the Editor and use 'set recipe' blocks to tell each machine what to produce.",
     "level3_step1": "Open the Editor — you now have Loop blocks! Use 'repeat' to produce many parts efficiently.",
     "level3_step2": "Loops repeat your instructions automatically, so you don't have to write the same blocks over and over.",
-    "level4_step1": "You have a new machine: Checker! Place it between your machines to check item quality.",
-    "level4_step2": "Use 'if quality' blocks in the Editor to route defective items away from good ones."
+    "level4_step1": "Defective parts ruin your Quality score! Use a Splitter and a Recycler to catch defects before they reach the Shipper.",
+    "level4_step2": "Place a Splitter on the path between your Assembler and the Shipper. Then place a Recycler off to one side, and connect a belt from the Splitter to the Recycler.",
+    "level4_step3": "Open the Editor — at level 4 a new 'route items of splitter to' action appears in the Machines category, and 'on item arrives at' appears in Events. Combine them to react each time a part enters your Splitter.",
+    "level4_step4": "Inside the handler, check 'current item is defective' (in Conditionals). If it is, use 'route items of <splitter> to Left' to send the next item to the Recycler; otherwise use 'route items of <splitter> to Forward' to send it to the Shipper. The handler must set the route on every item — the Splitter remembers its last setting."
   }
 }

@@ -242,9 +242,9 @@ describe('Shipper (factory_output) discards defective items', () => {
     // GIVEN — assembler accepts wheel_small (recipe assemble_drivetrain_basic
     // consumes wheel_small + circuit_basic). Defective-only-discard happens
     // ONLY at the Shipper; an assembler/painter/etc. accepts the item
-    // normally so existing transformations (recycler, quality_checker, etc.)
-    // don't break. Lock this so future devs don't accidentally add discard
-    // logic to other machine types.
+    // normally so existing transformations (recycler, etc.) don't break.
+    // Lock this so future devs don't accidentally add discard logic to
+    // other machine types.
     const recipe = getRecipeById('assemble_drivetrain_basic')
     if (!recipe) throw new Error('assemble_drivetrain_basic recipe not found')
 
@@ -289,100 +289,5 @@ describe('Shipper (factory_output) discards defective items', () => {
     // annotation on `eventType`.
     const eventType: SimulationEventType = 'item_discarded'
     expect(eventType).toBe('item_discarded')
-  })
-
-  // -------------------------------------------------------------------------
-  // No double-counting of defects across QC.secondary → Shipper
-  //
-  // CONTRACT (the bug this guards against):
-  //   `Simulation.defects` must increment EXACTLY ONCE per defective item
-  //   that travels `quality_checker → secondary belt → factory_output`.
-  //
-  // Today the engine double-counts:
-  //   1. `Simulation.updateMachines` bumps `defects` whenever a
-  //      quality_checker parks an item in `secondaryOutputSlot` —
-  //      regardless of `item.isDefective`.
-  //   2. `Simulation.runDelivery` bumps `defects` again via
-  //      `result.defectsDiscarded` when the Shipper discards the same
-  //      defective item (slice-3 contract above).
-  //
-  // The fix: in `updateMachines`, do NOT bump `defects` when the routed
-  // secondary item is `isDefective === true` — defective items are
-  // counted at the factory boundary (Shipper) instead. The CLEAN
-  // low-quality QC.secondary path must keep bumping `defects` so the
-  // existing quality-stats behavior survives.
-  // -------------------------------------------------------------------------
-
-  it('defects counts a defective item exactly once when it goes QC.secondary → Shipper (no double counting)', () => {
-    // GIVEN — quality_checker at (1,0) whose SECONDARY output feeds a
-    // belt landing on a factory_output (Shipper) at (3,0). Default
-    // qualityThreshold is 80; we feed a defective item with quality=0
-    // so the QC routes it to `secondary` AND the Shipper sees it as
-    // defective. Position (1,0) for QC is unused at runtime here (we
-    // pre-place into inputSlots) but mirrors the existing test pattern.
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start() // enable processing — Machine.tick early-exits when disabled
-    sim.addMachine(qc)
-    sim.setMachinePosition('qc1', 1, 0)
-
-    const output = new Machine('out1', 'factory_output')
-    output.start()
-    sim.addMachine(output)
-    sim.setMachinePosition('out1', 3, 0)
-
-    const beltSecondary = new ConveyorBelt('b_qc_secondary', 2, 0, 3, 0, 1.0)
-    sim.addBelt(beltSecondary)
-    sim.setMachineOutputBelt('qc1', 'b_qc_secondary', 'secondary')
-
-    // Pre-place a defective, low-quality item directly in QC's input
-    // queue (avoids needing an upstream feeder belt — the contract under
-    // test starts at the QC and ends at the Shipper).
-    const item = defective(createItem('wheel_small', 0))
-    qc.inputSlots.push(item)
-
-    // WHEN — enough ticks for: QC route to secondary (1 idle→processing
-    // tick + 1 processing→park tick) + transfer to belt + 10 belt
-    // advances (speed 1.0, dt=0.1) + delivery. 25 is comfortable.
-    tickN(sim, 25)
-
-    // THEN — defects must be EXACTLY 1, not 2. The defective item went
-    // through both bump sites; only one of them is the canonical count.
-    // outputsDelivered / robotsProduced stay 0 (Shipper discards it).
-    expect(sim.defects).toBe(1)
-    expect(sim.outputsDelivered).toBe(0)
-    expect(sim.robotsProduced).toBe(0)
-  })
-
-  it('defects still counts a CLEAN low-quality item routed via QC.secondary (regression)', () => {
-    // GIVEN — same QC setup, but the item is NOT defective (just
-    // low-quality). QC.secondary is wired to a Recycler — NOT a
-    // Shipper — so the new factory_output discard path cannot fire.
-    // The only `defects` bump available is the QC→secondary bump in
-    // `updateMachines`, which the fix MUST preserve for clean items.
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start()
-    sim.addMachine(qc)
-    sim.setMachinePosition('qc1', 1, 0)
-
-    const recycler = new Machine('rec1', 'recycler')
-    sim.addMachine(recycler)
-    sim.setMachinePosition('rec1', 3, 0)
-
-    const beltSecondary = new ConveyorBelt('b_qc_secondary', 2, 0, 3, 0, 1.0)
-    sim.addBelt(beltSecondary)
-    sim.setMachineOutputBelt('qc1', 'b_qc_secondary', 'secondary')
-
-    // Clean (isDefective=false) but quality=0 so QC still routes to
-    // secondary. createItem defaults isDefective=false, so no override.
-    qc.inputSlots.push(createItem('wheel_small', 0))
-
-    // WHEN — only need enough ticks for the QC routing decision (the
-    // `defects` bump happens in `updateMachines` the moment QC parks
-    // the item in secondaryOutputSlot). 5 ticks is plenty.
-    tickN(sim, 5)
-
-    // THEN — existing QC behavior survives the fix: clean low-quality
-    // items routed to secondary still increment `defects` by 1.
-    expect(sim.defects).toBe(1)
   })
 })

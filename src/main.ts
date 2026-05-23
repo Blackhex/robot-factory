@@ -383,6 +383,15 @@ async function main(): Promise<void> {
       // workspace XML to verify the load pipeline survived the round-trip.
       getPxtEditorState: () => pxtEditor.getDevDiagnostics(),
       getEditorWorkspaceXml: () => pxtEditor.getLiveWorkspaceXml(),
+      getPxtSource: () => pxtEditor.getLastPxtSource(),
+      // Test seams used by `tests/e2e/pom/editor/PxtEditorPage.ts` to
+      // drive the production load + flush pipelines so direct Blockly
+      // injection paths from specs survive PXT's post-install
+      // `loadHeaderAsync` clobber (watchdog-protected in production).
+      loadPxtWorkspaceEnvelope: (envelope: string) => pxtEditor.loadWorkspaceXml(envelope),
+      flushPxtPendingSave: (timeoutMs?: number) => pxtEditor.flushPendingSaveAsync(timeoutMs),
+      compilePxtBlocksToTs: (opts?: { blocksMustContain?: string[]; tsMustContain?: string[]; timeoutMs?: number }) =>
+        pxtEditor.compileBlocksToTsAsync(opts),
     }
   }
 

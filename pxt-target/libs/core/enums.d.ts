@@ -354,3 +354,25 @@ declare const enum FactoryCondition {
     //% block="items remaining"
     ItemsRemaining = 2,
 }
+
+// ─── Splitter output bitfield ────────────────────────────────────────────────
+// Bitwise OR-combinable subsets of {Left, Forward, Right} that drive
+// the splitter's persistent multiplexed output configuration.
+// Keep in sync with SPLITTER_SIDE_BIT in src/game/types.ts.
+
+declare const enum SplitterOutputs {
+    //% block="left"
+    Left = 1,
+    //% block="forward"
+    Forward = 2,
+    //% block="left + forward"
+    LeftForward = 3,
+    //% block="right"
+    Right = 4,
+    //% block="left + right"
+    LeftRight = 5,
+    //% block="forward + right"
+    ForwardRight = 6,
+    //% block="left + forward + right"
+    LeftForwardRight = 7,
+}

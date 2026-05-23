@@ -83,18 +83,21 @@ export class SimulationCommandDispatcher {
         }
         break
       }
-      case 'SET_QUALITY_THRESHOLD': {
+      case 'SET_OUTPUT_SIDES': {
         const machine = this.deps.getMachine(command.machineId)
-        if (machine && machine.machineType === 'quality_checker') {
-          machine.qualityThreshold = command.threshold
+        if (!machine || machine.machineType !== 'splitter') break
+        machine.outputSidesConfig = command.sidesBitmask
+        if (command.itemId !== undefined) {
+          machine.perItemRouteOverrides.set(command.itemId, command.sidesBitmask)
         }
         break
       }
-      case 'SET_SPLITTER_CONDITION': {
+      case 'ROUTE_CURRENT_ITEM_TO': {
         const machine = this.deps.getMachine(command.machineId)
-        if (machine && machine.machineType === 'splitter') {
-          machine.splitterCondition = command.condition
-        }
+        if (!machine || machine.machineType !== 'splitter') break
+        const present = machine.inputSlots.some((it) => it.id === command.itemId)
+        if (!present) break
+        machine.perItemRouteOverrides.set(command.itemId, command.sidesBitmask)
         break
       }
     }

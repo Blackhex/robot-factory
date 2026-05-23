@@ -325,19 +325,19 @@ describe('Architecture', () => {
       expect(existsSync(join(pxtTargetDir, 'pxtarget.json'))).toBe(true)
     })
 
-    it('pxt-target/libs/robot-factory/pxt.json should exist', () => {
+    it('pxt-target/libs/core/pxt.json should exist', () => {
       // WHEN + THEN
-      expect(existsSync(join(pxtTargetDir, 'libs/robot-factory/pxt.json'))).toBe(true)
+      expect(existsSync(join(pxtTargetDir, 'libs/core/pxt.json'))).toBe(true)
     })
 
-    it('pxt-target/libs/robot-factory/factory.ts should exist', () => {
+    it('pxt-target/libs/core/factory.ts should exist', () => {
       // WHEN + THEN
-      expect(existsSync(join(pxtTargetDir, 'libs/robot-factory/factory.ts'))).toBe(true)
+      expect(existsSync(join(pxtTargetDir, 'libs/core/factory.ts'))).toBe(true)
     })
 
-    it('pxt-target/libs/robot-factory/enums.d.ts should exist', () => {
+    it('pxt-target/libs/core/enums.d.ts should exist', () => {
       // WHEN + THEN
-      expect(existsSync(join(pxtTargetDir, 'libs/robot-factory/enums.d.ts'))).toBe(true)
+      expect(existsSync(join(pxtTargetDir, 'libs/core/enums.d.ts'))).toBe(true)
     })
   })
 

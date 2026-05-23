@@ -752,7 +752,11 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering', () => {
 test.describe('Sandbox — Projects panel: drag-and-drop reordering — persistence', () => {
   test('reordered list survives a page reload', async ({
     page, mainMenu, toolbar, tutorial, projectsPanel,
-  }) => {
+  }, testInfo) => {
+    // Under 8-worker parallel load the sandbox-enter + 3 slot saves
+    // + drag + page.reload + sandbox-re-enter sequence can exceed the
+    // default 30s budget waiting on the Projects toolbar button click.
+    testInfo.setTimeout(60_000)
     // Clear localStorage ONLY on the first navigation of this test. The
     // sentinel in sessionStorage (which survives a reload but is scoped
     // per-tab) prevents the post-reload navigation from also wiping the
@@ -823,6 +827,12 @@ test.describe('Sandbox — Projects panel: drag-and-drop reordering — persiste
     expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
     await projectsPanel.endDrag()
     expect(await projectsPanel.getProjectOrder()).toEqual(['Beta', 'Gamma', 'Alpha'])
+
+    // Confirm the post-drop synchronous order write has reached
+    // localStorage before reloading the page — without this poll the
+    // reload can race the in-page event loop turn that fires the
+    // setSlotOrder callback after mouse.up.
+    await projectsPanel.waitForPersistedSlotOrder(['Beta', 'Gamma', 'Alpha'])
 
     await page.reload()
 

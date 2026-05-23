@@ -1,9 +1,11 @@
 import type {
   GameOverInfo,
+  MachineOutputPort,
   SimulationCommand,
   SimulationEvent,
   SimulationEventType,
 } from './types.ts'
+import { OUTPUT_PORTS, SLOT_FIELD } from './types.ts'
 import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
 import { ItemDeliveryEngine } from './ItemDeliveryEngine.ts'
@@ -11,6 +13,10 @@ import { SimulationCommandDispatcher } from './SimulationCommandDispatcher.ts'
 import { CommandQueueRunner } from './CommandQueueRunner.ts'
 import { detectNoRecipeStart } from './NoRecipeGuard.ts'
 import { detectStarvation, type StarvationContext } from './StarvationGuard.ts'
+import type { Item } from './Item.ts'
+
+// Public bridge types — wired by the editor / wireSimulationEffects layer.
+export type ItemArrivalBridge = (machineId: string, item: Item) => SimulationCommand[]
 
 type SimEventHandler = (event: SimulationEvent) => void
 
@@ -48,9 +54,15 @@ export class Simulation {
   defects = 0
   totalIdleTicks = 0
 
-  // Machine output → belt connections
-  private primaryOutputBelts: Map<string, string> = new Map()
-  private secondaryOutputBelts: Map<string, string> = new Map()
+  // Machine output → belt connections, keyed by output port.
+  private readonly outputBelts: Record<MachineOutputPort, Map<string, string>> = {
+    primary: new Map(),
+    secondary: new Map(),
+    tertiary: new Map(),
+  }
+
+  // Splitter-routing bridge wired by the editor / interpreter layer; consumed by `Machine.tick()`.
+  private itemArrivalBridge: ItemArrivalBridge | null = null
 
   private readonly commandDispatcher: SimulationCommandDispatcher
   private readonly queueRunner: CommandQueueRunner
@@ -82,10 +94,11 @@ export class Simulation {
   getBelt(id: string): ConveyorBelt | undefined { return this.belts.get(id) }
   getBelts(): ReadonlyMap<string, ConveyorBelt> { return this.belts }
 
-  setMachineOutputBelt(machineId: string, beltId: string, port: 'primary' | 'secondary' = 'primary'): void {
-    const target = port === 'primary' ? this.primaryOutputBelts : this.secondaryOutputBelts
-    target.set(machineId, beltId)
+  setMachineOutputBelt(machineId: string, beltId: string, port: MachineOutputPort = 'primary'): void {
+    this.outputBelts[port].set(machineId, beltId)
   }
+
+  setItemArrivalBridge(bridge: ItemArrivalBridge | null): void { if (this.itemArrivalBridge !== bridge) this.itemArrivalBridge = bridge }
 
   enqueueCommand(command: SimulationCommand): void { this.queueRunner.enqueue(command) }
   enqueueCommands(commands: SimulationCommand[]): void { this.queueRunner.enqueueAll(commands) }
@@ -94,21 +107,14 @@ export class Simulation {
     if (this._running) return
     this._running = true
     this._paused = false
-    this.intervalId = setInterval(() => {
-      if (!this._paused) {
-        this.tick()
-      }
-    }, 1000 / this.tickRate)
+    this.intervalId = setInterval(() => { if (!this._paused) this.tick() }, 1000 / this.tickRate)
   }
 
   stop(): void {
     this._running = false
     this._paused = false
     this.queueRunner.clear()
-    if (this.intervalId !== null) {
-      clearInterval(this.intervalId)
-      this.intervalId = null
-    }
+    if (this.intervalId !== null) { clearInterval(this.intervalId); this.intervalId = null }
   }
 
   pause(): void { this._paused = true }
@@ -142,10 +148,8 @@ export class Simulation {
     this.currentTick++
   }
 
-  /** Shim — delegates to `SimulationCommandDispatcher`. WAIT commands are silently filtered (queue-level control, never dispatched). */
-  executeCommand(command: SimulationCommand): void {
-    if (command.type !== 'WAIT') this.commandDispatcher.execute(command)
-  }
+  // Shim — WAIT is filtered (queue-level control); the rest goes to the dispatcher.
+  executeCommand(command: SimulationCommand): void { if (command.type !== 'WAIT') this.commandDispatcher.execute(command) }
   private runDelivery(): void {
     const result = this.deliveryEngine.deliver(this.currentTick, this._gameOver)
     this.itemsDelivered += result.itemsDelivered
@@ -162,8 +166,22 @@ export class Simulation {
     for (const event of result.events) {
       this.emit(event.type, event.data, event.tick)
     }
+    const bridge = this.itemArrivalBridge
+    if (bridge !== null) this.runArrivalBridge(bridge, result.arrivals)
   }
 
+  // Drain between (not after) handlers so per-item routing overrides
+  // from one apply before the next runs; last handler's commands stay
+  // enqueued for next tick per OnItemArrives contract.
+  private runArrivalBridge(bridge: ItemArrivalBridge, arrivals: ReadonlyArray<{ machineId: string; item: Item }>): void {
+    for (let i = 0; i < arrivals.length; i++) {
+      try {
+        const cmds = bridge(arrivals[i].machineId, arrivals[i].item)
+        if (cmds.length > 0) this.enqueueCommands(cmds)
+      } catch (err) { console.error('Simulation arrival bridge threw:', { source: 'arrival_bridge', machineId: arrivals[i].machineId, error: String(err) }) }
+      if (i < arrivals.length - 1) this.queueRunner.drainHead()
+    }
+  }
   private checkNoRecipeGameOver(): void {
     if (this._gameOver !== null) return
     const info = detectNoRecipeStart(this.machines.values(), this.currentTick)
@@ -177,8 +195,7 @@ export class Simulation {
   private checkStarvationGameOver(): void {
     if (this._gameOver !== null) return
     const context: StarvationContext = {
-      getOutputBelt: (id, port) =>
-        (port === 'primary' ? this.primaryOutputBelts : this.secondaryOutputBelts).get(id),
+      getOutputBelt: (id, port) => this.outputBelts[port].get(id),
       getBelt: (id) => this.belts.get(id),
       findMachineAt: (x, z) => this.findMachineAt(x, z),
       findBeltStartingAt: (x, z) => this.findBeltStartingAt(x, z),
@@ -192,11 +209,16 @@ export class Simulation {
   }
 
   private updateMachines(): void {
+    const env = {
+      isOutputConnected: (machineId: string, port: MachineOutputPort): boolean =>
+        this.outputBelts[port].has(machineId),
+    }
     for (const machine of this.machines.values()) {
       const prevState = machine.state
       const prevOutput = machine.outputSlot
       const prevSecondary = machine.secondaryOutputSlot
-      machine.tick(this.rng)
+      const prevTertiary = machine.tertiaryOutputSlot
+      machine.tick(this.rng, env)
       if (machine.state !== prevState) {
         this.emit('machine_state_changed', {
           machineId: machine.id,
@@ -207,10 +229,13 @@ export class Simulation {
       const primaryProduced = machine.outputSlot !== null && machine.outputSlot !== prevOutput
       const secondaryProduced =
         machine.secondaryOutputSlot !== null && machine.secondaryOutputSlot !== prevSecondary
+      const tertiaryProduced =
+        machine.tertiaryOutputSlot !== null && machine.tertiaryOutputSlot !== prevTertiary
       // Capture slot refs before emitting item_produced — handlers may
-      // synchronously call takeOutput() / takeSecondaryOutput() and clear them.
+      // synchronously call takeOutput() / takeSecondaryOutput() / takeTertiaryOutput() and clear them.
       const newPrimary = primaryProduced ? machine.outputSlot! : null
       const newSecondary = secondaryProduced ? machine.secondaryOutputSlot! : null
+      const newTertiary = tertiaryProduced ? machine.tertiaryOutputSlot! : null
       if (newPrimary !== null) {
         this.itemsProduced++
         this.emit('item_produced', {
@@ -221,13 +246,6 @@ export class Simulation {
       }
       if (newSecondary !== null) {
         this.itemsProduced++
-        if (
-          machine.machineType === 'quality_checker' &&
-          !newSecondary.isDefective
-        ) {
-          // Defective items are counted once at the factory boundary (Shipper discard); skip here to avoid double-counting.
-          this.defects++
-        }
         this.emit('item_produced', {
           machineId: machine.id,
           itemId: newSecondary.id,
@@ -235,9 +253,18 @@ export class Simulation {
           output: 'secondary',
         })
       }
-      if (newPrimary !== null || newSecondary !== null) {
-        // One signal per cycle, even if a machine populates both ports in the same tick.
-        const slot = newPrimary ?? newSecondary!
+      if (newTertiary !== null) {
+        this.itemsProduced++
+        this.emit('item_produced', {
+          machineId: machine.id,
+          itemId: newTertiary.id,
+          itemType: newTertiary.type,
+          output: 'tertiary',
+        })
+      }
+      if (newPrimary !== null || newSecondary !== null || newTertiary !== null) {
+        // One signal per cycle, even if a machine populates multiple ports in the same tick.
+        const slot = newPrimary ?? newSecondary ?? newTertiary!
         this.emit('machine_cycle_completed', {
           machineId: machine.id,
           itemId: slot.id,
@@ -253,24 +280,14 @@ export class Simulation {
 
   private transferMachineOutputs(): void {
     for (const machine of this.machines.values()) {
-      // Transfer primary output to connected belt
-      if (machine.outputSlot) {
-        const beltId = this.primaryOutputBelts.get(machine.id)
-        if (beltId) {
-          const belt = this.belts.get(beltId)
-          if (belt && belt.addItem(machine.outputSlot)) {
-            machine.takeOutput()
-          }
-        }
-      }
-      // Transfer secondary output to connected belt
-      if (machine.secondaryOutputSlot) {
-        const beltId = this.secondaryOutputBelts.get(machine.id)
-        if (beltId) {
-          const belt = this.belts.get(beltId)
-          if (belt && belt.addItem(machine.secondaryOutputSlot)) {
-            machine.takeSecondaryOutput()
-          }
+      for (const port of OUTPUT_PORTS) {
+        const item = machine[SLOT_FIELD[port]]
+        if (!item) continue
+        const beltId = this.outputBelts[port].get(machine.id)
+        if (!beltId) continue
+        const belt = this.belts.get(beltId)
+        if (belt && belt.addItem(item)) {
+          machine.takeFromPort(port)
         }
       }
     }
@@ -308,20 +325,14 @@ export class Simulation {
 
   on(type: SimulationEventType, handler: SimEventHandler): void {
     const list = this.handlers.get(type)
-    if (list) {
-      list.push(handler)
-    } else {
-      this.handlers.set(type, [handler])
-    }
+    if (list) list.push(handler); else this.handlers.set(type, [handler])
   }
 
   off(type: SimulationEventType, handler: SimEventHandler): void {
     const list = this.handlers.get(type)
     if (!list) return
     const idx = list.indexOf(handler)
-    if (idx !== -1) {
-      list.splice(idx, 1)
-    }
+    if (idx !== -1) list.splice(idx, 1)
   }
 
   private emit(type: SimulationEventType, data: Record<string, unknown>, tick = this.currentTick): void {
@@ -350,15 +361,9 @@ export class Simulation {
     for (const machine of this.machines.values()) machine.clearRuntimeState()
     this.queueRunner.clear()
     this.currentTick = 0
-    this.itemsProduced = 0
-    this.itemsDelivered = 0
-    this.outputsDelivered = 0
-    this.robotsProduced = 0
-    this.partsDelivered = 0
-    this.assembliesDelivered = 0
-    this.defectiveDiscards = 0
-    this.defects = 0
-    this.totalIdleTicks = 0
+    this.itemsProduced = this.itemsDelivered = this.outputsDelivered = 0
+    this.robotsProduced = this.partsDelivered = this.assembliesDelivered = 0
+    this.defectiveDiscards = this.defects = this.totalIdleTicks = 0
     this._gameOver = null
   }
 
@@ -367,7 +372,6 @@ export class Simulation {
     this.machines.clear()
     this.belts.clear()
     this.machinePositions.clear()
-    this.primaryOutputBelts.clear()
-    this.secondaryOutputBelts.clear()
+    for (const port of OUTPUT_PORTS) this.outputBelts[port].clear()
   }
 }

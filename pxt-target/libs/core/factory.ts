@@ -2,13 +2,13 @@
  * Robot Factory — PXT block definitions.
  *
  * Blocks are organized into separate toolbox categories:
- *   • Machines  — start, stop, set recipe    (Machine dropdown)
- *   • Belts     — belt speed                  (Belt dropdown)
+ *   • Machines  — start, stop, set recipe, route items   (Machine dropdown)
+ *   • Belts     — belt speed                              (Belt dropdown)
  *   • Loops     — repeat, while
- *   • Logic     — if-quality, if-item-type
+ *   • Logic     — if-item-type, current-item predicates
  *   • Variables — set, get, change
  *   • Functions — define, call procedure
- *   • Events    — on-order, on-jam, on-idle
+ *   • Events    — on-order, on-jam, on-idle, on-item-arrives
  *
  * Machine, Recipe, and Belt parameters use enum dropdowns so users
  * never need to type string identifiers.
@@ -44,6 +44,18 @@ namespace machines {
     //% weight=70
     //% speed.defl=1 speed.min=1 speed.max=10
     export function setMachineSpeed(machine: number, speed: number): void { }
+
+    //% block="route items of %machine to %sides"
+    //% blockId=factory_route_items_to
+    //% machine.shadow="factory_pick_machine"
+    //% weight=65
+    export function routeItemsTo(machine: number, sides: SplitterOutputs): void { }
+
+    //% block="route current item of %machine to %side"
+    //% blockId=factory_route_current_item_to
+    //% machine.shadow="factory_pick_machine"
+    //% weight=63
+    export function routeCurrentItemTo(machine: number, side: SplitterOutputs): void { }
 
     //% block="%machine"
     //% blockId=factory_pick_machine
@@ -109,23 +121,20 @@ namespace loops {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-//  LOGIC  (yellow — colour 60)
+//  LOGIC  (yellow — colour #cccc44, matches Blockly.Msg.LOGIC_HUE)
 // ═══════════════════════════════════════════════════════════════════
 
-//% color=60 weight=60 icon="\uf074" block="Logic"
+//% color="#cccc44" weight=60 icon="\uf074" block="Logic"
 namespace logic {
-    //% block="if quality < %threshold then"
-    //% blockId=factory_if_quality
-    //% weight=100
-    //% threshold.defl=50 threshold.min=0 threshold.max=100
-    //% handlerStatement=1
-    export function ifQuality(threshold: number, body: () => void): void { }
+    //% block="current item is defective"
+    //% blockId=factory_current_item_defective
+    //% weight=80
+    export function currentItemIsDefective(): boolean { return false }
 
-    //% block="if item is %itemType then"
-    //% blockId=factory_if_item_type
-    //% weight=90
-    //% handlerStatement=1
-    export function ifItemType(itemType: PartType, body: () => void): void { }
+    //% block="current item is %partType"
+    //% blockId=factory_current_item_is
+    //% weight=70
+    export function currentItemIs(partType: PartType): boolean { return false }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -150,4 +159,11 @@ namespace events {
     //% weight=80
     //% handlerStatement=1
     export function onMachineIdle(machine: number, handler: () => void): void { }
+
+    //% block="on item arrives at %machine"
+    //% blockId=factory_on_item_arrives
+    //% machine.shadow="factory_pick_machine"
+    //% weight=70
+    //% handlerStatement=1
+    export function onItemArrives(machine: number, handler: () => void): void { }
 }

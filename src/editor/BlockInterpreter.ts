@@ -1,4 +1,6 @@
 import type { SimulationCommand } from '../game/types'
+import { SPLITTER_SIDE_BIT } from '../game/types'
+import type { Item } from '../game/Item'
 
 const MAX_OPERATIONS = 10_000
 
@@ -62,16 +64,28 @@ const BELT_TABLE = [
 ] as const
 
 const PART_TYPE_TABLE = [
-  'WheelSmall', 'WheelMedium', 'WheelLarge',
-  'SensorProximity', 'SensorCamera', 'SensorLidar',
-  'BatteryStandard', 'BatteryHighCapacity',
-  'ChassisLight', 'ChassisHeavy',
-  'CircuitBasic', 'CircuitAdvanced',
-  'DrivetrainBasic', 'DrivetrainAdvanced',
-  'SensorArrayBasic', 'SensorArrayAdvanced',
-  'PowerUnitStandard', 'PowerUnitHigh',
-  'RawMaterial',
-  'RobotExplorer', 'RobotWorker', 'RobotGuardian',
+  { name: 'WheelSmall', id: 'wheel_small' },
+  { name: 'WheelMedium', id: 'wheel_medium' },
+  { name: 'WheelLarge', id: 'wheel_large' },
+  { name: 'SensorProximity', id: 'sensor_proximity' },
+  { name: 'SensorCamera', id: 'sensor_camera' },
+  { name: 'SensorLidar', id: 'sensor_lidar' },
+  { name: 'BatteryStandard', id: 'battery_standard' },
+  { name: 'BatteryHighCapacity', id: 'battery_high_capacity' },
+  { name: 'ChassisLight', id: 'chassis_light' },
+  { name: 'ChassisHeavy', id: 'chassis_heavy' },
+  { name: 'CircuitBasic', id: 'circuit_basic' },
+  { name: 'CircuitAdvanced', id: 'circuit_advanced' },
+  { name: 'DrivetrainBasic', id: 'drivetrain_basic' },
+  { name: 'DrivetrainAdvanced', id: 'drivetrain_advanced' },
+  { name: 'SensorArrayBasic', id: 'sensor_array_basic' },
+  { name: 'SensorArrayAdvanced', id: 'sensor_array_advanced' },
+  { name: 'PowerUnitStandard', id: 'power_unit_standard' },
+  { name: 'PowerUnitHigh', id: 'power_unit_high' },
+  { name: 'RawMaterial', id: 'raw_material' },
+  { name: 'RobotExplorer', id: 'robot_explorer' },
+  { name: 'RobotWorker', id: 'robot_worker' },
+  { name: 'RobotGuardian', id: 'robot_guardian' },
 ] as const
 
 // --- Derived ID arrays (index = enum numeric value) ----------------------
@@ -79,6 +93,7 @@ const PART_TYPE_TABLE = [
 const MACHINE_IDS: string[] = MACHINE_TABLE.map(e => e.id)
 const RECIPE_IDS: string[] = RECIPE_TABLE.map(e => e.id)
 const BELT_IDS: string[] = BELT_TABLE.map(e => e.id)
+const PART_TYPE_IDS: string[] = PART_TYPE_TABLE.map(e => e.id)
 
 // --- Derived name-to-number maps (for string args from fallback textarea) -
 
@@ -92,7 +107,7 @@ const BELT_NAME_MAP: Record<string, number> = Object.fromEntries(
   BELT_TABLE.map((e, i) => [e.name, i]),
 )
 const PART_TYPE_NAME_MAP: Record<string, number> = Object.fromEntries(
-  PART_TYPE_TABLE.map((n, i) => [n, i]),
+  PART_TYPE_TABLE.map((e, i) => [e.name, i]),
 )
 
 // --- Enum objects provided to executed code (for fallback textarea) -------
@@ -102,6 +117,21 @@ const RecipeEnum: Record<string, number> = RECIPE_NAME_MAP
 const BeltEnum: Record<string, number> = BELT_NAME_MAP
 const PartTypeEnum: Record<string, number> = PART_TYPE_NAME_MAP
 const FactoryConditionEnum: Record<string, number> = { BeltHasItems: 0, MachineIdle: 1, ItemsRemaining: 2 }
+// Bitfield: Left=1, Forward=2, Right=4. Single-dropdown enum exposing
+// the 7 non-empty subsets so the PXT block can spell intentions like
+// `SplitterOutputs.LeftRight` while emitting the bitfield value verbatim.
+// Derived from SPLITTER_SIDE_BIT in src/game/types.ts so the two cannot
+// drift across the editor/game layer boundary.
+const { left: L, forward: F, right: R } = SPLITTER_SIDE_BIT
+const SplitterOutputsEnum: Record<string, number> = {
+  Left: L,
+  Forward: F,
+  LeftForward: L | F,
+  Right: R,
+  LeftRight: L | R,
+  ForwardRight: F | R,
+  LeftForwardRight: L | F | R,
+}
 
 // --- Resolvers: handle number (enum value), string enum name, or passthrough ---
 
@@ -132,8 +162,14 @@ export class BlockInterpreter {
   private opCount = 0
   private overflow = false
   private eventHandlers = new Map<string, () => void>()
+  private itemArrivalHandlers = new Map<string, () => void>()
   private dynamicMachines: Array<{slotIndex: number, id: string, name: string}> = []
   private dynamicBelts: Array<{slotIndex: number, id: string, name?: string}> = []
+
+  // Per-trigger ambient context for `events.onItemArrives` handlers. Set
+  // inside `triggerOnItemArrives`, read by the `logic.currentItemIs*`
+  // predicates. `null` outside a trigger.
+  private currentArrivingItem: Item | null = null
 
   // --- Namespace objects -------------------------------------------------
 
@@ -150,16 +186,33 @@ export class BlockInterpreter {
       if (this.guardOverflow()) return
       this.commands.push({ type: 'SET_RECIPE', machineId: this.resolveMachineId(machine), recipeId: resolveRecipeId(recipe) })
     },
-    setQualityThreshold: (machine: unknown, threshold: unknown) => {
-      if (this.guardOverflow()) return
-      this.commands.push({ type: 'SET_QUALITY_THRESHOLD', machineId: this.resolveMachineId(machine), threshold: Number(threshold) || 0 })
-    },
     setMachineSpeed: (machine: unknown, speed: unknown) => {
       if (this.guardOverflow()) return
       this.commands.push({
         type: 'SET_MACHINE_SPEED',
         machineId: this.resolveMachineId(machine),
         speed: Number(speed) || 1,
+      })
+    },
+    routeItemsTo: (machine: unknown, sides: unknown) => {
+      if (this.guardOverflow()) return
+      const itemId = this.currentArrivingItem?.id
+      this.commands.push({
+        type: 'SET_OUTPUT_SIDES',
+        machineId: this.resolveMachineId(machine),
+        sidesBitmask: Number(sides) | 0,
+        ...(itemId !== undefined ? { itemId } : {}),
+      })
+    },
+    routeCurrentItemTo: (machine: unknown, side: unknown) => {
+      if (this.guardOverflow()) return
+      const item = this.currentArrivingItem
+      if (!item) return
+      this.commands.push({
+        type: 'ROUTE_CURRENT_ITEM_TO',
+        machineId: this.resolveMachineId(machine),
+        itemId: item.id,
+        sidesBitmask: Number(side) | 0,
       })
     },
     /**
@@ -226,11 +279,18 @@ export class BlockInterpreter {
   }
 
   private readonly logicNs = {
-    ifQuality: (_threshold: unknown, body: () => void) => {
-      body()
+    currentItemIsDefective: (): boolean => {
+      if (this.guardOverflow()) throw new Error('OVERFLOW')
+      const item = this.currentArrivingItem
+      if (!item) return false
+      return Boolean(item.isDefective)
     },
-    ifItemType: (_itemType: unknown, body: () => void) => {
-      body()
+    currentItemIs: (partType: unknown): boolean => {
+      if (this.guardOverflow()) throw new Error('OVERFLOW')
+      const item = this.currentArrivingItem
+      if (!item) return false
+      const expected = this.resolvePartTypeId(partType)
+      return item.type === expected
     },
   }
 
@@ -245,6 +305,10 @@ export class BlockInterpreter {
       if (typeof body === 'function') {
         this.eventHandlers.set(`machine_idle_${this.resolveMachineId(machine)}`, body)
       }
+    },
+    onItemArrives: (machine: unknown, body: () => void) => {
+      if (typeof body !== 'function') return
+      this.itemArrivalHandlers.set(this.resolveMachineId(machine), body)
     },
   }
 
@@ -268,6 +332,7 @@ export class BlockInterpreter {
     Recipe: RecipeEnum,
     Belt: BeltEnum,
     FactoryCondition: FactoryConditionEnum,
+    SplitterOutputs: SplitterOutputsEnum,
   }
 
   // --- Public API --------------------------------------------------------
@@ -284,13 +349,13 @@ export class BlockInterpreter {
       const fn = new Function(
         'machines', 'recipes', 'belts', 'loops', 'logic',
         'events', 'factory',
-        'Machine', 'PartType', 'Recipe', 'Belt', 'FactoryCondition',
+        'Machine', 'PartType', 'Recipe', 'Belt', 'FactoryCondition', 'SplitterOutputs',
         '"use strict";\n' + clean,
       )
       fn(
         this.machinesNs, this.recipesNs, this.beltsNs, this.loopsNs, this.logicNs,
         this.eventsNs, this.factoryNs,
-        MachineEnum, PartTypeEnum, RecipeEnum, BeltEnum, FactoryConditionEnum,
+        MachineEnum, PartTypeEnum, RecipeEnum, BeltEnum, FactoryConditionEnum, SplitterOutputsEnum,
       )
     } catch {
       // Syntax errors or runtime errors — return whatever was collected
@@ -320,6 +385,42 @@ export class BlockInterpreter {
     return this.commands
   }
 
+  /**
+   * Generalized item-arrival trigger. Looks up the handler registered
+   * via `events.onItemArrives` for `machineId`, runs it with `item`
+   * set as ambient context, and returns the SimulationCommand[]
+   * emitted by the body. Returns `[]` when no handler is registered.
+   *
+   * Per-trigger save/restore is limited to the arrival ambient
+   * context (`currentArrivingItem`) and the captured commands buffer.
+   * `opCount` and `overflow` are intentionally not save/restored so
+   * that callers can observe whether a handler exhausted the
+   * 10,000-op budget via `getOverflowOccurred()` after the trigger
+   * returns.
+   */
+  triggerOnItemArrives(machineId: string, item: Item): SimulationCommand[] {
+    const handler = this.itemArrivalHandlers.get(machineId)
+    if (!handler) return []
+
+    const prevItem = this.currentArrivingItem
+    const prevCommands = this.commands
+    this.opCount = 0
+    this.overflow = false
+    this.commands = []
+    this.currentArrivingItem = item
+    let result: SimulationCommand[] = []
+    try {
+      handler()
+    } catch (err) {
+      console.error('on item arrives handler threw:', err)
+    } finally {
+      result = this.commands
+      this.currentArrivingItem = prevItem
+      this.commands = prevCommands
+    }
+    return result
+  }
+
   getOverflowOccurred(): boolean {
     return this.overflow
   }
@@ -328,6 +429,8 @@ export class BlockInterpreter {
     this.overflow = false
     this.opCount = 0
     this.eventHandlers.clear()
+    this.itemArrivalHandlers.clear()
+    this.currentArrivingItem = null
   }
 
   // --- Dynamic machine/belt list management ------------------------------
@@ -362,6 +465,13 @@ export class BlockInterpreter {
     // Name-based lookup in dynamic list
     const byName = this.dynamicMachines.find(m => m.name === s)
     if (byName) return byName.id
+    return s
+  }
+
+  private resolvePartTypeId(raw: unknown): string {
+    if (typeof raw === 'number') return PART_TYPE_IDS[raw] ?? String(raw)
+    const s = String(raw).replace(/^PartType\./, '')
+    if (s in PART_TYPE_NAME_MAP) return PART_TYPE_IDS[PART_TYPE_NAME_MAP[s]]
     return s
   }
 

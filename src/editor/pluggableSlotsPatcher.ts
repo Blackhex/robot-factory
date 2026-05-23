@@ -41,6 +41,8 @@ export const PLUGGABLE_CONSUMER_TRANSFORMS: PluggableSlotTransform[] = [
   { blockType: 'factory_stop_machine',      fieldName: 'machine', check: 'Machine', shadow: 'factory_pick_machine' },
   { blockType: 'factory_set_machine_speed', fieldName: 'machine', check: 'Machine', shadow: 'factory_pick_machine' },
   { blockType: 'factory_on_machine_idle',   fieldName: 'machine', check: 'Machine', shadow: 'factory_pick_machine' },
+  { blockType: 'factory_on_item_arrives',   fieldName: 'machine', check: 'Machine', shadow: 'factory_pick_machine' },
+  { blockType: 'factory_route_items_to',    fieldName: 'machine', check: 'Machine', shadow: 'factory_pick_machine' },
   { blockType: 'factory_set_belt_speed',    fieldName: 'belt',    check: 'Belt',    shadow: 'factory_pick_belt' },
 ]
 

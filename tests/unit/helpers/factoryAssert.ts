@@ -31,7 +31,6 @@ export const MACHINE_CHAR: Record<MachineType, string> = {
   assembler: 'A',
   painter: 'P',
   recycler: 'R',
-  quality_checker: 'Q',
   splitter: 'S',
   part_fabricator: 'F',
   factory_output: 'O',

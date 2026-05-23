@@ -2,11 +2,11 @@ import type { GameOverCause, GameOverInfo, SimulationEventType } from './types.t
 import { getItemCategory } from './types.ts'
 import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
+import type { Item } from './Item.ts'
 
 function getUnconsumableInputCause(targetMachine: Machine): GameOverCause | undefined {
   if (!targetMachine.enabled) {
     switch (targetMachine.machineType) {
-      case 'quality_checker':
       case 'factory_output':
         return 'machine_disabled'
       default:
@@ -50,6 +50,12 @@ export interface DeliveryResult {
   defectsDiscarded: number
   newGameOver: GameOverInfo | null
   events: DeliveryEvent[]
+  /**
+   * Per-arrival record for every item consumed by a machine via
+   * `Machine.addInput`, in delivery order. Powers the simulation's
+   * item-arrival bridge.
+   */
+  arrivals: Array<{ machineId: string; item: Item }>
 }
 
 /**
@@ -87,6 +93,7 @@ export class ItemDeliveryEngine {
       defectsDiscarded: 0,
       newGameOver: existingGameOver,
       events: [],
+      arrivals: [],
     }
 
     const belts = Array.from(this.deps.getBelts().values())
@@ -152,6 +159,7 @@ export class ItemDeliveryEngine {
               continue
             }
             targetMachine.addInput(item)
+            result.arrivals.push({ machineId: targetMachine.id, item })
             belt.removeItem(item.id)
             result.itemsDelivered++
             result.events.push({

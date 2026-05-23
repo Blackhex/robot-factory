@@ -144,6 +144,8 @@ describe('Factory belt edit during running simulation — item migration M10 exa
 
       // THEN: because the exact left input is still reachable after rotation,
       // the recomputed belt must preserve that destination slot identity.
+      // Updated for input-observer L/R convention: at north, left=(-X)=(6,3),
+      // so the new path takes a short detour through (5,3),(6,3).
       expect(factory.getMachineAt(1, 3)!.rotation).toBe('east')
       expect(factory.getMachineAt(7, 3)!.rotation).toBe('north')
 
@@ -170,10 +172,8 @@ describe('Factory belt edit during running simulation — item migration M10 exa
             { x: 3, z: 4 },
             { x: 4, z: 4 },
             { x: 5, z: 4 },
-            { x: 6, z: 4 },
-            { x: 7, z: 4 },
-            { x: 8, z: 4 },
-            { x: 8, z: 3 },
+            { x: 5, z: 3 },
+            { x: 6, z: 3 },
             { x: 7, z: 3 },
           ],
         },
@@ -181,8 +181,8 @@ describe('Factory belt edit during running simulation — item migration M10 exa
       expect(belts.some((belt) => belt.destinationSlot !== 'left')).toBe(false)
       expect(renderGrid(factory, 0, 2, 9, 4)).toBe([
         '| | | | | | | | | | |',
-        '| |S| | | | | |A|┐| |',
-        '| |└|─|─|─|─|─|─|┘| |',
+        '| |S| | | |┌|─|A| | |',
+        '| |└|─|─|─|┘| | | | |',
       ].join('\n'))
     })
 

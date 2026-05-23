@@ -71,7 +71,7 @@ export async function buildFabricatorToDestinationLayout(
   grid: FactoryGridPage,
   machinePanel: MachinePanelPage,
   probe: SimulationProbe,
-  destinationType: 'factory_output' | 'quality_checker',
+  destinationType: 'factory_output',
 ) {
   await enterSandbox(mainMenu, toolbar)
   await grid.expectCanvasVisible()

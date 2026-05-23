@@ -62,7 +62,7 @@ describe('SlotUtils', () => {
 
     it('should return default layout for all standard machine types', () => {
       // GIVEN
-      const standardTypes = ['part_fabricator', 'quality_checker', 'painter', 'recycler'] as const
+      const standardTypes = ['part_fabricator', 'painter', 'recycler'] as const
 
       // WHEN + THEN
       for (const type of standardTypes) {
@@ -91,14 +91,16 @@ describe('SlotUtils', () => {
       expect(slotPositionToOffset('back', 'south')).toEqual({ x: 0, z: -1 })
     })
 
-    it('should map right at south to +X', () => {
+    // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
+    it('should map right at south to -X', () => {
       // WHEN + THEN
-      expect(slotPositionToOffset('right', 'south')).toEqual({ x: 1, z: 0 })
+      expect(slotPositionToOffset('right', 'south')).toEqual({ x: -1, z: 0 })
     })
 
-    it('should map left at south to -X', () => {
+    // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
+    it('should map left at south to +X', () => {
       // WHEN + THEN
-      expect(slotPositionToOffset('left', 'south')).toEqual({ x: -1, z: 0 })
+      expect(slotPositionToOffset('left', 'south')).toEqual({ x: 1, z: 0 })
     })
 
     it('should rotate front east to +X', () => {
@@ -216,7 +218,7 @@ describe('SlotUtils', () => {
 
     it('should handle all standard machine types', () => {
       // GIVEN
-      const standardTypes = ['part_fabricator', 'quality_checker', 'painter', 'recycler'] as const
+      const standardTypes = ['part_fabricator', 'painter', 'recycler'] as const
 
       // WHEN + THEN
       for (const type of standardTypes) {

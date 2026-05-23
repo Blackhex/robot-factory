@@ -216,7 +216,10 @@ test.describe('event hat blocks', () => {
   const LEVEL_INDEX_EVENTS = 6
 
   test.describe('PXT Event Registration Blocks — hat shape + Events color', () => {
-    test.beforeEach(async ({ saves, mainMenu, levelSelect, toolbar, tutorial, pxt }) => {
+    test.beforeEach(async ({ saves, mainMenu, levelSelect, toolbar, tutorial, pxt }, testInfo) => {
+      // Under 8-worker parallel load this test's `waitForEventBlockShapeStable`
+      // poll plus PXT bootstrap can exceed the default 30s budget.
+      testInfo.setTimeout(60_000)
       await saves.seedProgressUpTo(LEVEL_INDEX_EVENTS)
       await mainMenu.open()
       await mainMenu.clickStartGame()
@@ -230,7 +233,7 @@ test.describe('event hat blocks', () => {
 
     for (const blockType of EVENT_BLOCK_TYPES) {
       test(`${blockType} renders as a hat block (no previous/next connections)`, async ({ pxt }) => {
-        const info = await pxt.readEventBlockInfo<EventBlockType>(EVENT_BLOCK_TYPES)
+        const info = await pxt.waitForEventBlockShapeStable<EventBlockType>(EVENT_BLOCK_TYPES)
         const entry = info[blockType]
         expect(entry.registered, `block ${blockType} is not registered in Blockly.Blocks`).toBe(true)
 
@@ -238,19 +241,19 @@ test.describe('event hat blocks', () => {
           entry.hasPrevious,
           `${blockType} should be a hat block but has a previousConnection (notch at top). ` +
             `Fix: remove \`//% handlerStatement=1\` from its declaration in ` +
-            `pxt-target/libs/robot-factory/factory.ts.`,
+            `pxt-target/libs/core/factory.ts.`,
         ).toBe(false)
 
         expect(
           entry.hasNext,
           `${blockType} should be a hat block but has a nextConnection (notch at bottom). ` +
             `Fix: remove \`//% handlerStatement=1\` from its declaration in ` +
-            `pxt-target/libs/robot-factory/factory.ts.`,
+            `pxt-target/libs/core/factory.ts.`,
         ).toBe(false)
       })
 
       test(`${blockType} uses the Events category color (hue ~50)`, async ({ pxt }) => {
-        const info = await pxt.readEventBlockInfo<EventBlockType>(EVENT_BLOCK_TYPES)
+        const info = await pxt.waitForEventBlockShapeStable<EventBlockType>(EVENT_BLOCK_TYPES)
         const entry = info[blockType]
         expect(entry.registered, `block ${blockType} is not registered in Blockly.Blocks`).toBe(true)
 
@@ -265,10 +268,88 @@ test.describe('event hat blocks', () => {
           `${blockType} expected to use Events category color (PXT hue 50, ~yellow). ` +
             `Got color "${entry.color}" with HSL hue ≈ ${hue!.toFixed(1)}°. ` +
             `The current definition uses \`color=35\` (orange-brown, hue ~35°). ` +
-            `Fix: change \`color=35\` → \`color=50\` in pxt-target/libs/robot-factory/factory.ts ` +
+            `Fix: change \`color=35\` → \`color=50\` in pxt-target/libs/core/factory.ts ` +
             `and the Events category \`colour: '35'\` → \`colour: '50'\` in src/editor/FactoryToolbox.ts.`,
         ).toBe(true)
       })
+    }
+  })
+})
+
+test.describe('Conditionals (Logic) category — custom predicate block colours', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  // Level 4 (0-based index 3) unlocks the Conditionals/Logic category,
+  // which exposes both built-in PXT logic blocks (`controls_if`,
+  // `logic_compare`) and the two custom factory predicates.
+  const LEVEL_INDEX_CONDITIONALS = 3
+
+  // PXT renders the Logic category at hex #cccc44 (the "Logic" palette
+  // colour used by `controls_if` and `logic_compare`). Custom predicates
+  // declared in `pxt-target/libs/core/factory.ts` MUST inherit the same
+  // hex so they're visually indistinguishable from the built-ins in the
+  // same category. A prior fix aligned the toolbox category colour but
+  // left the per-block colour at #a5a55b (a desaturated/darker variant),
+  // so blocks dragged onto the workspace still rendered off-palette.
+  const EXPECTED_LOGIC_HEX = '#cccc44'
+
+  const LOGIC_BLOCK_TYPES = [
+    'controls_if',
+    'logic_compare',
+    'factory_current_item_defective',
+    'factory_current_item_is',
+  ] as const
+
+  test('built-in and custom Logic predicates render at the same hex colour', async ({
+    saves,
+    mainMenu,
+    levelSelect,
+    toolbar,
+    tutorial,
+    pxt,
+  }) => {
+    // Four sequential flyout drags + colour reads, each gated on PXT's
+    // post-bootstrap settle; default 30 s is exceeded under 8-worker load.
+    test.setTimeout(90_000)
+    await saves.seedProgressUpTo(LEVEL_INDEX_CONDITIONALS)
+    await mainMenu.open()
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickUnlocked(LEVEL_INDEX_CONDITIONALS)
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent()
+    await pxt.openAndWaitForBlockly()
+    // Wait for the post-install decompile echo to stabilize before the
+    // first drag — otherwise PXT can reload the workspace mid-drag and
+    // cancel the mousedown stream, leaving the drop a no-op and the
+    // test stalls on `waitForTimeout(400)` until the 30 s test timeout.
+    await pxt.waitForPxtBootstrapSettled()
+    // PXT auto-renders the built-in `logic` namespace as a category
+    // labelled "Logic" (see repo memory `pxt-namespace-auto-renders-as-
+    // toolbox-category.md`); both `controls_if` / `logic_compare` and
+    // the custom factory predicates land there. The category flyout is
+    // re-opened inside the per-block loop below.
+
+    const observed: Record<string, string> = {}
+    for (const blockType of LOGIC_BLOCK_TYPES) {
+      // Re-open the Logic category before each drag: Blockly auto-closes
+      // the flyout once a block is dropped onto the workspace, and the
+      // next drag needs the flyout populated to find its source block.
+      await pxt.openCategoryFlyout('Logic')
+      const blockId = await pxt.dragBlockOntoWorkspace(blockType)
+      observed[blockType] = await pxt.readPlacedBlockColor(blockId)
+    }
+
+    for (const blockType of LOGIC_BLOCK_TYPES) {
+      expect(
+        observed[blockType],
+        `Expected '${EXPECTED_LOGIC_HEX}' from ${blockType}, got '${observed[blockType]}'. ` +
+          `All four Logic-category blocks must render at the exact same hex as PXT's ` +
+          `built-in controls_if / logic_compare. Observed colours: ${JSON.stringify(observed)}. ` +
+          `Fix: align the per-block \`color=\` directive in pxt-target/libs/core/factory.ts ` +
+          `for factory_current_item_defective and factory_current_item_is with the Logic ` +
+          `category hue (PXT Logic = ${EXPECTED_LOGIC_HEX}).`,
+      ).toBe(EXPECTED_LOGIC_HEX)
     }
   })
 })
@@ -304,7 +385,11 @@ test.describe('machine dropdown — empty state', () => {
   test.describe('PXT machine dropdown — reflects factory state (empty / add / remove)', () => {
     test('full lifecycle: empty → add → name shown → remove → empty again', async ({
       saves, mainMenu, toolbar, probe, grid, machinePanel, pxt,
-    }) => {
+    }, testInfo) => {
+      // Under 8-worker parallel load this lifecycle test (3 separate
+      // PXT open/close cycles + machine placement/removal) can exceed
+      // the default 30s budget.
+      testInfo.setTimeout(60_000)
       // 1. Fresh sandbox, factory has 0 machines.
       await saves.clearOnNavigate()
       await mainMenu.open()
@@ -316,6 +401,13 @@ test.describe('machine dropdown — empty state', () => {
 
       // 2. Open the PXT editor and wait for Blockly.
       await pxt.openAndWaitForBlockly()
+      // Without this wait, under 8-worker parallel load `pxtReady`
+      // may still be false when the test reads the dropdown — the
+      // production `patchBlocklyDropdowns` gate then early-returns,
+      // so `FieldDropdown.getOptions` falls back to PXT's raw enum
+      // members ("A".."H","9".."64") and the empty-state assertion
+      // fails with a stale-looking but actually unpatched list.
+      await pxt.waitForMachineDropdownReady()
 
       // 3. Add the `factory_start_machine` block to the workspace.
       const blockId = await pxt.createStartMachineBlock()
@@ -348,6 +440,7 @@ test.describe('machine dropdown — empty state', () => {
       expect(placedName, 'placed machine should expose a non-empty display name').toBeTruthy()
 
       await pxt.openAndWaitForBlockly()
+      await pxt.waitForMachineDropdownReady()
 
       // 8 + 9. Re-open dropdown.
       {
@@ -383,6 +476,7 @@ test.describe('machine dropdown — empty state', () => {
         .toBe(0)
 
       await pxt.openAndWaitForBlockly()
+      await pxt.waitForMachineDropdownReady()
 
       // 12 + 13.
       {
@@ -421,6 +515,10 @@ test.describe('flyout updates on machine placement', () => {
 
       // 2. Open the PXT editor and wait for Blockly.
       await pxt.openAndWaitForBlockly()
+      // Gate the empty-state baseline on the production dropdown
+      // patch being installed; see `factory_start_machine` test above
+      // for the parallel-load race rationale.
+      await pxt.waitForMachineDropdownReady()
 
       // 3. Open the "Machines" toolbox category so its flyout is rendered.
       await pxt.openMachinesFlyout()
@@ -471,10 +569,11 @@ test.describe('flyout updates on machine placement', () => {
             }))
           },
           {
-            timeout: 2000,
+            timeout: 15_000,
+            intervals: [100, 250, 500],
             message:
-              `flyout machine-dropdown blocks should update to "${placedName}" within 2s ` +
-              `of placing the first machine, without closing the editor or the category`,
+              `flyout machine-dropdown blocks should update to "${placedName}" ` +
+              `after placing the first machine, without closing the editor or the category`,
           },
         )
         .toEqual(
@@ -685,3 +784,706 @@ test.describe('on-start block visibility', () => {
     ).toBeLessThanOrEqual(viewport.height)
   })
 })
+
+test.describe('Splitter refactor: route_items_to / item predicates / on-item-arrives (Level 4)', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  // Level 4 is the 0-based index 3 on the level-select carousel. Mirrors
+  // the existing `LEVEL_INDEX_EVENTS = 6` pattern (= Level 7) used by the
+  // event-hat tests above.
+  const LEVEL_INDEX_SPLITTERS = 3
+
+  // After the Splitter refactor (E1-E5):
+  // - `factory_route_items_to` (replaces deleted `factory_route_current_item`)
+  //   lives in the Machines PXT category at level >= 4.
+  // - `factory_current_item_defective` and `factory_current_item_is` moved
+  //   from the deleted Splitters category to Logic.
+  // - `factory_on_item_arrives` (block id unchanged for save compat) stays
+  //   in Events at level >= 4.
+  const SPLITTER_REFACTOR_BLOCK_TYPES = [
+    'factory_route_items_to',
+    'factory_current_item_defective',
+    'factory_current_item_is',
+    'factory_on_item_arrives',
+  ] as const
+
+  // Block types that were deleted by the Splitter refactor and must no
+  // longer appear in the live PXT block registry at any level.
+  const DELETED_BLOCK_TYPES = ['factory_route_current_item'] as const
+
+  test.beforeEach(async ({ saves, mainMenu, levelSelect, toolbar, tutorial, pxt }) => {
+    await saves.seedProgressUpTo(LEVEL_INDEX_SPLITTERS)
+    await mainMenu.open()
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickUnlocked(LEVEL_INDEX_SPLITTERS)
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent()
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForToolboxInteractive()
+  })
+
+  test('Splitters toolbox category is no longer rendered at Level 4', async ({ pxt }) => {
+    const categories = await pxt.getToolboxCategoryDetails()
+    const names = categories.map((c) => c.name)
+    expect(
+      names,
+      `expected the rendered PXT toolbox at Level 4 to NOT include a ` +
+        `"Splitters" category — it was deleted by the Splitter refactor ` +
+        `(E1-E5). The route-items block now lives in Machines and the ` +
+        `current-item predicates moved to Logic. Got categories: ` +
+        `${JSON.stringify(names)}`,
+    ).not.toContain('Splitters')
+  })
+
+  test('all four splitter-refactor block types are registered in Blockly at Level 4', async ({
+    pxt,
+  }) => {
+    const registered = await pxt.getRegisteredBlockTypes()
+    const missing = SPLITTER_REFACTOR_BLOCK_TYPES.filter((t) => !registered.includes(t))
+    expect(
+      missing,
+      `expected all post-refactor splitter / on-item-arrives block ` +
+        `types to be registered in Blockly.Blocks at Level 4, but the ` +
+        `following are missing from the live PXT iframe registry: ` +
+        `${JSON.stringify(missing)}. ` +
+        `Registered factory_* types: ` +
+        `${JSON.stringify(registered.filter((t) => t.startsWith('factory_')))}`,
+    ).toEqual([])
+
+    const stillPresent = DELETED_BLOCK_TYPES.filter((t) => registered.includes(t))
+    expect(
+      stillPresent,
+      `expected the following deleted block types to NOT be registered ` +
+        `in Blockly.Blocks anymore (E1-E5 splitter refactor removed them): ` +
+        `${JSON.stringify(stillPresent)}.`,
+    ).toEqual([])
+  })
+
+  test('"route items of %machine to %sides" block appears in the Machines flyout at Level 4', async ({
+    pxt,
+  }) => {
+    await pxt.openMachinesFlyout()
+    const flyoutTypes = await pxt.getOpenFlyoutBlockTypes()
+    expect(
+      flyoutTypes,
+      `expected the Machines flyout at Level 4 to expose the new ` +
+        `factory_route_items_to block ("route items of %machine to ` +
+        `%sides"), declared in pxt-target/libs/core/factory.ts under ` +
+        `the machines namespace. Got flyout block types: ` +
+        `${JSON.stringify(flyoutTypes)}`,
+    ).toContain('factory_route_items_to')
+  })
+
+  test('"current item is defective" and "current item is %partType" predicates appear in the Logic flyout at Level 4', async ({
+    pxt,
+  }) => {
+    await pxt.openCategoryFlyout('Logic')
+    const flyoutTypes = await pxt.getOpenFlyoutBlockTypes()
+    expect(
+      flyoutTypes,
+      `expected the Logic flyout at Level 4 to expose the ` +
+        `factory_current_item_defective predicate, which moved from the ` +
+        `deleted Splitters category to Logic in the splitter refactor. ` +
+        `Got flyout block types: ${JSON.stringify(flyoutTypes)}`,
+    ).toContain('factory_current_item_defective')
+    expect(
+      flyoutTypes,
+      `expected the Logic flyout at Level 4 to expose the ` +
+        `factory_current_item_is predicate ("current item is %partType"), ` +
+        `which moved from the deleted Splitters category to Logic. ` +
+        `Got flyout block types: ${JSON.stringify(flyoutTypes)}`,
+    ).toContain('factory_current_item_is')
+  })
+
+  test('"on item arrives at" hat block appears in the Events flyout at Level 4', async ({
+    pxt,
+  }) => {
+    await pxt.openEventsCategory()
+    const flyoutTypes = await pxt.getOpenFlyoutBlockTypes()
+    expect(
+      flyoutTypes,
+      `expected the Events flyout at Level 4 to expose the ` +
+        `factory_on_item_arrives hat block ("on item arrives at %machine"), ` +
+        `which is declared in pxt-target/libs/core/factory.ts and added ` +
+        `to the Events category by FactoryToolbox at level >= 4. ` +
+        `Got flyout block types: ${JSON.stringify(flyoutTypes)}`,
+    ).toContain('factory_on_item_arrives')
+  })
+})
+
+test.describe('event hat blocks — enabled after placement on workspace', () => {
+  // Use a viewport large enough that the toolbox flyout shows all
+  // event-category blocks without needing to scroll. The drag tests
+  // below exercise the in-app drag-from-flyout interaction and the
+  // load tests exercise the save/reload round-trip independently.
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  // Level 4 (0-based index 3) unlocks `factory_on_item_arrives` per
+  // src/editor/FactoryToolbox.ts.
+  const LEVEL_INDEX_ITEM_ARRIVES = 3
+  // Level 7 (0-based index 6) unlocks the rest of the event hats incl.
+  // `factory_on_machine_idle`.
+  const LEVEL_INDEX_MACHINE_IDLE = 6
+
+  test('factory_on_item_arrives is ENABLED (not grayed/striped) after being placed on the workspace at Level 4', async ({
+    saves, mainMenu, levelSelect, toolbar, tutorial, pxt,
+  }) => {
+    await saves.seedProgressUpTo(LEVEL_INDEX_ITEM_ARRIVES)
+    await mainMenu.open()
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickUnlocked(LEVEL_INDEX_ITEM_ARRIVES)
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent()
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForToolboxInteractive()
+    await pxt.openEventsCategory()
+
+    const blockId = await pxt.dragHatBlockOntoWorkspace('factory_on_item_arrives')
+    const info = await pxt.readPlacedBlockEnabledInfo(blockId)
+
+    expect(info.blockExists, 'dragged factory_on_item_arrives block must exist on main workspace').toBe(true)
+
+    expect(
+      info.isEnabled,
+      `factory_on_item_arrives hat block should be ENABLED after being ` +
+        `placed on the workspace, but block.isEnabled() returned false. ` +
+        `This is the symptom reported by the user: the "on item arrived at <machine>" ` +
+        `block renders grayed out with the crossing/hatched disabled-pattern ` +
+        `texture. Hypothesis: Blockly's default disableOrphans change ` +
+        `listener marks the hat block as disabled because its hat ` +
+        `classification is established by setStartHat(true) only AFTER ` +
+        `the listener has run. ` +
+        `SVG path classes seen on the block root: ${JSON.stringify(info.svgPathClasses)}. ` +
+        `SVG fill refs seen on the block root: ${JSON.stringify(info.svgFillRefs)}.`,
+    ).toBe(true)
+
+    expect(
+      info.hasDisabledClass,
+      `factory_on_item_arrives hat block SVG must NOT carry the ` +
+        `\`blocklyDisabled\` CSS class — its presence is what renders the ` +
+        `grayed-out hatched texture the user reported. ` +
+        `SVG path classes: ${JSON.stringify(info.svgPathClasses)}.`,
+    ).toBe(false)
+
+    expect(
+      info.hasDisabledPatternRef,
+      `factory_on_item_arrives hat block SVG must NOT reference a ` +
+        `\`blocklyDisabledPattern…\` fill pattern — its presence is what ` +
+        `paints the diagonal crossing/striped overlay on disabled blocks. ` +
+        `SVG fill refs: ${JSON.stringify(info.svgFillRefs)}.`,
+    ).toBe(false)
+  })
+
+  test('factory_on_machine_idle is ENABLED after being placed on the workspace at Level 7 (control)', async ({
+    saves, mainMenu, levelSelect, toolbar, tutorial, pxt,
+  }) => {
+    await saves.seedProgressUpTo(LEVEL_INDEX_MACHINE_IDLE)
+    await mainMenu.open()
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickUnlocked(LEVEL_INDEX_MACHINE_IDLE)
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent()
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForToolboxInteractive()
+    await pxt.openEventsCategory()
+
+    const blockId = await pxt.dragHatBlockOntoWorkspace('factory_on_machine_idle')
+    const info = await pxt.readPlacedBlockEnabledInfo(blockId)
+
+    expect(info.blockExists, 'dragged factory_on_machine_idle block must exist on main workspace').toBe(true)
+
+    expect(
+      info.isEnabled,
+      `factory_on_machine_idle hat block should be ENABLED after being ` +
+        `placed on the workspace (control test: this block shares the same ` +
+        `hat-strip patch as factory_on_item_arrives, so if it is also ` +
+        `disabled the bug lives in the shared hat-shape / orphan-disable ` +
+        `interaction rather than in the on-item-arrives definition). ` +
+        `SVG path classes: ${JSON.stringify(info.svgPathClasses)}. ` +
+        `SVG fill refs: ${JSON.stringify(info.svgFillRefs)}.`,
+    ).toBe(true)
+
+    expect(
+      info.hasDisabledClass,
+      `factory_on_machine_idle hat block SVG must NOT carry the ` +
+        `\`blocklyDisabled\` CSS class. ` +
+        `SVG path classes: ${JSON.stringify(info.svgPathClasses)}.`,
+    ).toBe(false)
+
+    expect(
+      info.hasDisabledPatternRef,
+      `factory_on_machine_idle hat block SVG must NOT reference a ` +
+        `\`blocklyDisabledPattern…\` fill pattern. ` +
+        `SVG fill refs: ${JSON.stringify(info.svgFillRefs)}.`,
+    ).toBe(false)
+  })
+
+  // ---------------------------------------------------------------------------
+  // Save/reload round-trip: a hat block persisted to project XML must render
+  // ENABLED after the editor reopens.
+  //
+  // This is the path that actually reproduces the user-reported "disabled
+  // hat block" bug on `main`. When a player has previously interacted with
+  // the workspace in a way that flipped `block.disabled` (for example, the
+  // historical disable-orphans race against `setStartHat(true)`), Blockly
+  // serializes that flag into the saved XML as `disabled="true"`. The next
+  // time the editor opens, `Blockly.Xml.domToWorkspace` faithfully reapplies
+  // the disabled flag — there is no healing for top-level hat blocks — and
+  // the block renders grayed/striped forever. The XML below mirrors the
+  // shape of a real persisted workspace observed in the live dev server
+  // (see manual reproduction in this PR's report). The hat block is the
+  // sole top-level block; its handler is empty; its `machine` slot is
+  // populated with the standard `factory_pick_machine` shadow.
+  // ---------------------------------------------------------------------------
+  const SAVED_XML_ITEM_ARRIVES =
+    '<xml xmlns="https://developers.google.com/blockly/xml">' +
+    '<block type="factory_on_item_arrives" id="hat_item_arrives_test" disabled="true" x="20" y="40">' +
+    '<value name="machine">' +
+    '<shadow type="factory_pick_machine" id="shadow_item_arrives_test" disabled="true">' +
+    '<field name="machine">Machine.A</field>' +
+    '</shadow>' +
+    '</value>' +
+    '</block>' +
+    '</xml>'
+
+  const SAVED_XML_MACHINE_IDLE =
+    '<xml xmlns="https://developers.google.com/blockly/xml">' +
+    '<block type="factory_on_machine_idle" id="hat_machine_idle_test" disabled="true" x="20" y="40">' +
+    '<value name="machine">' +
+    '<shadow type="factory_pick_machine" id="shadow_machine_idle_test" disabled="true">' +
+    '<field name="machine">Machine.A</field>' +
+    '</shadow>' +
+    '</value>' +
+    '</block>' +
+    '</xml>'
+
+  test('factory_on_item_arrives loaded from saved project XML must be ENABLED (not grayed/striped) when the editor reopens', async ({
+    saves, mainMenu, levelSelect, toolbar, tutorial, pxt,
+  }) => {
+    await saves.seedProgressUpTo(LEVEL_INDEX_ITEM_ARRIVES)
+    await mainMenu.open()
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickUnlocked(LEVEL_INDEX_ITEM_ARRIVES)
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent()
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForToolboxInteractive()
+
+    const blockId = await pxt.loadWorkspaceXmlReplacing(
+      SAVED_XML_ITEM_ARRIVES,
+      'factory_on_item_arrives',
+    )
+    const info = await pxt.readPlacedBlockEnabledInfo(blockId)
+
+    expect(
+      info.blockExists,
+      'factory_on_item_arrives block must exist on main workspace after loading saved XML',
+    ).toBe(true)
+
+    expect(
+      info.isEnabled,
+      `factory_on_item_arrives loaded from saved project XML should be ` +
+        `ENABLED — expected enabled, got disabled. A top-level event hat ` +
+        `block (no parent, no previous connection) is always a valid ` +
+        `handler root and must never render as disabled, regardless of ` +
+        `whatever stale \`disabled="true"\` attribute is carried in the ` +
+        `persisted XML from an earlier save. The user sees this as: ` +
+        `"every time I reopen my project, my 'on item arrived' block is ` +
+        `grayed out with the hatched/striped overlay". ` +
+        `Diagnostic: ` +
+        `block.isEnabled()=${info.isEnabled}, ` +
+        `hasDisabledClass=${info.hasDisabledClass}, ` +
+        `hasDisabledPatternRef=${info.hasDisabledPatternRef}. ` +
+        `SVG fill refs: ${JSON.stringify(info.svgFillRefs)}.`,
+    ).toBe(true)
+
+    expect(
+      info.hasDisabledClass,
+      `factory_on_item_arrives loaded from saved project XML must NOT ` +
+        `carry the \`blocklyDisabled\` CSS class on any of its SVG paths. ` +
+        `SVG path classes: ${JSON.stringify(info.svgPathClasses)}.`,
+    ).toBe(false)
+
+    expect(
+      info.hasDisabledPatternRef,
+      `factory_on_item_arrives loaded from saved project XML must NOT ` +
+        `reference the \`blocklyDisabledPattern…\` fill pattern (this is ` +
+        `the diagonal-stripe overlay that paints the block as "grayed ` +
+        `out / hatched" in the workspace). ` +
+        `SVG fill refs: ${JSON.stringify(info.svgFillRefs)}.`,
+    ).toBe(false)
+  })
+
+  test('factory_on_machine_idle loaded from saved project XML must be ENABLED (control)', async ({
+    saves, mainMenu, levelSelect, toolbar, tutorial, pxt,
+  }) => {
+    await saves.seedProgressUpTo(LEVEL_INDEX_MACHINE_IDLE)
+    await mainMenu.open()
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickUnlocked(LEVEL_INDEX_MACHINE_IDLE)
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent()
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForToolboxInteractive()
+
+    const blockId = await pxt.loadWorkspaceXmlReplacing(
+      SAVED_XML_MACHINE_IDLE,
+      'factory_on_machine_idle',
+    )
+    const info = await pxt.readPlacedBlockEnabledInfo(blockId)
+
+    expect(
+      info.blockExists,
+      'factory_on_machine_idle block must exist on main workspace after loading saved XML',
+    ).toBe(true)
+
+    expect(
+      info.isEnabled,
+      `factory_on_machine_idle loaded from saved project XML should be ` +
+        `ENABLED — expected enabled, got disabled. Control case for the ` +
+        `sibling \`factory_on_item_arrives\` test: both hat block types ` +
+        `share the same hat-strip patch, so if both fail the bug lives ` +
+        `in the shared load-from-XML path; if only the other fails the ` +
+        `bug is specific to \`factory_on_item_arrives\`. ` +
+        `Diagnostic: ` +
+        `block.isEnabled()=${info.isEnabled}, ` +
+        `hasDisabledClass=${info.hasDisabledClass}, ` +
+        `hasDisabledPatternRef=${info.hasDisabledPatternRef}. ` +
+        `SVG fill refs: ${JSON.stringify(info.svgFillRefs)}.`,
+    ).toBe(true)
+
+    expect(
+      info.hasDisabledClass,
+      `factory_on_machine_idle loaded from saved project XML must NOT ` +
+        `carry the \`blocklyDisabled\` CSS class. ` +
+        `SVG path classes: ${JSON.stringify(info.svgPathClasses)}.`,
+    ).toBe(false)
+
+    expect(
+      info.hasDisabledPatternRef,
+      `factory_on_machine_idle loaded from saved project XML must NOT ` +
+        `reference the \`blocklyDisabledPattern…\` fill pattern. ` +
+        `SVG fill refs: ${JSON.stringify(info.svgFillRefs)}.`,
+    ).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Event hat decompile preserves machine argument AND handler body.
+//
+// Bug: PXT's compile traversal calls `setEnabled(false)` on descendants of
+// 2-parameter event hat blocks (`factory_on_item_arrives`,
+// `factory_on_machine_idle`) because they declare BOTH `hasHandler=true`
+// AND `handlerStatement=true`. As a consequence the decompiler walks past
+// the disabled `factory_pick_machine` shadow in the `machine` slot AND
+// past every statement inside the HANDLER input, producing
+// `events.onItemArrives(null, function () {\n\t\n})` — losing both the
+// machine argument and the body. The BlockInterpreter then registers an
+// empty handler, so the runtime never reacts to item arrivals at the
+// configured machine.
+//
+// The fix lives in `src/editor/hatBlockShape.ts`: extend
+// `patchBlockProtoSetEnabled` to refuse `setEnabled(false)` on any
+// descendant of a hat block. These three tests (A + B + C) lock the
+// expected post-fix shape.
+test.describe('event hat decompile preserves machine arg and body', () => {
+  test.use({ viewport: { width: 1280, height: 800 } })
+
+  // Workspace XML for Test A: a single `factory_on_item_arrives` hat with
+  // `Machine.A` in its picker slot and a single `factory_start_machine`
+  // for `Machine.B` inside its HANDLER statement input.
+  const XML_ON_ITEM_ARRIVES =
+    '<xml xmlns="https://developers.google.com/blockly/xml">' +
+      '<block type="factory_on_item_arrives" id="hatItemArrivesA" x="10" y="10">' +
+        '<value name="machine">' +
+          '<shadow type="factory_pick_machine" id="pickMachineForHatA">' +
+            '<field name="machine">Machine.A</field>' +
+          '</shadow>' +
+        '</value>' +
+        '<statement name="HANDLER">' +
+          '<block type="factory_start_machine" id="startMachineInHandlerA">' +
+            '<value name="machine">' +
+              '<shadow type="factory_pick_machine" id="pickMachineInHandlerA">' +
+                '<field name="machine">Machine.B</field>' +
+              '</shadow>' +
+            '</value>' +
+          '</block>' +
+        '</statement>' +
+      '</block>' +
+    '</xml>'
+
+  // Same shape for Test B but with `factory_on_machine_idle`.
+  const XML_ON_MACHINE_IDLE =
+    '<xml xmlns="https://developers.google.com/blockly/xml">' +
+      '<block type="factory_on_machine_idle" id="hatMachineIdleA" x="10" y="10">' +
+        '<value name="machine">' +
+          '<shadow type="factory_pick_machine" id="pickMachineForIdleHatA">' +
+            '<field name="machine">Machine.A</field>' +
+          '</shadow>' +
+        '</value>' +
+        '<statement name="HANDLER">' +
+          '<block type="factory_start_machine" id="startMachineInIdleHandlerA">' +
+            '<value name="machine">' +
+              '<shadow type="factory_pick_machine" id="pickMachineInIdleHandlerA">' +
+                '<field name="machine">Machine.B</field>' +
+              '</shadow>' +
+            '</value>' +
+          '</block>' +
+        '</statement>' +
+      '</block>' +
+    '</xml>'
+
+  test('factory_on_item_arrives decompiles to events.onItemArrives(pickMachine(Machine.A), …) with startMachine(B) in body', async ({
+    mainMenu, toolbar, tutorial, pxt,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForPxtReady()
+    await pxt.waitForToolboxInteractive()
+    await pxt.waitForPxtBootstrapSettled()
+
+    await pxt.loadWorkspaceViaProductionPath(
+      XML_ON_ITEM_ARRIVES,
+      'factory_on_item_arrives',
+    )
+    const source = await pxt.compileBlocksToTs({
+      blocksMustContain: ['factory_on_item_arrives'],
+      tsMustContain: [
+        'events.onItemArrives(machines.pickMachine(Machine.A)',
+        'machines.startMachine(machines.pickMachine(Machine.B))',
+      ],
+    })
+
+    expect(
+      source,
+      `factory_on_item_arrives must decompile its machine slot to ` +
+        `\`machines.pickMachine(Machine.A)\` — NOT \`null\`. The bug ` +
+        `(PXT compile pass disables descendants of 2-param event hats) ` +
+        `makes the \`factory_pick_machine\` shadow disabled, so the ` +
+        `decompiler emits \`null\` for the first argument. ` +
+        `Captured main.ts: ${JSON.stringify(source)}`,
+    ).toContain('events.onItemArrives(machines.pickMachine(Machine.A)')
+
+    expect(
+      source,
+      `factory_on_item_arrives must decompile its HANDLER statement ` +
+        `body to \`machines.startMachine(machines.pickMachine(Machine.B))\` — ` +
+        `NOT an empty body. The bug disables every block under the HANDLER ` +
+        `input so the decompiler skips them, producing ` +
+        `\`function () {\\n\\t\\n}\`. ` +
+        `Captured main.ts: ${JSON.stringify(source)}`,
+    ).toContain('machines.startMachine(machines.pickMachine(Machine.B))')
+
+    expect(
+      source,
+      `factory_on_item_arrives must NOT decompile to \`null\` as the ` +
+        `machine argument. Captured main.ts: ${JSON.stringify(source)}`,
+    ).not.toContain('events.onItemArrives(null')
+  })
+
+  test('factory_on_machine_idle decompiles to events.onMachineIdle(pickMachine(Machine.A), …) with startMachine(B) in body', async ({
+    mainMenu, toolbar, tutorial, pxt,
+  }) => {
+    await mainMenu.enterSandbox(toolbar, tutorial)
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForPxtReady()
+    await pxt.waitForToolboxInteractive()
+    await pxt.waitForPxtBootstrapSettled()
+
+    await pxt.loadWorkspaceViaProductionPath(
+      XML_ON_MACHINE_IDLE,
+      'factory_on_machine_idle',
+    )
+    const source = await pxt.compileBlocksToTs({
+      blocksMustContain: ['factory_on_machine_idle'],
+      tsMustContain: [
+        'events.onMachineIdle(machines.pickMachine(Machine.A)',
+        'machines.startMachine(machines.pickMachine(Machine.B))',
+      ],
+    })
+
+    expect(
+      source,
+      `factory_on_machine_idle must decompile its machine slot to ` +
+        `\`machines.pickMachine(Machine.A)\` — NOT \`null\`. Same root ` +
+        `cause as the on-item-arrives sibling: both 2-param hats declare ` +
+        `\`hasHandler=true\` AND \`handlerStatement=true\`, so PXT's ` +
+        `compile pass disables their descendants and the decompiler ` +
+        `skips them. ` +
+        `Captured main.ts: ${JSON.stringify(source)}`,
+    ).toContain('events.onMachineIdle(machines.pickMachine(Machine.A)')
+
+    expect(
+      source,
+      `factory_on_machine_idle must decompile its HANDLER statement ` +
+        `body to \`machines.startMachine(machines.pickMachine(Machine.B))\` — ` +
+        `NOT an empty body. ` +
+        `Captured main.ts: ${JSON.stringify(source)}`,
+    ).toContain('machines.startMachine(machines.pickMachine(Machine.B))')
+
+    expect(
+      source,
+      `factory_on_machine_idle must NOT decompile to \`null\` as the ` +
+        `machine argument. Captured main.ts: ${JSON.stringify(source)}`,
+    ).not.toContain('events.onMachineIdle(null')
+  })
+
+  test('Assembly.json splitter routing decompiles to a non-empty body that calls routeCurrentItemTo on both branches', async ({
+    mainMenu, toolbar, tutorial, projectsPanel, pxt,
+  }) => {
+    // Read the bundled Assembly fixture from disk (Playwright tests run
+    // in Node, so this is allowed in the spec — it is purely test-side
+    // file I/O, not a runtime page evaluation).
+    const fs = await import('node:fs')
+    const path = await import('node:path')
+    const fixturePath = path.resolve(process.cwd(), 'projects', 'Assembly.json')
+    const fixtureContent = fs.readFileSync(fixturePath, 'utf8')
+
+    // Derive the expected SplitterOutputs.* enum literals from the
+    // fixture's own blocks-XML tree, so the assertion can't drift if a
+    // teammate edits projects/Assembly.json. The fixture stores blocks
+    // as a JSON tree of {tag, attrs, children} nodes mirroring Blockly
+    // XML. Walk the tree, find the named `<statement>` (DO0 = defective
+    // branch, ELSE = clean branch), then read the `side` field of its
+    // descendant `factory_route_current_item_to` block.
+    type FixtureNode = {
+      tag?: string
+      attrs?: Record<string, string>
+      children?: Array<FixtureNode | string>
+    }
+    const findRouteSideInStatement = (statementName: string): string => {
+      const findSide = (node: FixtureNode): string | undefined => {
+        if (node.tag === 'block' && node.attrs?.type === 'factory_route_current_item_to') {
+          for (const c of node.children ?? []) {
+            if (
+              typeof c === 'object' &&
+              c.tag === 'field' &&
+              c.attrs?.name === 'side'
+            ) {
+              const txt = c.children?.[0]
+              if (typeof txt === 'string') return txt
+            }
+          }
+        }
+        for (const c of node.children ?? []) {
+          if (typeof c === 'object') {
+            const r = findSide(c)
+            if (r) return r
+          }
+        }
+        return undefined
+      }
+      let found: string | undefined
+      const walk = (node: unknown): void => {
+        if (found || node === null || typeof node !== 'object') return
+        if (Array.isArray(node)) {
+          for (const item of node) walk(item)
+          return
+        }
+        const n = node as FixtureNode & Record<string, unknown>
+        if (n.tag === 'statement' && n.attrs?.name === statementName) {
+          found = findSide(n)
+          if (found) return
+        }
+        for (const v of Object.values(n)) walk(v)
+      }
+      walk(JSON.parse(fixtureContent) as unknown)
+      if (!found) {
+        throw new Error(
+          `Could not extract SplitterOutputs side for <statement name="${statementName}"> ` +
+            `from projects/Assembly.json — fixture structure changed unexpectedly.`,
+        )
+      }
+      return found
+    }
+    const defectiveSide = findRouteSideInStatement('DO0')
+    const cleanSide = findRouteSideInStatement('ELSE')
+
+    await mainMenu.enterSandbox(toolbar, tutorial)
+
+    // Import the bundle as a slot, then load it via double-click. The
+    // Projects panel does NOT auto-load on import; loading is the
+    // dblclick contract (see SandboxProjects.spec.ts).
+    await toolbar.clickProjects()
+    await projectsPanel.expectOpen()
+    await projectsPanel.importBundleFromString('Assembly.json', fixtureContent)
+    await projectsPanel.expectSlotPresent('Assembly')
+    await projectsPanel.doubleClickSlot('Assembly')
+
+    // Close the panel and open the PXT editor so the load-pipeline can
+    // re-decompile the project's blocks into main.ts.
+    await toolbar.clickProjects()
+    await projectsPanel.expectClosed()
+    await pxt.openAndWaitForBlockly()
+    await pxt.waitForPxtReady()
+    // Wait for PXT to settle after loading the bundled project; under
+    // parallel-worker load the bundled `main.ts` echo can race the
+    // watchdog, leaving `lastPxtSource` stale.
+    await pxt.waitForPxtBootstrapSettled()
+
+    const source = await pxt.compileBlocksToTs({
+      blocksMustContain: ['factory_on_item_arrives'],
+      tsMustContain: [
+        'events.onItemArrives(machines.pickMachine(Machine.E)',
+        'routeCurrentItemTo',
+      ],
+    })
+
+    expect(
+      source,
+      `Assembly.json's compiled main.ts must contain routeCurrentItemTo ` +
+        `calls (post-fix the controls_if survives the hat body). ` +
+        `Captured main.ts: ${JSON.stringify(source)}`,
+    ).toContain('routeCurrentItemTo')
+
+    expect(
+      source,
+      `Assembly.json's factory_on_item_arrives hat at Splitter ` +
+        `Machine.E must decompile with its machine argument preserved ` +
+        `as \`machines.pickMachine(Machine.E)\` — NOT \`null\`. The ` +
+        `bug strips the picker shadow because PXT marks descendants of ` +
+        `2-param event hats disabled before decompile. ` +
+        `Captured main.ts: ${JSON.stringify(source)}`,
+    ).toContain('events.onItemArrives(machines.pickMachine(Machine.E)')
+
+    expect(
+      source,
+      `Assembly.json's HANDLER body for Machine.E must decompile to a ` +
+        `\`controls_if\` calling \`logic.currentItemIsDefective()\`. ` +
+        `The fixture's blocks XML wires the defective-item predicate to ` +
+        `IF0, so the post-fix decompile must reference it. ` +
+        `Captured main.ts: ${JSON.stringify(source)}`,
+    ).toContain('logic.currentItemIsDefective()')
+
+    expect(
+      source,
+      `Assembly.json's HANDLER body must decompile to route defective ` +
+        `items to \`${defectiveSide}\` (the side stored in the ` +
+        `fixture's DO0/defective branch). The bug drops the entire ` +
+        `HANDLER body, so this call is missing on \`main\`. ` +
+        `Captured main.ts: ${JSON.stringify(source)}`,
+    ).toContain(`machines.routeCurrentItemTo(machines.pickMachine(Machine.E), ${defectiveSide})`)
+
+    expect(
+      source,
+      `Assembly.json's HANDLER body must decompile to route ` +
+        `non-defective items to \`${cleanSide}\` (the side stored in ` +
+        `the fixture's ELSE branch). ` +
+        `Captured main.ts: ${JSON.stringify(source)}`,
+    ).toContain(`machines.routeCurrentItemTo(machines.pickMachine(Machine.E), ${cleanSide})`)
+
+    expect(
+      source,
+      `Assembly.json's Splitter handler must NOT decompile to ` +
+        `\`events.onItemArrives(null, …)\` — that is the exact symptom ` +
+        `of the bug under test. ` +
+        `Captured main.ts: ${JSON.stringify(source)}`,
+    ).not.toContain('events.onItemArrives(null')
+  })
+})
+

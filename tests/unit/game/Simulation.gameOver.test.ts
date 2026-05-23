@@ -183,18 +183,6 @@ describe('Simulation game-over on unconsumable delivery', () => {
     expect(sim.paused).toBe(true)
   })
 
-  it('fires game_over when a disabled quality_checker is the belt destination', () => {
-    // GIVEN — quality_checker defaults to enabled === false and must reject
-    // the first delivered item until explicitly started.
-    const handles = buildPipeline('quality_checker', null)
-
-    // WHEN
-    tickN(handles.sim, 50)
-
-    // THEN
-    expectDisabledDestinationGameOver(handles)
-  })
-
   it('fires game_over when a disabled factory_output is the belt destination', () => {
     // GIVEN — intentional requirement change: Shipper is no longer a passive
     // always-on sink while disabled.
@@ -353,7 +341,6 @@ describe('isRecipeRequiredMachineType helper', () => {
     'painter',
   ]
   const recipeOptional: MachineType[] = [
-    'quality_checker',
     'splitter',
     'factory_output',
     'recycler',
@@ -420,7 +407,6 @@ describe('Simulation game-over on starting machine without recipe', () => {
   }
 
   const nonRecipeTypes: MachineType[] = [
-    'quality_checker',
     'splitter',
     'factory_output',
     'recycler',

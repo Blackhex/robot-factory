@@ -221,7 +221,8 @@ describe('Factory belt edit during running simulation — item migration', () =>
       const newBelts = factory.getBelts()
       expect(newBelts).toHaveLength(1)
       expect(newBelts[0].sourceSlot).toBe('front')
-      expect(newBelts[0].destinationSlot).toBe('left')
+      // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
+      expect(newBelts[0].destinationSlot).toBe('right')
       expect(newBelts[0].path).toEqual([
         { x: 0, z: 0 },
         { x: 1, z: 0 },

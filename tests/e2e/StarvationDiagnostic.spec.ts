@@ -12,7 +12,7 @@ const PROGRAM = [
 ].join('\n')
 
 test.describe('Starvation diagnostic', () => {
-  test('reports live machine state with 2 fabs + assembler + QC', async ({
+  test('reports live machine state with 2 fabs + assembler + splitter', async ({
     page,
     mainMenu,
     toolbar,
@@ -26,11 +26,11 @@ test.describe('Starvation diagnostic', () => {
     await grid.expectCanvasVisible()
 
     // Place machines via direct factory API in the order:
-    // A=fab1, B=fab2, C=assembler, D=quality_checker
+    // A=fab1, B=fab2, C=assembler, D=splitter
     expect(await probe.placeMachineDirect(8, 9, 'part_fabricator')).toBe(true)
     expect(await probe.placeMachineDirect(8, 11, 'part_fabricator')).toBe(true)
     expect(await probe.placeMachineDirect(11, 10, 'assembler')).toBe(true)
-    expect(await probe.placeMachineDirect(14, 10, 'quality_checker')).toBe(true)
+    expect(await probe.placeMachineDirect(14, 10, 'splitter')).toBe(true)
 
     // Belts: fab1 → assembler, fab2 → assembler, assembler → QC
     expect(await probe.placeBeltViaTestApi(8, 9, 11, 10)).toBe(true)

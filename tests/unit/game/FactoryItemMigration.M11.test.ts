@@ -42,8 +42,8 @@ describe('Factory belt edit during running simulation — item migration M11', (
       const destination = factory.getMachineAt(7, 3)!
       const replacedEmptySibling = factory.placeBeltChain(source, destination, 'output', {
         fixedRotations: true,
-        sourceSlotPosition: 'right',
-        targetSlotPosition: 'left',
+        sourceSlotPosition: 'left',
+        targetSlotPosition: 'right',
       })
       expect(replacedEmptySibling).toBe(true)
 

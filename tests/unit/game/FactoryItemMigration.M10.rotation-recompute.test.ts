@@ -39,10 +39,13 @@ describe('Factory belt edit during running simulation — item migration M10 rot
       // THEN: the recomputed topology may keep only exact original slot pairs.
       // Here the right/right lane survives rotation and the left/left lane is
       // absent; a front/back replacement for that old lane is invalid.
+      // Updated for input-observer L/R convention: right slot at north now maps
+      // to (+X) cell, so the surviving right/right lane wraps via row 2 and
+      // (8,3).
       expect(renderGrid(factory, 0, 1, 9, 5)).toBe([
         '| | | | | | | | | | |',
-        '| |┌|─|─|─|┐| | | | |',
-        '| |S| | |P|└|─|A| | |',
+        '| |┌|─|─|─|─|─|─|┐| |',
+        '| |S| | |P| | |A|┘| |',
         '| | | | | | | | | | |',
         '| | | | | | | | | | |',
       ].join('\n'))
@@ -71,8 +74,10 @@ describe('Factory belt edit during running simulation — item migration M10 rot
             { x: 3, z: 2 },
             { x: 4, z: 2 },
             { x: 5, z: 2 },
-            { x: 5, z: 3 },
-            { x: 6, z: 3 },
+            { x: 6, z: 2 },
+            { x: 7, z: 2 },
+            { x: 8, z: 2 },
+            { x: 8, z: 3 },
             { x: 7, z: 3 },
           ],
         },
@@ -154,11 +159,14 @@ describe('Factory belt edit during running simulation — item migration M10 rot
 
       // THEN: both original exact slot identities remain present after the
       // edit, with full path and endpoint geometry preserved per lane.
+      // Updated for input-observer L/R convention: at north, right=(+X)=(8,3)
+      // and left=(-X)=(6,3), so right lane wraps via row 2 and left lane
+      // takes the short bottom path.
       expect(renderGrid(factory, 0, 1, 9, 5)).toBe([
         '| | | | | | | | | | |',
-        '| |┌|─|─|─|┐| | | | |',
-        '| |S| | | |└|─|A|┐| |',
-        '| |└|─|─|─|─|─|─|┘| |',
+        '| |┌|─|─|─|─|─|─|┐| |',
+        '| |S| | | |┌|─|A|┘| |',
+        '| |└|─|─|─|┘| | | | |',
         '| | | | | | | | | | |',
       ].join('\n'))
       expect(factory.getMachineAt(1, 3)!.rotation).toBe('east')
@@ -180,10 +188,8 @@ describe('Factory belt edit during running simulation — item migration M10 rot
             { x: 3, z: 4 },
             { x: 4, z: 4 },
             { x: 5, z: 4 },
-            { x: 6, z: 4 },
-            { x: 7, z: 4 },
-            { x: 8, z: 4 },
-            { x: 8, z: 3 },
+            { x: 5, z: 3 },
+            { x: 6, z: 3 },
             { x: 7, z: 3 },
           ],
         },
@@ -201,8 +207,10 @@ describe('Factory belt edit during running simulation — item migration M10 rot
             { x: 3, z: 2 },
             { x: 4, z: 2 },
             { x: 5, z: 2 },
-            { x: 5, z: 3 },
-            { x: 6, z: 3 },
+            { x: 6, z: 2 },
+            { x: 7, z: 2 },
+            { x: 8, z: 2 },
+            { x: 8, z: 3 },
             { x: 7, z: 3 },
           ],
         },

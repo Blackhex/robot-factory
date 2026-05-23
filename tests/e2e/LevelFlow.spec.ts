@@ -464,11 +464,15 @@ test.describe('Level 4 — Quality Matters', () => {
     await navigateToLevel(saves, mainMenu, levelSelect, toolbar, grid, SIZE, 3)
     await grid.expectCanvasVisible()
 
-    // ===================== STEP 2: Tutorial (2 steps) ======================
+    // ===================== STEP 2: Tutorial (4 steps) ======================
     await tutorial.expectVisible(5000)
-    await tutorial.expectCounter('1 / 2')
+    await tutorial.expectCounter('1 / 4')
     await tutorial.clickNext()
-    await tutorial.expectCounter('2 / 2')
+    await tutorial.expectCounter('2 / 4')
+    await tutorial.clickNext()
+    await tutorial.expectCounter('3 / 4')
+    await tutorial.clickNext()
+    await tutorial.expectCounter('4 / 4')
     await tutorial.clickNext()
     await tutorial.expectHidden()
 
@@ -478,14 +482,14 @@ test.describe('Level 4 — Quality Matters', () => {
     expect(machines.length).toBe(1)
     expect(machines[0].type).toBe('part_fabricator')
 
-    // ===================== STEP 4: Place Checker at (7, 7) ==================
+    // ===================== STEP 4: Place Splitter at (7, 7) ================
     await grid.dblClickCell({ x: 7, z: 7 })
     machines = await probe.getMachines()
     expect(machines.length).toBe(2)
     await grid.clickCell({ x: 7, z: 7 })
     await machinePanel.expectVisible()
-    await machinePanel.selectType('quality_checker')
-    await machinePanel.expectTypeValue('quality_checker')
+    await machinePanel.selectType('splitter')
+    await machinePanel.expectTypeValue('splitter')
     await machinePanel.clickClose()
     await machinePanel.expectHidden()
 
@@ -502,19 +506,19 @@ test.describe('Level 4 — Quality Matters', () => {
 
     machines = await probe.getMachines()
     const fabricator = machines.find((m) => m.type === 'part_fabricator')
-    const qualityChecker = machines.find((m) => m.type === 'quality_checker')
+    const splitter = machines.find((m) => m.type === 'splitter')
     const factoryOutput = machines.find((m) => m.type === 'factory_output')
     expect(fabricator).toBeTruthy()
-    expect(qualityChecker).toBeTruthy()
+    expect(splitter).toBeTruthy()
     expect(factoryOutput).toBeTruthy()
 
     // ===================== STEP 6: Connect belts ============================
     const belt1 = await probe.placeBeltViaTestApi(
-      fabricator!.x, fabricator!.z, qualityChecker!.x, qualityChecker!.z,
+      fabricator!.x, fabricator!.z, splitter!.x, splitter!.z,
     )
     expect(belt1).toBe(true)
     const belt2 = await probe.placeBeltViaTestApi(
-      qualityChecker!.x, qualityChecker!.z, factoryOutput!.x, factoryOutput!.z,
+      splitter!.x, splitter!.z, factoryOutput!.x, factoryOutput!.z,
     )
     expect(belt2).toBe(true)
 
@@ -737,10 +741,10 @@ test.describe('Level 7 — Rush Order!', () => {
   // machine. Under the Phase B `unconsumable_input` game-over rule, a painter
   // in the chain would game-over on the first wheel because no painter recipe
   // exists in the production recipe registry (painter is recipe-driven but has
-  // zero defined recipes). The chain has been changed to use `quality_checker`
-  // — a pass-through machine that accepts any item type — so the full
-  // play-through (items delivered → score screen) intent is preserved.
-  test('full play-through: no tutorial → place fabricator + quality_checker + output → belts → program → simulate → score', async ({
+  // zero defined recipes). The chain uses `splitter` — a pass-through machine
+  // that accepts any item type — so the full play-through (items delivered →
+  // score screen) intent is preserved.
+  test('full play-through: no tutorial → place fabricator + splitter + output → belts → program → simulate → score', async ({
     saves, mainMenu, levelSelect, toolbar, grid, machinePanel, tutorial, editorPanel, pxt,
     hud, scoreScreen, probe,
   }) => {
@@ -759,7 +763,7 @@ test.describe('Level 7 — Rush Order!', () => {
     expect(machines.length).toBe(1)
     expect(machines[0].type).toBe('part_fabricator')
 
-    await placeAndChangeType(grid, machinePanel, { x: 9, z: 9 }, 'quality_checker')
+    await placeAndChangeType(grid, machinePanel, { x: 9, z: 9 }, 'splitter')
     machines = await probe.getMachines()
     expect(machines.length).toBe(2)
 
@@ -768,17 +772,17 @@ test.describe('Level 7 — Rush Order!', () => {
     expect(machines.length).toBe(3)
 
     const fabricator = machines.find((m) => m.type === 'part_fabricator')
-    const qualityChecker = machines.find((m) => m.type === 'quality_checker')
+    const splitter = machines.find((m) => m.type === 'splitter')
     const factoryOutput = machines.find((m) => m.type === 'factory_output')
     expect(fabricator).toBeTruthy()
-    expect(qualityChecker).toBeTruthy()
+    expect(splitter).toBeTruthy()
     expect(factoryOutput).toBeTruthy()
 
     expect(await probe.placeBeltViaTestApi(
-      fabricator!.x, fabricator!.z, qualityChecker!.x, qualityChecker!.z,
+      fabricator!.x, fabricator!.z, splitter!.x, splitter!.z,
     )).toBe(true)
     expect(await probe.placeBeltViaTestApi(
-      qualityChecker!.x, qualityChecker!.z, factoryOutput!.x, factoryOutput!.z,
+      splitter!.x, splitter!.z, factoryOutput!.x, factoryOutput!.z,
     )).toBe(true)
     expect(await probe.getBeltCount()).toBeGreaterThanOrEqual(2)
 
@@ -889,7 +893,6 @@ test.describe('Level 8 — Optimize Everything', () => {
 const ALL_MACHINE_TYPES = [
   'part_fabricator',
   'assembler',
-  'quality_checker',
   'painter',
   'recycler',
   'splitter',
@@ -1010,15 +1013,15 @@ test.describe('Level 10 — Factory Tycoon', () => {
     expect(machines.length).toBe(1)
     expect(machines[0].type).toBe('part_fabricator')
 
-    // ===================== STEP 4: Place Checker at (7, 10) =================
+    // ===================== STEP 4: Place Splitter at (7, 10) ===============
     await grid.dblClickCell({ x: 7, z: 10 })
     machines = await probe.getMachines()
     expect(machines.length).toBe(2)
 
     await grid.clickCell({ x: 7, z: 10 })
     await machinePanel.expectVisible()
-    await machinePanel.selectType('quality_checker')
-    await machinePanel.expectTypeValue('quality_checker')
+    await machinePanel.selectType('splitter')
+    await machinePanel.expectTypeValue('splitter')
     await machinePanel.clickClose()
     await machinePanel.expectHidden()
 
@@ -1058,24 +1061,24 @@ test.describe('Level 10 — Factory Tycoon', () => {
     expect(machines.length).toBe(4)
 
     const fabricator = machines.find((m) => m.type === 'part_fabricator')
-    const qualityChecker = machines.find((m) => m.type === 'quality_checker')
-    const splitter = machines.find((m) => m.type === 'splitter')
+    const splitter1 = machines.find((m) => m.type === 'splitter' && m.x === 7 && m.z === 10)
+    const splitter2 = machines.find((m) => m.type === 'splitter' && m.x === 11 && m.z === 10)
     const factoryOutput = machines.find((m) => m.type === 'factory_output')
 
     expect(fabricator).toBeTruthy()
-    expect(qualityChecker).toBeTruthy()
-    expect(splitter).toBeTruthy()
+    expect(splitter1).toBeTruthy()
+    expect(splitter2).toBeTruthy()
     expect(factoryOutput).toBeTruthy()
 
     // ===================== STEP 9: Connect belts in chain ==================
     expect(await probe.placeBeltViaTestApi(
-      fabricator!.x, fabricator!.z, qualityChecker!.x, qualityChecker!.z,
+      fabricator!.x, fabricator!.z, splitter1!.x, splitter1!.z,
     )).toBe(true)
     expect(await probe.placeBeltViaTestApi(
-      qualityChecker!.x, qualityChecker!.z, splitter!.x, splitter!.z,
+      splitter1!.x, splitter1!.z, splitter2!.x, splitter2!.z,
     )).toBe(true)
     expect(await probe.placeBeltViaTestApi(
-      splitter!.x, splitter!.z, factoryOutput!.x, factoryOutput!.z,
+      splitter2!.x, splitter2!.z, factoryOutput!.x, factoryOutput!.z,
     )).toBe(true)
 
     expect(await probe.getBeltCount()).toBeGreaterThanOrEqual(3)

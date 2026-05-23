@@ -4,7 +4,6 @@ import type { MachineType } from '../game/types'
 export const MACHINE_COLORS: Record<MachineType, number> = {
   part_fabricator: 0x4488ff,
   assembler: 0x44cc44,
-  quality_checker: 0xcccc44,
   painter: 0xcc44cc,
   recycler: 0xff8844,
   splitter: 0x44cccc,
@@ -20,7 +19,6 @@ export const GRID_COLORS = {
 export const MACHINE_ICONS: Record<MachineType, string> = {
   part_fabricator: '\u2699',  // ⚙ gear
   assembler: '\u2295',        // ⊕ circled plus
-  quality_checker: '\u2714',  // ✔ check mark
   painter: '\u25D0',          // ◐ circle with left half black
   recycler: '\u267B',         // ♻ recycling
   splitter: '\u22D4',         // ⋔ pitchfork

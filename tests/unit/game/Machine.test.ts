@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createItem, resetItemIdCounter } from '../../../src/game/Item'
 import { Machine } from '../../../src/game/Machine'
+import { ALL_OUTPUTS_CONNECTED_ENV } from '../../../src/game/MachineBehaviors'
 import { getRecipeById } from '../../../src/game/Recipe'
 import type { Recipe } from '../../../src/game/Recipe'
 
@@ -39,7 +40,7 @@ describe('Machine', () => {
       assembler.addInput(createItem('wheel_small'))
       assembler.addInput(createItem('wheel_small'))
       assembler.addInput(createItem('circuit_basic'))
-      assembler.tick() // Should start processing
+      assembler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // Should start processing
 
       // THEN
       expect(assembler.state).toBe('processing')
@@ -55,7 +56,7 @@ describe('Machine', () => {
       // WHEN
       // Only provide 1 wheel instead of 2
       assembler.addInput(createItem('wheel_small'))
-      assembler.tick()
+      assembler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN
       expect(assembler.state).toBe('idle') // Not enough inputs
@@ -72,13 +73,13 @@ describe('Machine', () => {
       // WHEN
       // First cycle: produce an item
       for (let i = 0; i < 6; i++) {
-        machine.tick()
+        machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       }
       // Output slot should have an item. Machine should try to start again.
       // It will auto-start a second cycle since it's a part_fabricator with no inputs.
       // After processing ticks, it will try to produce but output slot is full → blocked.
       for (let i = 0; i < 5; i++) {
-        machine.tick()
+        machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       }
 
       // THEN
@@ -92,7 +93,7 @@ describe('Machine', () => {
       machine.start()
       // First cycle + second cycle → blocked
       for (let i = 0; i < 11; i++) {
-        machine.tick()
+        machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       }
       expect(machine.state).toBe('blocked')
 
@@ -110,7 +111,7 @@ describe('Machine', () => {
       machine.start()
       // Get to blocked state
       for (let i = 0; i < 11; i++) {
-        machine.tick()
+        machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       }
       expect(machine.state).toBe('blocked')
 
@@ -121,12 +122,12 @@ describe('Machine', () => {
 
       // THEN
       // Tick starts a new processing cycle (5 ticks)
-      machine.tick()
+      machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       expect(machine.state).toBe('processing')
 
       // After 5 processing ticks, output should be produced
       for (let i = 0; i < 5; i++) {
-        machine.tick()
+        machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       }
       expect(machine.outputSlot).not.toBeNull()
     })
@@ -207,7 +208,7 @@ describe('Machine', () => {
       machine.start()
 
       // WHEN
-      machine.tick()
+      machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN
       expect(machine.state).toBe('processing')
@@ -220,10 +221,10 @@ describe('Machine', () => {
       machine.start()
 
       // WHEN
-      machine.tick() // idle → processing (timer = 5)
-      machine.tick() // timer = 3
-      machine.tick() // timer = 2
-      machine.tick() // timer = 1
+      machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // idle → processing (timer = 5)
+      machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // timer = 3
+      machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // timer = 2
+      machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // timer = 1
 
       // THEN
       expect(machine.state).toBe('processing')
@@ -238,7 +239,7 @@ describe('Machine', () => {
       // WHEN
       // 1 tick to start + 5 ticks processing
       for (let i = 0; i < 6; i++) {
-        machine.tick()
+        machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       }
 
       // THEN
@@ -255,7 +256,7 @@ describe('Machine', () => {
       // WHEN
       // 1 tick start + 5 ticks processing = output produced, transitions to idle
       for (let i = 0; i < 6; i++) {
-        machine.tick()
+        machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       }
 
       // THEN
@@ -272,9 +273,9 @@ describe('Machine', () => {
       machine.start()
 
       // WHEN
-      machine.tick() // start processing (timer = 8)
+      machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // start processing (timer = 8)
       for (let i = 0; i < 7; i++) {
-        machine.tick()
+        machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       }
 
       // THEN
@@ -282,7 +283,7 @@ describe('Machine', () => {
       expect(machine.state).toBe('processing')
 
       // WHEN
-      machine.tick() // timer hits 0
+      machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // timer hits 0
 
       // THEN
       expect(machine.outputSlot).not.toBeNull()
@@ -295,7 +296,7 @@ describe('Machine', () => {
       machine.setRecipe(wheelPressRecipe())
       machine.start()
       for (let i = 0; i < 6; i++) {
-        machine.tick()
+        machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       }
 
       // WHEN
@@ -356,7 +357,7 @@ describe('Machine', () => {
       const output = new Machine('out1', 'factory_output')
 
       // WHEN
-      output.tick()
+      output.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN
       expect(output.outputSlot).toBeNull()
@@ -369,7 +370,7 @@ describe('Machine', () => {
 
       // WHEN
       output.addInput(createItem('wheel_small'))
-      output.tick()
+      output.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
       // THEN
       expect(output.state).toBe('idle')
@@ -381,7 +382,7 @@ describe('Machine', () => {
 
       // WHEN
       for (let i = 0; i < 20; i++) {
-        output.tick()
+        output.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       }
 
       // THEN
@@ -399,12 +400,11 @@ describe('Machine', () => {
       expect(m.speed).toBe(1)
     })
 
-    it('clearRuntimeState() preserves speed alongside currentRecipe and qualityThreshold', () => {
-      // GIVEN — configure a machine: recipe + qualityThreshold + speed
-      const m = new Machine('m1', 'quality_checker')
+    it('clearRuntimeState() preserves speed alongside currentRecipe', () => {
+      // GIVEN — configure a machine: recipe + speed
+      const m = new Machine('m1', 'painter')
       const recipe = wheelPressRecipe()
       m.setRecipe(recipe)
-      m.qualityThreshold = 42
       // Sanity: speed is a real declared field with default 1, not a stray
       // dynamic property assignment. Without this guard, a future regression
       // that drops the field declaration could leave m.speed = undefined here
@@ -416,11 +416,10 @@ describe('Machine', () => {
       m.clearRuntimeState()
 
       // THEN — speed is configuration, not runtime state, so it must survive.
-      // currentRecipe and qualityThreshold are checked here as the canonical
-      // "preserved configuration" baseline that speed must follow.
+      // currentRecipe is checked here as the canonical "preserved configuration"
+      // baseline that speed must follow.
       expect(m.speed).toBe(5)
       expect(m.currentRecipe).toBe(recipe)
-      expect(m.qualityThreshold).toBe(42)
     })
   })
 
@@ -438,9 +437,9 @@ describe('Machine', () => {
       // WHEN — drive 3 production cycles, draining the output between cycles
       const PROCESSING_TICKS = 5
       for (let i = 0; i < 3; i++) {
-        for (let t = 0; t < PROCESSING_TICKS; t++) machine.tick()
+        for (let t = 0; t < PROCESSING_TICKS; t++) machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
         // produceOutput happens on the tick AFTER timer reaches zero
-        machine.tick()
+        machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
         machine.takeOutput()
       }
 
@@ -448,81 +447,12 @@ describe('Machine', () => {
       expect(machine.itemsProduced).toBe(3)
     })
 
-    it('increments when quality_checker routes to primary', () => {
-      // GIVEN
-      const qc = new Machine('qc1', 'quality_checker')
-      qc.start()
-      qc.qualityThreshold = 50
-      const item = createItem('wheel_small')
-      item.quality = 90 // >= threshold → primary
-      qc.addInput(item)
-
-      // WHEN
-      qc.tick() // idle → processing (timer=1)
-      qc.tick() // processing → route to primary
-
-      // THEN
-      expect(qc.outputSlot).not.toBeNull()
-      expect(qc.secondaryOutputSlot).toBeNull()
-      expect(qc.itemsProduced).toBe(1)
-    })
-
-    it('increments when quality_checker routes to secondary', () => {
-      // GIVEN
-      const qc = new Machine('qc2', 'quality_checker')
-      qc.start()
-      qc.qualityThreshold = 50
-      const item = createItem('wheel_small')
-      item.quality = 10 // < threshold → secondary
-      qc.addInput(item)
-
-      // WHEN
-      qc.tick()
-      qc.tick()
-
-      // THEN
-      expect(qc.secondaryOutputSlot).not.toBeNull()
-      expect(qc.outputSlot).toBeNull()
-      expect(qc.itemsProduced).toBe(1)
-    })
-
-    it('counts both primary and secondary routings together', () => {
-      // GIVEN
-      const qc = new Machine('qc3', 'quality_checker')
-      qc.start()
-      qc.qualityThreshold = 50
-
-      // Item 1: primary (high quality)
-      const a = createItem('wheel_small')
-      a.quality = 90
-      qc.addInput(a)
-      qc.tick(); qc.tick()
-      qc.takeOutput()
-
-      // Item 2: primary again
-      const b = createItem('wheel_small')
-      b.quality = 90
-      qc.addInput(b)
-      qc.tick(); qc.tick()
-      qc.takeOutput()
-
-      // Item 3: secondary (low quality)
-      const c = createItem('wheel_small')
-      c.quality = 10
-      qc.addInput(c)
-      qc.tick(); qc.tick()
-      qc.takeSecondaryOutput()
-
-      // THEN
-      expect(qc.itemsProduced).toBe(3)
-    })
-
     it('resets to 0 in clearRuntimeState', () => {
       // GIVEN
       const recipe = wheelPressRecipe()
       machine.setRecipe(recipe)
       machine.start()
-      for (let t = 0; t < 6; t++) machine.tick()
+      for (let t = 0; t < 6; t++) machine.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
       expect(machine.itemsProduced).toBeGreaterThan(0)
 
       // WHEN

@@ -96,25 +96,29 @@ describe('Simulation: machine_cycle_completed event', () => {
   })
 
   it('fires exactly once per cycle even when both primary and secondary outputs populate in the same tick', () => {
-    // GIVEN: synthesize a Machine that already has an empty output and we'll
-    // simulate both ports populating simultaneously. We use a quality_checker
-    // because that's the documented dual-output type, then verify a single
-    // cycle event fires per tick regardless of which port(s) populated.
+    // GIVEN: a Splitter configured to route everything to the right
+    // (secondary) port via outputSidesConfig=Right. A single cycle
+    // event must fire per tick regardless of which port(s) populated.
     const cycleEvents: SimulationEvent[] = []
     sim.on('machine_cycle_completed', (e) => cycleEvents.push(e))
 
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start()
-    sim.addMachine(qc)
-    qc.addInput(createItem('wheel_small', 50)) // fails threshold → secondary output
+    const sp = new Machine('sp1', 'splitter')
+    sp.start()
+    sim.addMachine(sp)
+    // Mark `secondary` as connected (registry write only — no real belt
+    // is registered, so `transferMachineOutputs` stays a no-op for this
+    // port and doesn't perturb the cycle-event count under test).
+    sim.setMachineOutputBelt('sp1', 'sp1_bs', 'secondary')
+    sp.outputSidesConfig = 4 // Right only
+    sp.addInput(createItem('wheel_small', 10))
 
-    // WHEN: 2 ticks to push the item through the QC.
+    // WHEN: 2 ticks to push the item through the splitter.
     tickN(sim, 2)
 
-    // THEN: one cycle event for that one inspection, regardless of which
+    // THEN: one cycle event for that one routing, regardless of which
     // port(s) the item came out of.
     expect(cycleEvents).toHaveLength(1)
-    expect(cycleEvents[0].data['machineId']).toBe('qc1')
+    expect(cycleEvents[0].data['machineId']).toBe('sp1')
   })
 
   it('does not fire while a machine is processing without finishing this tick', () => {

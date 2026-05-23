@@ -1,4 +1,5 @@
 import type { MachineType, SimulationCommand } from '../game/types'
+import type { Item } from '../game/Item'
 import { wireGameOverModal, type GameOverModalFallbackResolvers } from './wireGameOverModal'
 
 interface MachineInfoLike {
@@ -25,10 +26,14 @@ interface SimulationLike {
   on(event: 'machine_cycle_completed', listener: (event: SimulationEventLike) => void): void
   getMachine(machineId: string): { machineType?: MachineType; name?: string } | undefined
   enqueueCommands(commands: SimulationCommand[]): void
+  setItemArrivalBridge(
+    bridge: ((machineId: string, item: Item) => SimulationCommand[]) | null,
+  ): void
 }
 
 interface PxtEditorLike {
   triggerEvent(eventType: string): SimulationCommand[]
+  triggerOnItemArrives?(machineId: string, item: Item): SimulationCommand[]
 }
 
 interface CreateSimulationEffectsWireUpOptions extends GameOverModalFallbackResolvers {
@@ -65,6 +70,23 @@ export function createSimulationEffectsWireUp(
       modal: options.modal,
       resolveFallbackMachineType: options.resolveFallbackMachineType,
       resolveFallbackMachineName: options.resolveFallbackMachineName,
+    })
+
+    // New generalized item-arrival bridge (E3): when ANY machine receives
+    // an item, ask the player's `on item arrives` handler what commands
+    // (if any) to enqueue back into the simulation. Returns [] if no
+    // editor, no handler, or handler throws.
+    sim.setItemArrivalBridge((machineId, item) => {
+      const editor = options.getPxtEditor?.() ?? null
+      if (!editor || typeof editor.triggerOnItemArrives !== 'function') {
+        return []
+      }
+      try {
+        return editor.triggerOnItemArrives(machineId, item)
+      } catch {
+        // A buggy on-item-arrives handler must not crash the simulation tick loop.
+        return []
+      }
     })
 
     sim.on('machine_state_changed', (event) => {

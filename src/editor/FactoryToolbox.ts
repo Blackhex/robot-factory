@@ -21,6 +21,13 @@ function block(type: string): BlockReference {
   return { kind: 'block', type }
 }
 
+const CATEGORY_COLOURS = {
+  actions: '217',      // machine blue (#4488ff)
+  loops: '120',        // success green
+  conditionals: '#cccc44', // PXT LOGIC_HUE — matches built-in if/else, comparison, boolean blocks
+  events: '50',        // PXT standard yellow
+} as const
+
 export function getToolboxForLevel(level: number): ToolboxDefinition {
   const categories: ToolboxCategory[] = []
 
@@ -38,10 +45,14 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
       block('factory_pick_belt'),
     )
   }
+  if (level >= 4) {
+    actionBlocks.push(block('factory_route_items_to'))
+    actionBlocks.push(block('factory_route_current_item_to'))
+  }
   categories.push({
     kind: 'category',
     name: i18next.t('blocks.category_actions'),
-    colour: '217',
+    colour: CATEGORY_COLOURS.actions,
     contents: actionBlocks,
   })
 
@@ -50,7 +61,7 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
     categories.push({
       kind: 'category',
       name: i18next.t('blocks.category_loops'),
-      colour: '120',
+      colour: CATEGORY_COLOURS.loops,
       contents: [
         block('factory_repeat_times'),
         block('factory_wait'),
@@ -65,11 +76,11 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
     categories.push({
       kind: 'category',
       name: i18next.t('blocks.category_conditionals'),
-      colour: '60',
+      colour: CATEGORY_COLOURS.conditionals,
       contents: [
-        block('factory_if_quality'),
-        block('factory_if_item_type'),
         block('factory_if_else'),
+        block('factory_current_item_defective'),
+        block('factory_current_item_is'),
       ],
     })
   }
@@ -84,17 +95,24 @@ export function getToolboxForLevel(level: number): ToolboxDefinition {
   // no custom blocks are added here. The level threshold is preserved
   // so call-sites that gate on `level >= 6` semantics keep working.
 
-  // --- Events (level 7+) ---
+  // --- Events (level 4+ for on-item-arrives, level 7+ for the rest) ---
+  const eventBlocks: BlockReference[] = []
+  if (level >= 4) {
+    eventBlocks.push(block('factory_on_item_arrives'))
+  }
   if (level >= 7) {
+    eventBlocks.push(
+      block('factory_on_order_received'),
+      block('factory_on_belt_jam'),
+      block('factory_on_machine_idle'),
+    )
+  }
+  if (eventBlocks.length > 0) {
     categories.push({
       kind: 'category',
       name: i18next.t('blocks.category_events'),
-      colour: '50',
-      contents: [
-        block('factory_on_order_received'),
-        block('factory_on_belt_jam'),
-        block('factory_on_machine_idle'),
-      ],
+      colour: CATEGORY_COLOURS.events,
+      contents: eventBlocks,
     })
   }
 

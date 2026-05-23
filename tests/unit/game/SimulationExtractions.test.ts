@@ -138,7 +138,7 @@ describe('B-10 god-file split: ItemDeliveryEngine + SimulationCommandDispatcher'
       sim = new Simulation() // tickRate=10, dt=0.1
     })
 
-    it('should deliver at least one item end-to-end through fab → belt → quality_checker → belt → factory_output within 30 ticks', () => {
+    it('should deliver at least one item end-to-end through fab → belt → splitter → belt → factory_output within 30 ticks', () => {
       // GIVEN — fabricator at (0,0) producing wheel_small (5 ticks/item, default quality 80)
       const fab = new Machine('fab', 'part_fabricator')
       const recipe = getRecipeById('wheel_press_small')
@@ -153,16 +153,21 @@ describe('B-10 god-file split: ItemDeliveryEngine + SimulationCommandDispatcher'
       sim.addBelt(seg1)
       sim.setMachineOutputBelt('fab', 'seg1', 'primary')
 
-      // quality_checker at (1,0): default threshold 80, items at quality 80 → primary output
-      const qc = new Machine('qc1', 'quality_checker')
-      qc.start()
-      sim.addMachine(qc)
-      sim.setMachinePosition('qc1', 1, 0)
+      // splitter at (1,0): outputSidesConfig=Forward (bit 2) to
+      // deterministically route to primary output. (Step 1 of the
+      // splitter contract migration: routing is now driven by the
+      // persistent `outputSidesConfig` bitfield instead of the legacy
+      // per-item event-handler bridge.)
+      const sp = new Machine('sp1', 'splitter')
+      sp.outputSidesConfig = 2 // Forward only → primary
+      sp.start()
+      sim.addMachine(sp)
+      sim.setMachinePosition('sp1', 1, 0)
 
-      // belt seg2 from (1,0) → (2,0), connected as qc's primary output
+      // belt seg2 from (1,0) → (2,0), connected as sp's primary output
       const seg2 = new ConveyorBelt('seg2', 1, 0, 2, 0, 1.0)
       sim.addBelt(seg2)
-      sim.setMachineOutputBelt('qc1', 'seg2', 'primary')
+      sim.setMachineOutputBelt('sp1', 'seg2', 'primary')
 
       // factory_output at (2,0)
       const out = new Machine('out1', 'factory_output')

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createItem, resetItemIdCounter } from '../../../src/game/Item'
 import { Machine } from '../../../src/game/Machine'
+import { ALL_OUTPUTS_CONNECTED_ENV } from '../../../src/game/MachineBehaviors'
 import { ConveyorBelt } from '../../../src/game/ConveyorBelt'
 import { getRecipeById } from '../../../src/game/Recipe'
 import { Simulation } from '../../../src/game/Simulation'
@@ -804,77 +805,6 @@ describe('Simulation', () => {
     })
   })
 
-  describe('defects tracking', () => {
-    // Spec: `Simulation.defects` must increment by 1 each time a
-    // `quality_checker` machine routes an item to its `secondaryOutputSlot`
-    // (the reject branch fired when `item.quality < machine.qualityThreshold`).
-    // Splitter secondary outputs must NOT count as defects — only quality_checker.
-
-    it('should increment defects when quality_checker routes an item to secondary output', () => {
-      // GIVEN — quality_checker with threshold 50 and a low-quality item already in the input slot.
-      // We seed via `addInput` so the test is independent of belt delivery timing.
-      const qc = new Machine('qc1', 'quality_checker')
-      qc.qualityThreshold = 50
-      qc.start()
-      qc.addInput(createItem('wheel_small', 30)) // quality < threshold → secondary
-      sim.addMachine(qc)
-
-      // WHEN — quality_checker takes 1 tick to start + 1 tick to route
-      sim.tick() // idle → processing (timer=1)
-      sim.tick() // timer=0, route to secondary
-
-      // THEN — item ended up on secondary slot AND defects bumped exactly once
-      expect(qc.secondaryOutputSlot).not.toBeNull()
-      expect(qc.outputSlot).toBeNull()
-      expect(sim.defects).toBe(1)
-    })
-
-    it('should NOT increment defects when quality_checker routes to primary (passing) output', () => {
-      // GIVEN — same setup but item quality is above threshold → routes to primary
-      const qc = new Machine('qc1', 'quality_checker')
-      qc.qualityThreshold = 50
-      qc.start()
-      qc.addInput(createItem('wheel_small', 80)) // quality >= threshold → primary
-      sim.addMachine(qc)
-
-      // WHEN
-      sim.tick()
-      sim.tick()
-
-      // THEN — primary slot populated, defects untouched
-      expect(qc.outputSlot).not.toBeNull()
-      expect(qc.secondaryOutputSlot).toBeNull()
-      expect(sim.defects).toBe(0)
-    })
-
-    it('should increment defects once per rejected item (not per tick the item sits in secondary slot)', () => {
-      // GIVEN — quality_checker with threshold 50
-      const qc = new Machine('qc1', 'quality_checker')
-      qc.qualityThreshold = 50
-      qc.start()
-      sim.addMachine(qc)
-
-      // WHEN — push a low-quality item, route it, drain the secondary slot, then repeat.
-      // Manually draining stands in for a connected secondary belt; the prevSecondary
-      // bookkeeping in updateMachines is what guarantees "once per new item".
-      qc.addInput(createItem('wheel_small', 30))
-      sim.tick() // idle → processing
-      sim.tick() // route to secondary → defects should be 1 here
-      qc.takeSecondaryOutput() // drain so the next item can be routed
-
-      qc.addInput(createItem('wheel_small', 30))
-      sim.tick() // idle → processing
-      sim.tick() // route to secondary → defects should be 2 here
-
-      // Extra ticks while the item sits in the secondary slot must NOT re-bump defects.
-      sim.tick()
-      sim.tick()
-
-      // THEN — exactly 2 rejections, one per rejected item
-      expect(sim.defects).toBe(2)
-    })
-  })
-
   describe('clearInFlight()', () => {
     it('should remove all items from every belt', () => {
       // GIVEN
@@ -957,12 +887,6 @@ describe('Simulation', () => {
       sim.addMachine(m)
       const recipe = wheelPressRecipe()
       m.setRecipe(recipe)
-      const qc = new Machine('qc1', 'quality_checker')
-      qc.qualityThreshold = 42
-      sim.addMachine(qc)
-      const sp = new Machine('sp1', 'splitter')
-      sp.splitterCondition = { conditionType: 'by_item_type', itemType: 'wheel_small' }
-      sim.addMachine(sp)
 
       // WHEN
       sim.clearInFlight()
@@ -970,9 +894,6 @@ describe('Simulation', () => {
       // THEN
       expect(m.currentRecipe).not.toBeNull()
       expect(m.currentRecipe).toBe(recipe)
-      expect(qc.qualityThreshold).toBe(42)
-      expect(sp.splitterCondition).not.toBeNull()
-      expect(sp.splitterCondition!.conditionType).toBe('by_item_type')
     })
 
     it('should clear the command queue', () => {
@@ -1282,242 +1203,16 @@ describe('Integration: full pipeline', () => {
   })
 })
 
-// --- QualityChecker tests ---
-
-describe('QualityChecker', () => {
-  beforeEach(() => {
-    resetItemIdCounter()
-  })
-
-  it('should route passing item to primary output', () => {
-    // GIVEN
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start()
-    // Default threshold = 80; item quality 90 → passes
-    qc.addInput(createItem('wheel_small', 90))
-
-    // WHEN
-    qc.tick() // idle → processing (timer=1)
-    qc.tick() // timer → 0, route item
-
-    // THEN
-    expect(qc.outputSlot).not.toBeNull()
-    expect(qc.outputSlot!.quality).toBe(90)
-    expect(qc.secondaryOutputSlot).toBeNull()
-  })
-
-  it('should route failing item to secondary output', () => {
-    // GIVEN
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start()
-    // Default threshold = 80; item quality 50 → fails
-    qc.addInput(createItem('wheel_small', 50))
-
-    // WHEN
-    qc.tick() // idle → processing
-    qc.tick() // route item
-
-    // THEN
-    expect(qc.outputSlot).toBeNull()
-    expect(qc.secondaryOutputSlot).not.toBeNull()
-    expect(qc.secondaryOutputSlot!.quality).toBe(50)
-  })
-
-  it('should use configurable threshold', () => {
-    // GIVEN
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.qualityThreshold = 60 // Lower threshold
-    qc.start()
-    // Item quality 70 → passes (>= 60)
-    qc.addInput(createItem('wheel_small', 70))
-
-    // WHEN
-    qc.tick()
-    qc.tick()
-
-    // THEN
-    expect(qc.outputSlot).not.toBeNull()
-    expect(qc.outputSlot!.quality).toBe(70)
-  })
-
-  it('should process in exactly 1 tick', () => {
-    // GIVEN
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start()
-    qc.addInput(createItem('wheel_small', 90))
-
-    // WHEN
-    qc.tick() // idle → processing (timer=1)
-
-    // THEN
-    expect(qc.state).toBe('processing')
-
-    // WHEN
-    qc.tick() // timer → 0, routes item, back to idle
-
-    // THEN
-    expect(qc.state).toBe('idle')
-  })
-
-  it('should become blocked when output slot is full', () => {
-    // GIVEN
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start()
-    // Two passing items
-    qc.addInput(createItem('wheel_small', 90))
-    qc.addInput(createItem('wheel_small', 95))
-
-    // WHEN
-    qc.tick() // start processing first
-    qc.tick() // route first to primary (outputSlot occupied)
-    // Second item should start processing
-    qc.tick() // start processing second
-    qc.tick() // try to route second → outputSlot full → blocked
-
-    // THEN
-    expect(qc.state).toBe('blocked')
-    expect(qc.outputSlot).not.toBeNull()
-  })
-
-  it('should treat item at exactly the threshold as passing', () => {
-    // GIVEN
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.qualityThreshold = 80
-    qc.start()
-    qc.addInput(createItem('wheel_small', 80)) // exactly at threshold → passes
-
-    // WHEN
-    qc.tick()
-    qc.tick()
-
-    // THEN
-    expect(qc.outputSlot).not.toBeNull()
-    expect(qc.secondaryOutputSlot).toBeNull()
-  })
-})
-
 // --- Splitter tests ---
-
-describe('Splitter', () => {
-  beforeEach(() => {
-    resetItemIdCounter()
-  })
-
-  it('should route by item type — matching goes primary', () => {
-    // GIVEN
-    const sp = new Machine('sp1', 'splitter')
-    sp.splitterCondition = { conditionType: 'by_item_type', itemType: 'wheel_small' }
-    sp.start()
-    sp.addInput(createItem('wheel_small'))
-
-    // WHEN
-    sp.tick() // instant routing (0-tick)
-
-    // THEN
-    expect(sp.outputSlot).not.toBeNull()
-    expect(sp.outputSlot!.type).toBe('wheel_small')
-    expect(sp.secondaryOutputSlot).toBeNull()
-  })
-
-  it('should route by item type — non-matching goes secondary', () => {
-    // GIVEN
-    const sp = new Machine('sp1', 'splitter')
-    sp.splitterCondition = { conditionType: 'by_item_type', itemType: 'wheel_small' }
-    sp.start()
-    sp.addInput(createItem('circuit_basic'))
-
-    // WHEN
-    sp.tick()
-
-    // THEN
-    expect(sp.outputSlot).toBeNull()
-    expect(sp.secondaryOutputSlot).not.toBeNull()
-    expect(sp.secondaryOutputSlot!.type).toBe('circuit_basic')
-  })
-
-  it('should route by quality — high quality goes primary', () => {
-    // GIVEN
-    const sp = new Machine('sp1', 'splitter')
-    sp.splitterCondition = { conditionType: 'by_quality', qualityThreshold: 70 }
-    sp.start()
-    sp.addInput(createItem('wheel_small', 90))
-
-    // WHEN
-    sp.tick()
-
-    // THEN
-    expect(sp.outputSlot).not.toBeNull()
-    expect(sp.secondaryOutputSlot).toBeNull()
-  })
-
-  it('should route by quality — low quality goes secondary', () => {
-    // GIVEN
-    const sp = new Machine('sp1', 'splitter')
-    sp.splitterCondition = { conditionType: 'by_quality', qualityThreshold: 70 }
-    sp.start()
-    sp.addInput(createItem('wheel_small', 50))
-
-    // WHEN
-    sp.tick()
-
-    // THEN
-    expect(sp.outputSlot).toBeNull()
-    expect(sp.secondaryOutputSlot).not.toBeNull()
-  })
-
-  it('should alternate routing in alternating mode', () => {
-    // GIVEN
-    const sp = new Machine('sp1', 'splitter')
-    sp.splitterCondition = { conditionType: 'alternating' }
-    sp.start()
-
-    // WHEN — first item → primary (counter=1, odd → primary)
-    sp.addInput(createItem('wheel_small'))
-    sp.tick()
-
-    // THEN
-    expect(sp.outputSlot).not.toBeNull()
-    expect(sp.secondaryOutputSlot).toBeNull()
-
-    // WHEN — second item → secondary (counter=2, even → secondary)
-    sp.takeOutput()
-    sp.addInput(createItem('wheel_small'))
-    sp.tick()
-
-    // THEN
-    expect(sp.secondaryOutputSlot).not.toBeNull()
-  })
-
-  it('should route instantly with 0-tick processing', () => {
-    // GIVEN
-    const sp = new Machine('sp1', 'splitter')
-    sp.splitterCondition = { conditionType: 'by_item_type', itemType: 'wheel_small' }
-    sp.start()
-    sp.addInput(createItem('wheel_small'))
-
-    // WHEN
-    // Splitter never enters 'processing' — it routes in idle state
-    sp.tick()
-
-    // THEN
-    expect(sp.state).toBe('idle')
-    expect(sp.outputSlot).not.toBeNull()
-  })
-
-  it('should default to primary when no condition set', () => {
-    // GIVEN
-    const sp = new Machine('sp1', 'splitter')
-    sp.start()
-    sp.addInput(createItem('wheel_small'))
-
-    // WHEN
-    sp.tick()
-
-    // THEN
-    expect(sp.outputSlot).not.toBeNull()
-    expect(sp.secondaryOutputSlot).toBeNull()
-  })
-})
+//
+// The legacy `splitterCondition` static-routing surface (by_item_type /
+// by_quality / alternating) was removed in Task C; routing is now
+// driven by player-programmed `events.onItemArrives` handlers.
+// Coverage moved to:
+//   - tests/unit/game/SplitterEventHandler.test.ts        (Group A)
+//   - tests/unit/editor/BlockInterpreterSplitter.test.ts  (Group B)
+//   - tests/unit/integration/RouteItemsTo.endToEnd.test.ts (Group C)
+//   - tests/unit/game/SplitterConditionRemoval.test.ts    (Group D)
 
 // --- Recycler tests ---
 
@@ -1535,7 +1230,7 @@ describe('Recycler', () => {
     // WHEN
     // 1 tick to start + 3 ticks processing = 4 ticks
     for (let i = 0; i < 4; i++) {
-      recycler.tick()
+      recycler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
     }
 
     // THEN
@@ -1550,20 +1245,20 @@ describe('Recycler', () => {
     recycler.addInput(createItem('circuit_basic'))
 
     // WHEN
-    recycler.tick() // idle → processing (timer=3)
+    recycler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // idle → processing (timer=3)
 
     // THEN
     expect(recycler.state).toBe('processing')
 
     // WHEN
-    recycler.tick() // timer=2
-    recycler.tick() // timer=1
+    recycler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // timer=2
+    recycler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // timer=1
 
     // THEN
     expect(recycler.state).toBe('processing')
 
     // WHEN
-    recycler.tick() // timer=0 → produce, idle
+    recycler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // timer=0 → produce, idle
 
     // THEN
     expect(recycler.outputSlot).not.toBeNull()
@@ -1577,7 +1272,7 @@ describe('Recycler', () => {
     recycler.addInput(createItem('wheel_small'))
 
     // WHEN
-    recycler.tick() // consumes input, starts processing
+    recycler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // consumes input, starts processing
 
     // THEN
     expect(recycler.inputSlots).toHaveLength(0)
@@ -1592,10 +1287,10 @@ describe('Recycler', () => {
 
     // WHEN
     // Process first item (4 ticks)
-    for (let i = 0; i < 4; i++) recycler.tick()
+    for (let i = 0; i < 4; i++) recycler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
     expect(recycler.outputSlot).not.toBeNull()
     // Process second item — will finish but can't output → blocked
-    for (let i = 0; i < 4; i++) recycler.tick()
+    for (let i = 0; i < 4; i++) recycler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
 
     // THEN
     expect(recycler.state).toBe('blocked')
@@ -1603,6 +1298,14 @@ describe('Recycler', () => {
 })
 
 // --- Multi-output & new commands in Simulation ---
+//
+// Splitter routing migration (Step 1): the per-item event-handler bridge
+// has been replaced by the persistent `Machine.outputSidesConfig`
+// bitfield (Left=1 | Forward=2 | Right=4) combined with a strict
+// round-robin index (`Machine.routingCounter`). To deterministically
+// route to a single port these tests set `outputSidesConfig` to a
+// single bit before pushing an item: Forward=2 → primary, Right=4 →
+// secondary, Left=1 → tertiary.
 
 describe('Simulation: machine subtypes & commands', () => {
   let sim: Simulation
@@ -1613,24 +1316,23 @@ describe('Simulation: machine subtypes & commands', () => {
   })
 
   it('should transfer secondary output to connected belt', () => {
-    // GIVEN
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start()
-    sim.addMachine(qc)
+    // GIVEN — splitter with outputSidesConfig=Right (bit 4) routes
+    //         every item to the secondary port.
+    const sp = new Machine('sp1', 'splitter')
+    sp.outputSidesConfig = 4 // Right only → secondary
+    sp.start()
+    sim.addMachine(sp)
     const primaryBelt = new ConveyorBelt('bp', 0, 0, 1, 0)
     const secondaryBelt = new ConveyorBelt('bs', 0, 0, 0, 1)
     sim.addBelt(primaryBelt)
     sim.addBelt(secondaryBelt)
-    sim.setMachineOutputBelt('qc1', 'bp', 'primary')
-    sim.setMachineOutputBelt('qc1', 'bs', 'secondary')
-    // Add a failing item (quality 50, default threshold 80)
-    qc.addInput(createItem('wheel_small', 50))
+    sim.setMachineOutputBelt('sp1', 'bp', 'primary')
+    sim.setMachineOutputBelt('sp1', 'bs', 'secondary')
+    sp.addInput(createItem('wheel_small', 50))
 
     // WHEN
-    // tick 1: idle → processing; tick 2: route → secondary output
+    // tick 1: route to secondary; tick 2: transferMachineOutputs moves item to secondaryBelt
     tickN(sim, 2)
-    // tick 3: transferMachineOutputs moves item to secondaryBelt
-    sim.tick()
 
     // THEN
     expect(secondaryBelt.getItemCount()).toBe(1)
@@ -1638,102 +1340,37 @@ describe('Simulation: machine subtypes & commands', () => {
   })
 
   it('should transfer primary output to connected belt', () => {
-    // GIVEN
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start()
-    sim.addMachine(qc)
+    // GIVEN — splitter with outputSidesConfig=Forward (bit 2) routes
+    //         every item to the primary port.
+    const sp = new Machine('sp1', 'splitter')
+    sp.outputSidesConfig = 2 // Forward only → primary
+    sp.start()
+    sim.addMachine(sp)
     const primaryBelt = new ConveyorBelt('bp', 0, 0, 1, 0)
     sim.addBelt(primaryBelt)
-    sim.setMachineOutputBelt('qc1', 'bp', 'primary')
-    // Add a passing item (quality 90)
-    qc.addInput(createItem('wheel_small', 90))
+    sim.setMachineOutputBelt('sp1', 'bp', 'primary')
+    sp.addInput(createItem('wheel_small', 90))
 
     // WHEN
-    tickN(sim, 3)
+    tickN(sim, 2)
 
     // THEN
     expect(primaryBelt.getItemCount()).toBe(1)
   })
 
-  it('should execute SET_QUALITY_THRESHOLD command', () => {
-    // GIVEN
-    const qc = new Machine('qc1', 'quality_checker')
-    sim.addMachine(qc)
-
-    // WHEN
-    sim.enqueueCommand({
-      type: 'SET_QUALITY_THRESHOLD',
-      machineId: 'qc1',
-      threshold: 50,
-    })
-    sim.tick()
-
-    // THEN
-    expect(qc.qualityThreshold).toBe(50)
-  })
-
-  it('should ignore SET_QUALITY_THRESHOLD for non-quality_checker', () => {
-    // GIVEN
-    const m = new Machine('m1', 'part_fabricator')
-    sim.addMachine(m)
-
-    // WHEN
-    sim.enqueueCommand({
-      type: 'SET_QUALITY_THRESHOLD',
-      machineId: 'm1',
-      threshold: 50,
-    })
-    sim.tick()
-
-    // THEN
-    // Should not crash, and threshold remains default on the fabricator
-    expect(m.qualityThreshold).toBe(80)
-  })
-
-  it('should execute SET_SPLITTER_CONDITION command', () => {
-    // GIVEN
-    const sp = new Machine('sp1', 'splitter')
-    sim.addMachine(sp)
-
-    // WHEN
-    sim.enqueueCommand({
-      type: 'SET_SPLITTER_CONDITION',
-      machineId: 'sp1',
-      condition: { conditionType: 'by_item_type', itemType: 'wheel_small' },
-    })
-    sim.tick()
-
-    // THEN
-    expect(sp.splitterCondition).not.toBeNull()
-    expect(sp.splitterCondition!.conditionType).toBe('by_item_type')
-    expect(sp.splitterCondition!.itemType).toBe('wheel_small')
-  })
-
-  it('should ignore SET_SPLITTER_CONDITION for non-splitter', () => {
-    // GIVEN
-    const m = new Machine('m1', 'assembler')
-    sim.addMachine(m)
-
-    // WHEN
-    sim.enqueueCommand({
-      type: 'SET_SPLITTER_CONDITION',
-      machineId: 'm1',
-      condition: { conditionType: 'alternating' },
-    })
-    sim.tick()
-
-    // THEN
-    expect(m.splitterCondition).toBeNull()
-  })
-
   it('should emit item_produced for secondary output', () => {
-    // GIVEN
+    // GIVEN — splitter with outputSidesConfig=Right (bit 4) routes to
+    //         the secondary port.
     const events: SimulationEvent[] = []
     sim.on('item_produced', (e) => events.push(e))
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start()
-    sim.addMachine(qc)
-    qc.addInput(createItem('wheel_small', 50)) // fails threshold
+    const sp = new Machine('sp1', 'splitter')
+    sp.outputSidesConfig = 4 // Right only → secondary
+    sp.start()
+    sim.addMachine(sp)
+    const secondaryBelt = new ConveyorBelt('bs', 0, 0, 0, 1)
+    sim.addBelt(secondaryBelt)
+    sim.setMachineOutputBelt('sp1', 'bs', 'secondary')
+    sp.addInput(createItem('wheel_small', 50))
 
     // WHEN
     tickN(sim, 2)

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createItem, resetItemIdCounter } from '../../../src/game/Item'
 import { Machine } from '../../../src/game/Machine'
+import { ALL_OUTPUTS_CONNECTED_ENV } from '../../../src/game/MachineBehaviors'
 import { getRecipeById } from '../../../src/game/Recipe'
 import type { Recipe } from '../../../src/game/Recipe'
 import { Simulation } from '../../../src/game/Simulation'
@@ -57,7 +58,6 @@ describe('Machine.enabled — default value', () => {
     expect(new Machine('a', 'part_fabricator').enabled).toBe(false)
     expect(new Machine('b', 'assembler').enabled).toBe(false)
     expect(new Machine('c', 'painter').enabled).toBe(false)
-    expect(new Machine('d', 'quality_checker').enabled).toBe(false)
     expect(new Machine('e', 'splitter').enabled).toBe(false)
     expect(new Machine('f', 'recycler').enabled).toBe(false)
     expect(new Machine('g', 'factory_output').enabled).toBe(false)
@@ -153,7 +153,7 @@ describe('Machine.tick() — disabled machine never processes', () => {
 
     // WHEN — tick many more times than processingTicks
     for (let i = 0; i < DISABLED_TICK_COUNT; i++) {
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
     }
 
     // THEN — no progress whatsoever, recipe preserved
@@ -176,7 +176,7 @@ describe('Machine.tick() — disabled machine never processes', () => {
 
     // WHEN
     for (let i = 0; i < DISABLED_TICK_COUNT; i++) {
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
     }
 
     // THEN — inputs untouched, no output
@@ -203,7 +203,7 @@ describe('Machine.tick() — disabled machine never processes', () => {
 
     // WHEN
     for (let i = 0; i < DISABLED_TICK_COUNT; i++) {
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
     }
 
     // THEN
@@ -230,7 +230,7 @@ describe('Machine.tick() — enabled machine processes normally', () => {
 
     // WHEN — 1 tick to start + 5 to process = 6
     for (let i = 0; i < 6; i++) {
-      m.tick()
+      m.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
     }
 
     // THEN
@@ -425,42 +425,22 @@ describe('Simulation.clearInFlight() — disables machines', () => {
 })
 
 // =============================================================================
-// 11. Disabled quality_checker / splitter / recycler / factory_output are gated.
+// 11. Disabled splitter / recycler / factory_output are gated.
 // =============================================================================
 describe('Machine.tick() — non-default machine types respect enabled', () => {
   beforeEach(() => {
     resetItemIdCounter()
   })
 
-  it('disabled quality_checker does not move input to outputSlot', () => {
-    // GIVEN
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.qualityThreshold = 50
-    qc.addInput(createItem('wheel_small', 80))
-    expect(qc.enabled).toBe(false)
-
-    // WHEN
-    for (let i = 0; i < DISABLED_TICK_COUNT; i++) {
-      qc.tick()
-    }
-
-    // THEN — item still in input, neither output slot populated
-    expect(qc.inputSlots.length).toBe(1)
-    expect(qc.outputSlot).toBeNull()
-    expect(qc.secondaryOutputSlot).toBeNull()
-    expect(qc.state).toBe('idle')
-  })
-
   it('disabled splitter does not move input to outputSlot', () => {
     // GIVEN
     const sp = new Machine('sp1', 'splitter')
-    sp.splitterCondition = { conditionType: 'alternating' }
     sp.addInput(createItem('wheel_small'))
     expect(sp.enabled).toBe(false)
 
     // WHEN
     for (let i = 0; i < DISABLED_TICK_COUNT; i++) {
-      sp.tick()
+      sp.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
     }
 
     // THEN
@@ -478,7 +458,7 @@ describe('Machine.tick() — non-default machine types respect enabled', () => {
 
     // WHEN
     for (let i = 0; i < DISABLED_TICK_COUNT; i++) {
-      rc.tick()
+      rc.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
     }
 
     // THEN — recycler normally consumes input on entering 'processing'; gate must prevent that
@@ -501,7 +481,7 @@ describe('Machine.tick() — non-default machine types respect enabled', () => {
 
     // Tick a few times — the machine must remain inert while disabled.
     for (let i = 0; i < 5; i++) {
-      shipper.tick()
+      shipper.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
     }
 
     // THEN — nothing consumed while disabled.

@@ -12,7 +12,6 @@ import type { MachineType } from '../../../src/game/types.ts'
 const VALID_MACHINE_TYPES: MachineType[] = [
   'part_fabricator',
   'assembler',
-  'quality_checker',
   'painter',
   'recycler',
   'splitter',
@@ -258,15 +257,6 @@ describe('Level', () => {
 
       // WHEN + THEN
       expect(level.unlockedBlocks).toBeGreaterThanOrEqual(2)
-    })
-
-    it('level 4 should have quality_checker and unlock conditionals', () => {
-      // GIVEN
-      const level = getLevelByNumber(4)!
-
-      // WHEN + THEN
-      expect(level.availableMachines).toContain('quality_checker')
-      expect(level.unlockedBlocks).toBeGreaterThanOrEqual(3)
     })
 
     it('level 5 should have splitter and unlock variables', () => {

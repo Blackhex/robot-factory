@@ -97,6 +97,33 @@ function expandSlots(byQName) {
   }
 }
 
+// Force `#cccc44` (Blockly.Msg.LOGIC_HUE) onto the logic namespace AND
+// each predicate block. The compiled `byQName` is not regenerated from
+// factory.ts on every build, so these colors must be patched in to keep
+// our `currentItemIs*` predicates visually identical to PXT's built-in
+// `controls_if` / `logic_compare` blocks.
+function patchLogicColors(byQName) {
+  if (!byQName) return;
+  const LOGIC_COLOR = '#cccc44';
+  // Place `color` at the top of attributes so its serialized position
+  // stays close to the `"attributes": {` header. Downstream artifact
+  // tests scan a bounded window after the header for the color key, and
+  // would miss it if it landed after the large nested `_def` block.
+  const hoistColor = (attrs) => {
+    const { color, ...rest } = attrs;
+    return { color: LOGIC_COLOR, ...rest };
+  };
+  if (byQName['logic'] && byQName['logic'].attributes) {
+    byQName['logic'].attributes = hoistColor(byQName['logic'].attributes);
+  }
+  for (const qname of ['logic.currentItemIsDefective', 'logic.currentItemIs']) {
+    const entry = byQName[qname];
+    if (entry && entry.attributes) {
+      entry.attributes = hoistColor(entry.attributes);
+    }
+  }
+}
+
 // Patch Events category + event blocks:
 //  • Events namespace color 35 → 50 (PXT hue 50 = yellow, per convention)
 //  • Remove `handlerStatement: true` from single-handler-only event blocks
@@ -219,6 +246,101 @@ function addMachineSpeedBlock(byQName) {
   };
 }
 
+// Inject the `events.onItemArrives` event hat (Level 4 unlock).
+// Mirrors the shape of the post-patch `events.onMachineIdle` entry:
+// `machine: number` parameter with `_shadowOverrides` so PXT renders a
+// value input pre-populated with the `factory_pick_machine` reporter
+// shadow, plus `handlerStatement: true` because the second parameter
+// is the body handler. Idempotent.
+function addOnItemArrivesEvent(byQName) {
+  if (!byQName || byQName['events.onItemArrives']) return;
+  byQName['events.onItemArrives'] = {
+    kind: -3,
+    attributes: {
+      block: 'on item arrives at %machine',
+      blockId: 'factory_on_item_arrives',
+      _shadowOverrides: { machine: 'factory_pick_machine' },
+      weight: 70,
+      handlerStatement: true,
+      _def: {
+        parts: [
+          { kind: 'label', text: 'on item arrives at ', style: [] },
+          { kind: 'param', name: 'machine', shadowBlockId: 'factory_pick_machine', ref: false },
+        ],
+        parameters: [
+          { kind: 'param', name: 'machine', shadowBlockId: 'factory_pick_machine', ref: false },
+        ],
+      },
+    },
+    parameters: [
+      { name: 'machine' },
+      { name: 'handler', type: '() => void', handlerParameters: [] },
+    ],
+    pyQName: 'events.on_item_arrives',
+  };
+}
+
+// Applies all byQName patches that must run for both target.json and
+// target.js artifacts. Extracted so the two emit loops do not drift.
+function applyAllPatches(byQName) {
+  if (!byQName) return;
+
+  delete byQName['machines.producePart'];
+  delete byQName['logic.ifQuality'];
+  delete byQName['logic.ifItemType'];
+  delete byQName['factory.setSplitterCondition'];
+
+  // E4i: scrub the legacy `SplitterSide` enum + its three members. The
+  // enum was deleted from enums.d.ts; this wipe also covers any entries
+  // that may linger in an older built target.json checked in before the
+  // cleanup.
+  delete byQName['SplitterSide'];
+  delete byQName['SplitterSide.Left'];
+  delete byQName['SplitterSide.Forward'];
+  delete byQName['SplitterSide.Right'];
+
+  // E4g: scrub legacy splitters namespace + its three blocks. The
+  // namespace was deleted from factory.ts; this wipe also covers any
+  // entries that may linger from an older built target.json checked in
+  // before the cleanup.
+  delete byQName['splitters'];
+  delete byQName['splitters.routeCurrentItemTo'];
+  delete byQName['splitters.currentItemIsDefective'];
+  delete byQName['splitters.currentItemIs'];
+  // E4f: legacy event hat name removed; replaced by events.onItemArrives.
+  delete byQName['events.onItemArrivesAtSplitter'];
+
+  // Move recipes.setRecipe to machines.setRecipe
+  if (byQName['recipes.setRecipe']) {
+    const setRecipeBlock = JSON.parse(JSON.stringify(byQName['recipes.setRecipe']));
+    setRecipeBlock.attributes.weight = 80;
+    setRecipeBlock.pyQName = 'machines.set_recipe';
+    byQName['machines.setRecipe'] = setRecipeBlock;
+    delete byQName['recipes.setRecipe'];
+  }
+
+  // Remove recipes namespace entry
+  delete byQName['recipes'];
+
+  expandSlots(byQName);
+  patchPickMachineLabel(byQName);
+  overrideNamespaceWeights(byQName);
+  patchLogicColors(byQName);
+  patchEventBlocks(byQName);
+  addSimpleNumericLoopsBlock(byQName, {
+    qName: 'loops.wait', blockId: 'factory_wait', paramName: 'ms',
+    labelPrefix: 'wait', labelSuffix: 'ms',
+    defl: 1000, min: 0, max: 60000, weight: 95, pyQName: 'loops.wait',
+  });
+  addSimpleNumericLoopsBlock(byQName, {
+    qName: 'loops.waitTicks', blockId: 'factory_wait_ticks', paramName: 'ticks',
+    labelPrefix: 'wait', labelSuffix: 'ticks',
+    defl: 10, min: 0, max: 600, weight: 92, pyQName: 'loops.wait_ticks',
+  });
+  addMachineSpeedBlock(byQName);
+  addOnItemArrivesEvent(byQName);
+}
+
 // Files to update
 const files = [
   'pxt-target/built/target.json',
@@ -232,40 +354,7 @@ for (const f of files) {
   // Update embedded factory.ts source in core package
   json.bundledpkgs.core['factory.ts'] = newFactoryTs;
 
-  // Remove machines.producePart from compiled block metadata
-  const byQName = json.apiInfo['libs/core'].apis.byQName;
-  if (byQName) {
-    delete byQName['machines.producePart'];
-
-    // Move recipes.setRecipe to machines.setRecipe
-    if (byQName['recipes.setRecipe']) {
-      const setRecipeBlock = JSON.parse(JSON.stringify(byQName['recipes.setRecipe']));
-      setRecipeBlock.attributes.weight = 80;
-      setRecipeBlock.pyQName = 'machines.set_recipe';
-      byQName['machines.setRecipe'] = setRecipeBlock;
-      delete byQName['recipes.setRecipe'];
-    }
-
-    // Remove recipes namespace entry
-    delete byQName['recipes'];
-
-    expandSlots(byQName);
-    patchPickMachineLabel(byQName);
-    overrideNamespaceWeights(byQName);
-    patchEventBlocks(byQName);
-    addSimpleNumericLoopsBlock(byQName, {
-      qName: 'loops.wait', blockId: 'factory_wait', paramName: 'ms',
-      labelPrefix: 'wait', labelSuffix: 'ms',
-      defl: 1000, min: 0, max: 60000, weight: 95, pyQName: 'loops.wait',
-    });
-    addSimpleNumericLoopsBlock(byQName, {
-      qName: 'loops.waitTicks', blockId: 'factory_wait_ticks', paramName: 'ticks',
-      labelPrefix: 'wait', labelSuffix: 'ticks',
-      defl: 10, min: 0, max: 600, weight: 92, pyQName: 'loops.wait_ticks',
-    });
-    addMachineSpeedBlock(byQName);
-  }
-
+  applyAllPatches(json.apiInfo['libs/core'].apis.byQName);
   stripVariablesNs(json);
 
   fs.writeFileSync(f, JSON.stringify(json, null, 4) + '\n', 'utf8');
@@ -292,37 +381,7 @@ for (const f of jsFiles) {
   // Same changes as above
   json.bundledpkgs.core['factory.ts'] = newFactoryTs;
 
-  const byQName2 = json.apiInfo['libs/core'].apis.byQName;
-  if (byQName2) {
-    delete byQName2['machines.producePart'];
-
-    if (byQName2['recipes.setRecipe']) {
-      const setRecipeBlock = JSON.parse(JSON.stringify(byQName2['recipes.setRecipe']));
-      setRecipeBlock.attributes.weight = 80;
-      setRecipeBlock.pyQName = 'machines.set_recipe';
-      byQName2['machines.setRecipe'] = setRecipeBlock;
-      delete byQName2['recipes.setRecipe'];
-    }
-
-    delete byQName2['recipes'];
-
-    expandSlots(byQName2);
-    patchPickMachineLabel(byQName2);
-    overrideNamespaceWeights(byQName2);
-    patchEventBlocks(byQName2);
-    addSimpleNumericLoopsBlock(byQName2, {
-      qName: 'loops.wait', blockId: 'factory_wait', paramName: 'ms',
-      labelPrefix: 'wait', labelSuffix: 'ms',
-      defl: 1000, min: 0, max: 60000, weight: 95, pyQName: 'loops.wait',
-    });
-    addSimpleNumericLoopsBlock(byQName2, {
-      qName: 'loops.waitTicks', blockId: 'factory_wait_ticks', paramName: 'ticks',
-      labelPrefix: 'wait', labelSuffix: 'ticks',
-      defl: 10, min: 0, max: 600, weight: 92, pyQName: 'loops.wait_ticks',
-    });
-    addMachineSpeedBlock(byQName2);
-  }
-
+  applyAllPatches(json.apiInfo['libs/core'].apis.byQName);
   stripVariablesNs(json);
 
   fs.writeFileSync(f, match[0] + JSON.stringify(json, null, 4) + '\n', 'utf8');
@@ -392,5 +451,29 @@ function patchBuiltinCategoryWeights() {
   console.log(`Updated ${file} - patched built-in Loops/Logic weights`);
 }
 
+// Patch the bundled PXT BlocksEditor so its constructor stores the
+// freshly-created instance on `window.__rfBlocksEditor`. PxtEditor
+// uses that handle to (a) wrap `getNamespaceAttrs` so the Splitters
+// category is hidden when the current level is < 4 and (b) trigger
+// `editor.refreshToolbox()` on every level change. Idempotent.
+function patchExposeBlocksEditor() {
+  const file = 'public/pxt-editor/main.js';
+  const anchor = 'class w extends a.ToolboxEditor{constructor(e){super(e),this.isFirstBlocklyLoad=!0';
+  const desired = 'class w extends a.ToolboxEditor{constructor(e){super(e),"undefined"!=typeof window&&(window.__rfBlocksEditor=this),this.isFirstBlocklyLoad=!0';
+  let content = fs.readFileSync(file, 'utf8');
+  if (content.includes(desired)) {
+    console.log(`Skipped ${file} - BlocksEditor exposure already patched`);
+    return;
+  }
+  if (!content.includes(anchor)) {
+    console.warn(`WARNING: ${file} - BlocksEditor anchor not found; skipping window exposure patch`);
+    return;
+  }
+  content = content.replace(anchor, desired);
+  fs.writeFileSync(file, content, 'utf8');
+  console.log(`Updated ${file} - exposed BlocksEditor on window.__rfBlocksEditor`);
+}
+
 patchBuiltinFunctions();
 patchBuiltinCategoryWeights();
+patchExposeBlocksEditor();

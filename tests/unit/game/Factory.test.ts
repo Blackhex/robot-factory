@@ -721,12 +721,12 @@ describe('Factory', () => {
         { x: 0, z: 0, type: 'assembler', rotation: 'south' },
         { x: 4, z: 4, type: 'painter', rotation: 'south' },
         { x: 1, z: 0, type: 'recycler', rotation: 'south' },
-        { x: 0, z: 1, type: 'quality_checker', rotation: 'south' },
+        { x: 0, z: 1, type: 'splitter', rotation: 'south' },
       ], [])
       expectFactoryState(factory, {
         grid: { box: [0, 0, 4, 4], expected: [
             '|A|R| | | |',
-            '|Q| | | | |',
+            '|S| | | | |',
             '| | | | | |',
             '| | | | | |',
             '| | | | |P|',
@@ -754,7 +754,7 @@ describe('Factory', () => {
       expectFactoryState(factory, {
         grid: { box: [0, 0, 4, 4], expected: [
             '|A|R| | | |',
-            '|Q| | | | |',
+            '|S| | | | |',
             '| | | | | |',
             '| | | | | |',
             '| | | | |P|',
@@ -1131,12 +1131,12 @@ describe('Factory', () => {
         { x: 0, z: 0, type: 'assembler', rotation: 'south' },
         { x: 4, z: 4, type: 'painter', rotation: 'south' },
         { x: 1, z: 0, type: 'recycler', rotation: 'south' },
-        { x: 0, z: 1, type: 'quality_checker', rotation: 'south' },
+        { x: 0, z: 1, type: 'splitter', rotation: 'south' },
       ], [])
       expectFactoryState(factory, {
         grid: { box: [0, 0, 4, 4], expected: [
             '|A|R| | | |',
-            '|Q| | | | |',
+            '|S| | | | |',
             '| | | | | |',
             '| | | | | |',
             '| | | | |P|',
@@ -1159,7 +1159,7 @@ describe('Factory', () => {
       expectFactoryState(factory, {
         grid: { box: [0, 0, 4, 4], expected: [
             '|A|R| | | |',
-            '|Q| | | | |',
+            '|S| | | | |',
             '| | | | | |',
             '| | | | | |',
             '| | | | |P|',
@@ -1442,12 +1442,12 @@ describe('Factory', () => {
         belts: [
         ],
       })
-      factory.placeMachine(0, 2, 'quality_checker', 'south')
+      factory.placeMachine(0, 2, 'splitter', 'south')
       expectFactoryState(factory, {
         grid: { box: [0, 0, 9, 9], expected: [
             '|A| |R| | | | | | | |',
             '| | | | | | | | | | |',
-            '|Q| | | | | | | | | |',
+            '|S| | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | |P| | | | | |',
             '| | | | | | | | | | |',
@@ -1479,7 +1479,7 @@ describe('Factory', () => {
         grid: { box: [0, 0, 9, 9], expected: [
             '|A| |R| | | | | | | |',
             '| | | | | | | | | | |',
-            '|Q| | | | | | | | | |',
+            '|S| | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | |P| | | | | |',
             '| | | | | | | | | | |',
@@ -1564,12 +1564,12 @@ describe('Factory', () => {
         belts: [
         ],
       })
-      factory.placeMachine(0, 2, 'quality_checker', 'south')
+      factory.placeMachine(0, 2, 'splitter', 'south')
       expectFactoryState(factory, {
         grid: { box: [0, 0, 9, 9], expected: [
             '|A| |R| | | | | | | |',
             '| | | | | | | | | | |',
-            '|Q| | | | | | | | | |',
+            '|S| | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | |P| | | | | |',
             '| | | | | | | | | | |',
@@ -1605,7 +1605,7 @@ describe('Factory', () => {
         grid: { box: [0, 0, 9, 9], expected: [
             '|A| |R| | | | | | | |',
             '| | | | | | | | | | |',
-            '|Q| | | | | | | | | |',
+            '|S| | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | |P| | | | | |',
             '| | | | | | | | | | |',
@@ -3620,13 +3620,13 @@ describe('Factory', () => {
 
     it('should return machine info when placed', () => {
       // GIVEN
-      factory.placeMachine(3, 3, 'quality_checker', 'south')
+      factory.placeMachine(3, 3, 'splitter', 'south')
       expectFactoryState(factory, {
         grid: { box: [0, 0, 4, 4], expected: [
             '| | | | | |',
             '| | | | | |',
             '| | | | | |',
-            '| | | |Q| |',
+            '| | | |S| |',
             '| | | | | |',
           ].join('\n') },
         machines: [
@@ -3641,7 +3641,7 @@ describe('Factory', () => {
 
       // THEN
       expect(machine).not.toBeNull()
-      expect(machine!.type).toBe('quality_checker')
+      expect(machine!.type).toBe('splitter')
       expect(machine!.x).toBe(3)
       expect(machine!.z).toBe(3)
       expectFactoryState(factory, {
@@ -3649,7 +3649,7 @@ describe('Factory', () => {
             '| | | | | |',
             '| | | | | |',
             '| | | | | |',
-            '| | | |Q| |',
+            '| | | |S| |',
             '| | | | | |',
           ].join('\n') },
         machines: [
@@ -3848,7 +3848,7 @@ describe('Factory', () => {
 
     it('should return 1 input and 1 output for standard machine types', () => {
       // GIVEN
-      const standardTypes: MachineType[] = ['part_fabricator', 'quality_checker', 'painter', 'recycler']
+      const standardTypes: MachineType[] = ['part_fabricator', 'painter', 'recycler']
 
       // WHEN + THEN
       for (const type of standardTypes) {
@@ -9134,12 +9134,12 @@ describe('Factory', () => {
         { x: 0, z: 0, type: 'assembler', rotation: 'south' },
         { x: 4, z: 4, type: 'painter', rotation: 'south' },
         { x: 1, z: 0, type: 'recycler', rotation: 'south' },
-        { x: 0, z: 1, type: 'quality_checker', rotation: 'south' },
+        { x: 0, z: 1, type: 'splitter', rotation: 'south' },
       ], [])
       expectFactoryState(factory, {
         grid: { box: [0, 0, 4, 4], expected: [
             '|A|R| | | |',
-            '|Q| | | | |',
+            '|S| | | | |',
             '| | | | | |',
             '| | | | | |',
             '| | | | |P|',
@@ -9159,7 +9159,7 @@ describe('Factory', () => {
       expectFactoryState(factory, {
         grid: { box: [0, 0, 4, 4], expected: [
             '|A|R| | | |',
-            '|Q| | | | |',
+            '|S| | | | |',
             '| | | | | |',
             '| | | | | |',
             '| | | | |P|',
@@ -9181,7 +9181,7 @@ describe('Factory', () => {
       expectFactoryState(factory, {
         grid: { box: [0, 0, 4, 4], expected: [
             '|A|R| | | |',
-            '|Q| | | | |',
+            '|S| | | | |',
             '| | | | | |',
             '| | | | | |',
             '| | | | |P|',
@@ -9958,14 +9958,14 @@ describe('Factory', () => {
         belts: [
         ],
       })
-      factory.placeMachine(5, 4, 'quality_checker', 'south')
+      factory.placeMachine(5, 4, 'painter', 'south')
       expectFactoryState(factory, {
         grid: { box: [0, 0, 9, 9], expected: [
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | |S| | | | | | |',
-            '| | | | | |Q| | | | |',
+            '| | | | | |P| | | | |',
             '| | | | | | | | | | |',
             '| | | |A| | | | | | |',
             '| | | | | | | | | | |',
@@ -9989,7 +9989,7 @@ describe('Factory', () => {
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | |S| | | | | | |',
-            '| | | |│| |Q| | | | |',
+            '| | | |│| |P| | | | |',
             '| | | |│| | | | | | |',
             '| | | |A| | | | | | |',
             '| | | | | | | | | | |',
@@ -10018,7 +10018,7 @@ describe('Factory', () => {
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | |S|─|┐| | | | |',
-            '| | | |│| |Q| | | | |',
+            '| | | |│| |P| | | | |',
             '| | | |│| | | | | | |',
             '| | | |A| | | | | | |',
             '| | | | | | | | | | |',
@@ -10047,7 +10047,7 @@ describe('Factory', () => {
       // THEN — Both chains should have produced belts
       expect(renderGrid(factory, 3, 3, 5, 6)).toBe([
         '|S|─|┐|',
-        '|│| |Q|',
+        '|│| |P|',
         '|│| | |',
         '|A| | |',
       ].join('\n'))
@@ -10066,7 +10066,7 @@ describe('Factory', () => {
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | |S|─|┐| | | | |',
-            '| | | |│| |Q| | | | |',
+            '| | | |│| |P| | | | |',
             '| | | |│| | | | | | |',
             '| | | |A| | | | | | |',
             '| | | | | | | | | | |',
@@ -13091,7 +13091,7 @@ describe('Factory', () => {
           },
         ],
       })
-      factory.placeMachine(6, 5, 'quality_checker', 'south')
+      factory.placeMachine(6, 5, 'painter', 'south')
       expectFactoryState(factory, {
         grid: { box: [0, 0, 9, 9], expected: [
             '| | | | | | | | | | |',
@@ -13099,7 +13099,7 @@ describe('Factory', () => {
             '| | | | | | | | | | |',
             '| | | |S| | |A| | | |',
             '| | | |│| | | | | | |',
-            '| | | |R| | |Q| | | |',
+            '| | | |R| | |P| | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -13127,7 +13127,7 @@ describe('Factory', () => {
             '| | | | | | | | | | |',
             '| | | |S| | |A| | | |',
             '| | | |│| | |│| | | |',
-            '| | | |R| | |Q| | | |',
+            '| | | |R| | |P| | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -13165,7 +13165,7 @@ describe('Factory', () => {
             '| | | | | | | | | | |',
             '| | | |S|─|─|A| | | |',
             '| | | |│| | |│| | | |',
-            '| | | |R| | |Q| | | |',
+            '| | | |R| | |P| | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -13202,7 +13202,7 @@ describe('Factory', () => {
         '| | | | | | |',
         '| |S|─|─|A| |',
         '| |│| | |│| |',
-        '| |R| | |Q| |',
+        '| |R| | |P| |',
         '| | | | | | |',
       ].join('\n'))
       const belt = factory.getBelts().find(b =>
@@ -13224,7 +13224,7 @@ describe('Factory', () => {
             '| | | | | | | | | | |',
             '| | | |S|─|─|A| | | |',
             '| | | |│| | |│| | | |',
-            '| | | |R| | |Q| | | |',
+            '| | | |R| | |P| | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -16028,14 +16028,14 @@ describe('Factory', () => {
           },
         ],
       })
-      factory.placeMachine(7, 4, 'quality_checker', 'south')
+      factory.placeMachine(7, 4, 'splitter', 'south')
       expectFactoryState(factory, {
         grid: { box: [0, 0, 9, 9], expected: [
             '| | | | | | | | | | |',
             '| |A| | | | | |R| | |',
             '| |│| | | | | | | | |',
             '| |│| | | | | | | | |',
-            '| |P| | | | | |Q| | |',
+            '| |P| | | | | |S| | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -16063,7 +16063,7 @@ describe('Factory', () => {
             '| |A| | | | | |R| | |',
             '| |│| | | | | |│| | |',
             '| |│| | | | | |│| | |',
-            '| |P| | | | | |Q| | |',
+            '| |P| | | | | |S| | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -16105,7 +16105,7 @@ describe('Factory', () => {
         '| |A| | | | | |R| |',
         '| |│| | | | | |│| |',
         '| |│| | | | | |│| |',
-        '| |P| | | | | |Q| |',
+        '| |P| | | | | |S| |',
       ].join('\n'))
 
       // WHEN — Remove Machine A — only its chain should be removed
@@ -16116,7 +16116,7 @@ describe('Factory', () => {
             '| | | | | | | |R| | |',
             '| | | | | | | |│| | |',
             '| | | | | | | |│| | |',
-            '| |P| | | | | |Q| | |',
+            '| |P| | | | | |S| | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -16143,7 +16143,7 @@ describe('Factory', () => {
         '| | | | | | | |R| |',
         '| | | | | | | |│| |',
         '| | | | | | | |│| |',
-        '| |P| | | | | |Q| |',
+        '| |P| | | | | |S| |',
       ].join('\n'))
       // C→D chain must remain intact
       expectBeltSegments(factory, [
@@ -16158,7 +16158,7 @@ describe('Factory', () => {
             '| | | | | | | |R| | |',
             '| | | | | | | |│| | |',
             '| | | | | | | |│| | |',
-            '| |P| | | | | |Q| | |',
+            '| |P| | | | | |S| | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -18996,14 +18996,14 @@ describe('Factory', () => {
       const idBefore = factory.getMachineAt(4, 4)!.id
 
       // WHEN
-      factory.updateMachineType(4, 4, 'quality_checker')
+      factory.updateMachineType(4, 4, 'splitter')
       expectFactoryState(factory, {
         grid: { box: [0, 0, 9, 9], expected: [
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
-            '| | | | |Q| | | | | |',
+            '| | | | |S| | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -19022,14 +19022,14 @@ describe('Factory', () => {
       expect(machine.id).toBe(idBefore)
       expect(machine.x).toBe(4)
       expect(machine.z).toBe(4)
-      expect(machine.type).toBe('quality_checker')
+      expect(machine.type).toBe('splitter')
       expectFactoryState(factory, {
         grid: { box: [0, 0, 9, 9], expected: [
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
-            '| | | | |Q| | | | | |',
+            '| | | | |S| | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -19949,7 +19949,7 @@ describe('Factory', () => {
         { x: 5, z: 6, type: 'part_fabricator', rotation: 'south' },
         { x: 5, z: 4, type: 'painter', rotation: 'south' },
         { x: 6, z: 5, type: 'recycler', rotation: 'south' },
-        { x: 4, z: 5, type: 'quality_checker', rotation: 'south' },
+        { x: 4, z: 5, type: 'splitter', rotation: 'south' },
       ], [])
       expectFactoryState(factory, {
         grid: { box: [0, 0, 9, 9], expected: [
@@ -19958,7 +19958,7 @@ describe('Factory', () => {
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | |P| | | | |',
-            '| | | | |Q|A|R| | | |',
+            '| | | | |S|A|R| | | |',
             '| | | | | |F| | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -19983,7 +19983,7 @@ describe('Factory', () => {
       expect(renderGrid(factory, 3, 3, 7, 7)).toBe([
         '| | | | | |',
         '| | |P| | |',
-        '| |Q|A|R| |',
+        '| |S|A|R| |',
         '| | |F| | |',
         '| | | | | |',
       ].join('\n'))
@@ -19997,7 +19997,7 @@ describe('Factory', () => {
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | |P| | | | |',
-            '| | | | |Q|A|R| | | |',
+            '| | | | |S|A|R| | | |',
             '| | | | | |F| | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -20024,7 +20024,7 @@ describe('Factory', () => {
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
             '| | | | | |P| | | | |',
-            '| | | | |Q|A|R| | | |',
+            '| | | | |S|A|R| | | |',
             '| | | | | |F| | | | |',
             '| | | | | | | | | | |',
             '| | | | | | | | | | |',
@@ -21667,6 +21667,7 @@ describe('Factory', () => {
       // WHEN: drag from assembler INPUT to standalone fabricator
       // sourceSlotType='input' → assembler presents input, fabricator presents output
       // Items flow: fabricator output → belt → assembler input
+      // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
       const result = factory.placeBeltChain(assembler, standaloneFab, 'input')
       expectFactoryState(factory, {
         grid: { box: [0, 0, 14, 14], expected: [
@@ -21675,11 +21676,11 @@ describe('Factory', () => {
             '| | | | | |F| | | | | | | | | |',
             '| | | | | |│| | | | | | | | | |',
             '| | | | | |│| | | | | | | | | |',
-            '| | | | | |A|┐| | | | | | | | |',
-            '| | | | | | |│| | | | | | | | |',
-            '| | | | | | |│| | | | | | | | |',
-            '| | | | | |F|│| | | | | | | | |',
-            '| | | | | |└|┘| | | | | | | | |',
+            '| | | | |┌|A| | | | | | | | | |',
+            '| | | | |│| | | | | | | | | | |',
+            '| | | | |│| | | | | | | | | | |',
+            '| | | | |│|F| | | | | | | | | |',
+            '| | | | |└|┘| | | | | | | | | |',
             '| | | | | | | | | | | | | | | |',
             '| | | | | | | | | | | | | | | |',
             '| | | | | | | | | | | | | | | |',
@@ -21700,7 +21701,7 @@ describe('Factory', () => {
           {
             source: { x: 5, z: 8 },
             destination: { x: 5, z: 5 },
-            path: [{ x: 5, z: 8 }, { x: 5, z: 9 }, { x: 6, z: 9 }, { x: 6, z: 8 }, { x: 6, z: 7 }, { x: 6, z: 6 }, { x: 6, z: 5 }, { x: 5, z: 5 }],
+            path: [{ x: 5, z: 8 }, { x: 5, z: 9 }, { x: 4, z: 9 }, { x: 4, z: 8 }, { x: 4, z: 7 }, { x: 4, z: 6 }, { x: 4, z: 5 }, { x: 5, z: 5 }],
           },
         ],
       })
@@ -21721,11 +21722,11 @@ describe('Factory', () => {
             '| | | | | |F| | | | | | | | | |',
             '| | | | | |│| | | | | | | | | |',
             '| | | | | |│| | | | | | | | | |',
-            '| | | | | |A|┐| | | | | | | | |',
-            '| | | | | | |│| | | | | | | | |',
-            '| | | | | | |│| | | | | | | | |',
-            '| | | | | |F|│| | | | | | | | |',
-            '| | | | | |└|┘| | | | | | | | |',
+            '| | | | |┌|A| | | | | | | | | |',
+            '| | | | |│| | | | | | | | | | |',
+            '| | | | |│| | | | | | | | | | |',
+            '| | | | |│|F| | | | | | | | | |',
+            '| | | | |└|┘| | | | | | | | | |',
             '| | | | | | | | | | | | | | | |',
             '| | | | | | | | | | | | | | | |',
             '| | | | | | | | | | | | | | | |',
@@ -21746,7 +21747,7 @@ describe('Factory', () => {
           {
             source: { x: 5, z: 8 },
             destination: { x: 5, z: 5 },
-            path: [{ x: 5, z: 8 }, { x: 5, z: 9 }, { x: 6, z: 9 }, { x: 6, z: 8 }, { x: 6, z: 7 }, { x: 6, z: 6 }, { x: 6, z: 5 }, { x: 5, z: 5 }],
+            path: [{ x: 5, z: 8 }, { x: 5, z: 9 }, { x: 4, z: 9 }, { x: 4, z: 8 }, { x: 4, z: 7 }, { x: 4, z: 6 }, { x: 4, z: 5 }, { x: 5, z: 5 }],
           },
         ],
       })
@@ -24333,12 +24334,13 @@ describe('Factory', () => {
         const result = factory.computeBeltFromSlotPath({ x: 5, z: 5 }, { x: 8, z: 5 }, 'output', { targetSlotPosition: 'right' })
 
         // THEN: Path should end at shipper (8,5), and the second-to-last cell
-        // should be at (9,5) — the 'right' slot offset {x:1,z:0} from (8,5).
+        // should be at (7,5) — the 'right' slot offset {x:-1,z:0} from (8,5).
+        // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
         expect(result).not.toBeNull()
         expect(result!.collides).toBe(false)
         expect(result!.path[result!.path.length - 1]).toEqual({ x: 8, z: 5 })
         const penultimate = result!.path[result!.path.length - 2]
-        const targetSlotCell = { x: 8 + 1, z: 5 + 0 } // right slot at south rotation
+        const targetSlotCell = { x: 8 + (-1), z: 5 + 0 } // right slot at south rotation
         expect(penultimate).toEqual(targetSlotCell)
         expectFactoryState(factory, {
           grid: { box: [0, 0, 14, 14], expected: [
@@ -24434,14 +24436,15 @@ describe('Factory', () => {
         // WHEN: Compute path with targetSlotPosition='left'
         const result = factory.computeBeltFromSlotPath({ x: 8, z: 5 }, { x: 5, z: 5 }, 'output', { targetSlotPosition: 'left' })
 
-        // THEN: Path should end at assembler (5,5), second-to-last at (4,5) — the 'left' slot.
-        // Without targetSlotPosition, pathfinding might choose the 'right' slot at (6,5)
-        // since it's closer to the fabricator.
+        // THEN: Path should end at assembler (5,5), second-to-last at (6,5) — the 'left' slot.
+        // Without targetSlotPosition, pathfinding might choose the 'right' slot at (4,5)
+        // since it's farther from the fabricator.
+        // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
         expect(result).not.toBeNull()
         expect(result!.collides).toBe(false)
         expect(result!.path[result!.path.length - 1]).toEqual({ x: 5, z: 5 })
         const penultimate = result!.path[result!.path.length - 2]
-        const leftSlotCell = { x: 5 + (-1), z: 5 + 0 } // left slot at south rotation
+        const leftSlotCell = { x: 5 + 1, z: 5 + 0 } // left slot at south rotation
         expect(penultimate).toEqual(leftSlotCell)
         expectFactoryState(factory, {
           grid: { box: [0, 0, 14, 14], expected: [
@@ -24785,6 +24788,8 @@ describe('Factory', () => {
         ].join('\n'))
 
         // WHEN: Place belt with targetSlotPosition='left' — user explicitly picked the left slot.
+        // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics):
+        // 'left' at south is now +X → (9,5), so path wraps around O.
         const result = factory.placeBeltChain(fab, shipper, 'output', { targetSlotPosition: 'left' })
         expectFactoryState(factory, {
           grid: { box: [0, 0, 14, 14], expected: [
@@ -24793,8 +24798,8 @@ describe('Factory', () => {
               '| | | | | | | | | | | | | | | |',
               '| | | | | | | | | | | | | | | |',
               '| | | | | | | | | | | | | | | |',
-              '| | | | | |F|─|─|O| | | | | | |',
-              '| | | | | | | | | | | | | | | |',
+              '| | | | | |F|─|┐|O|┐| | | | | |',
+              '| | | | | | | |└|─|┘| | | | | |',
               '| | | | | | | | | | | | | | | |',
               '| | | | | | | | | | | | | | | |',
               '| | | | | | | | | | | | | | | |',
@@ -24812,7 +24817,7 @@ describe('Factory', () => {
             {
               source: { x: 5, z: 5 },
               destination: { x: 8, z: 5 },
-              path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 7, z: 5 }, { x: 8, z: 5 }],
+              path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 7, z: 5 }, { x: 7, z: 6 }, { x: 8, z: 6 }, { x: 9, z: 6 }, { x: 9, z: 5 }, { x: 8, z: 5 }],
             },
           ],
         })
@@ -24828,8 +24833,8 @@ describe('Factory', () => {
               '| | | | | | | | | | | | | | | |',
               '| | | | | | | | | | | | | | | |',
               '| | | | | | | | | | | | | | | |',
-              '| | | | | |F|─|─|O| | | | | | |',
-              '| | | | | | | | | | | | | | | |',
+              '| | | | | |F|─|┐|O|┐| | | | | |',
+              '| | | | | | | |└|─|┘| | | | | |',
               '| | | | | | | | | | | | | | | |',
               '| | | | | | | | | | | | | | | |',
               '| | | | | | | | | | | | | | | |',
@@ -24847,7 +24852,7 @@ describe('Factory', () => {
             {
               source: { x: 5, z: 5 },
               destination: { x: 8, z: 5 },
-              path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 7, z: 5 }, { x: 8, z: 5 }],
+              path: [{ x: 5, z: 5 }, { x: 6, z: 5 }, { x: 7, z: 5 }, { x: 7, z: 6 }, { x: 8, z: 6 }, { x: 9, z: 6 }, { x: 9, z: 5 }, { x: 8, z: 5 }],
             },
           ],
         })
@@ -25326,6 +25331,7 @@ describe('Factory', () => {
       // direct path (5,8)→(5,7)→(5,6)→(5,5) would enter via 'front', the
       // assembler's OUTPUT slot — wrong type — so today's colliding-fallback
       // also fails. New behavior must fall back to a free sibling input slot.
+      // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
       const result = factory.placeBeltChain(fab2, assembler, 'output', {
         targetSlotPosition: 'back',
         tryReverseSlotType: true,
@@ -25337,9 +25343,9 @@ describe('Factory', () => {
             '| | | | | |F| | | | | | | | | |',
             '| | | | | |│| | | | | | | | | |',
             '| | | | | |│| | | | | | | | | |',
-            '| | | | | |A|┐| | | | | | | | |',
-            '| | | | | | |│| | | | | | | | |',
-            '| | | | | |┌|┘| | | | | | | | |',
+            '| | | | |┌|A| | | | | | | | | |',
+            '| | | | |│| | | | | | | | | | |',
+            '| | | | |└|┐| | | | | | | | | |',
             '| | | | | |F| | | | | | | | | |',
             '| | | | | | | | | | | | | | | |',
             '| | | | | | | | | | | | | | | |',
@@ -25362,7 +25368,7 @@ describe('Factory', () => {
           {
             source: { x: 5, z: 8 },
             destination: { x: 5, z: 5 },
-            path: [{ x: 5, z: 8 }, { x: 5, z: 7 }, { x: 6, z: 7 }, { x: 6, z: 6 }, { x: 6, z: 5 }, { x: 5, z: 5 }],
+            path: [{ x: 5, z: 8 }, { x: 5, z: 7 }, { x: 4, z: 7 }, { x: 4, z: 6 }, { x: 4, z: 5 }, { x: 5, z: 5 }],
           },
         ],
       })
@@ -25394,9 +25400,9 @@ describe('Factory', () => {
             '| | | | | |F| | | | | | | | | |',
             '| | | | | |│| | | | | | | | | |',
             '| | | | | |│| | | | | | | | | |',
-            '| | | | | |A|┐| | | | | | | | |',
-            '| | | | | | |│| | | | | | | | |',
-            '| | | | | |┌|┘| | | | | | | | |',
+            '| | | | |┌|A| | | | | | | | | |',
+            '| | | | |│| | | | | | | | | | |',
+            '| | | | |└|┐| | | | | | | | | |',
             '| | | | | |F| | | | | | | | | |',
             '| | | | | | | | | | | | | | | |',
             '| | | | | | | | | | | | | | | |',
@@ -25419,7 +25425,7 @@ describe('Factory', () => {
           {
             source: { x: 5, z: 8 },
             destination: { x: 5, z: 5 },
-            path: [{ x: 5, z: 8 }, { x: 5, z: 7 }, { x: 6, z: 7 }, { x: 6, z: 6 }, { x: 6, z: 5 }, { x: 5, z: 5 }],
+            path: [{ x: 5, z: 8 }, { x: 5, z: 7 }, { x: 4, z: 7 }, { x: 4, z: 6 }, { x: 4, z: 5 }, { x: 5, z: 5 }],
           },
         ],
       })
@@ -25965,12 +25971,13 @@ describe('Factory', () => {
         // THEN: Path must be non-colliding and the source-machine endpoint
         // (path[last-1] when sourceSlotType='input', because the path runs
         // from `from`=A to `to`=B in computeSlotPathForPair) must equal A's
-        // 'right' input slot cell at (6,5), NOT 'back' at (5,4) or 'left' at (4,5).
+        // 'right' input slot cell at (4,5), NOT 'back' at (5,4) or 'left' at (6,5).
+        // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
         expect(result).not.toBeNull()
         expect(result!.collides).toBe(false)
         expect(result!.path[result!.path.length - 1]).toEqual({ x: 5, z: 5 })
         const aSideCell = result!.path[result!.path.length - 2]
-        expect(aSideCell).toEqual({ x: 6, z: 5 })
+        expect(aSideCell).toEqual({ x: 4, z: 5 })
         expectFactoryState(factory, {
           grid: { box: [0, 0, 14, 14], expected: [
               '| | | | | | | | | | | | | | | |',
@@ -26139,11 +26146,12 @@ describe('Factory', () => {
           { sourceSlotPosition: 'left' },
         )
 
-        // THEN: Path must enter A through 'left' at (4,5), not 'right' at (6,5).
+        // THEN: Path must enter A through 'left' at (6,5), not 'right' at (4,5).
+        // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics).
         expect(result).not.toBeNull()
         expect(result!.collides).toBe(false)
         expect(result!.path[result!.path.length - 1]).toEqual({ x: 5, z: 5 })
-        expect(result!.path[result!.path.length - 2]).toEqual({ x: 4, z: 5 })
+        expect(result!.path[result!.path.length - 2]).toEqual({ x: 6, z: 5 })
         expectFactoryState(factory, {
           grid: { box: [0, 0, 14, 14], expected: [
               '| | | | | | | | | | | | | | | |',
@@ -26315,6 +26323,8 @@ describe('Factory', () => {
         expect(beltsBefore).toBe(1)
 
         // WHEN: place belt B→A via A's 'right' input.
+        // Updated for input-observer L/R convention (DESIGN.md §Machine Mechanics):
+        // 'right' at south is now −X, so path enters A from west at (4,5).
         const ok = factory.placeBeltChain(
           a, b, 'input',
           { sourceSlotPosition: 'right' },
@@ -26323,10 +26333,10 @@ describe('Factory', () => {
           grid: { box: [0, 0, 14, 14], expected: [
               '| | | | | | | | | | | | | | | |',
               '| |F| | | | | | | | | | | | | |',
-              '| |└|─|─|─|─|┐| | | | | | | | |',
-              '| | | | | | |│| | | | | | | | |',
-              '| | | | | | |│| | | | | | | | |',
-              '| | | | | |A|┘| | | | | | | | |',
+              '| |│| | | | | | | | | | | | | |',
+              '| |│| | | | | | | | | | | | | |',
+              '| |│| | | | | | | | | | | | | |',
+              '| |└|─|─|─|A| | | | | | | | | |',
               '| | | | | |│| | | | | | | | | |',
               '| | | | | |F| | | | | | | | | |',
               '| | | | | | | | | | | | | | | |',
@@ -26351,7 +26361,7 @@ describe('Factory', () => {
             {
               source: { x: 1, z: 1 },
               destination: { x: 5, z: 5 },
-              path: [{ x: 1, z: 1 }, { x: 1, z: 2 }, { x: 2, z: 2 }, { x: 3, z: 2 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 6, z: 3 }, { x: 6, z: 4 }, { x: 6, z: 5 }, { x: 5, z: 5 }],
+              path: [{ x: 1, z: 1 }, { x: 1, z: 2 }, { x: 1, z: 3 }, { x: 1, z: 4 }, { x: 1, z: 5 }, { x: 2, z: 5 }, { x: 3, z: 5 }, { x: 4, z: 5 }, { x: 5, z: 5 }],
             },
           ],
         })
@@ -26365,10 +26375,10 @@ describe('Factory', () => {
         expect(newBelt, 'expected a new B→A belt to exist').toBeDefined()
         expect(newBelt!.destinationSlot).toBe('right')
 
-        // The penultimate path cell (entering A) must be A's 'right' slot at (6,5)
+        // The penultimate path cell (entering A) must be A's 'right' slot at (4,5)
         const path = newBelt!.path
         expect(path[path.length - 1]).toEqual({ x: 5, z: 5 })
-        expect(path[path.length - 2]).toEqual({ x: 6, z: 5 })
+        expect(path[path.length - 2]).toEqual({ x: 4, z: 5 })
 
         // The path must start at B's center and the second cell must be B's
         // (auto-rotated) output slot, so B's rotation is consistent with the path.
@@ -26389,10 +26399,10 @@ describe('Factory', () => {
           grid: { box: [0, 0, 14, 14], expected: [
               '| | | | | | | | | | | | | | | |',
               '| |F| | | | | | | | | | | | | |',
-              '| |└|─|─|─|─|┐| | | | | | | | |',
-              '| | | | | | |│| | | | | | | | |',
-              '| | | | | | |│| | | | | | | | |',
-              '| | | | | |A|┘| | | | | | | | |',
+              '| |│| | | | | | | | | | | | | |',
+              '| |│| | | | | | | | | | | | | |',
+              '| |│| | | | | | | | | | | | | |',
+              '| |└|─|─|─|A| | | | | | | | | |',
               '| | | | | |│| | | | | | | | | |',
               '| | | | | |F| | | | | | | | | |',
               '| | | | | | | | | | | | | | | |',
@@ -26417,7 +26427,7 @@ describe('Factory', () => {
             {
               source: { x: 1, z: 1 },
               destination: { x: 5, z: 5 },
-              path: [{ x: 1, z: 1 }, { x: 1, z: 2 }, { x: 2, z: 2 }, { x: 3, z: 2 }, { x: 4, z: 2 }, { x: 5, z: 2 }, { x: 6, z: 2 }, { x: 6, z: 3 }, { x: 6, z: 4 }, { x: 6, z: 5 }, { x: 5, z: 5 }],
+              path: [{ x: 1, z: 1 }, { x: 1, z: 2 }, { x: 1, z: 3 }, { x: 1, z: 4 }, { x: 1, z: 5 }, { x: 2, z: 5 }, { x: 3, z: 5 }, { x: 4, z: 5 }, { x: 5, z: 5 }],
             },
           ],
         })

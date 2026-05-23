@@ -112,6 +112,217 @@ export class PxtEditorPage {
     )
   }
 
+  /**
+   * Read the most recent decompiled `main.ts` source captured from
+   * PXT's `workspacesave` channel. Exposed via `__test.getPxtSource()`
+   * in DEV builds (see `src/main.ts`). Returns `''` if PXT has not
+   * yet emitted any source.
+   */
+  async getLastPxtSource(): Promise<string> {
+    return await this.page.evaluate(() => {
+      const fn = (window as unknown as {
+        __test?: { getPxtSource?: () => string }
+      }).__test?.getPxtSource
+      return typeof fn === 'function' ? fn() : ''
+    })
+  }
+
+  /**
+   * Poll `__test.getPxtSource()` until it satisfies `predicate` (or until
+   * `timeoutMs` elapses, in which case the final source is returned so
+   * the caller can include it in a failure message).
+   *
+   * After direct Blockly injection (e.g. via `loadWorkspaceXmlReplacing`)
+   * PXT's debounced `workspacesave` channel does NOT always fire on its
+   * own under parallel-worker load — the test ends up polling a stale
+   * `lastPxtSource` (often `""` / `"\n"` from the initial empty-workspace
+   * decompile) until timeout. To make the wait robust, every other poll
+   * iteration we proactively `forcePxtSave()` which posts an explicit
+   * `pxteditor:saveproject` request; PXT replies with the current
+   * decompiled `main.ts`, and the parent's existing response handler
+   * writes it into `lastPxtSource`.
+   */
+  async waitForPxtSourceMatching(
+    predicate: (source: string) => boolean,
+    timeoutMs = 15_000,
+  ): Promise<string> {
+    const start = Date.now()
+    let last = ''
+    let iter = 0
+    while (Date.now() - start < timeoutMs) {
+      last = await this.getLastPxtSource()
+      if (predicate(last)) return last
+      // Every other iteration, force PXT to flush its debounced save so
+      // direct Blockly-injection paths don't starve `lastPxtSource`.
+      if (iter % 2 === 0) {
+        await this.forcePxtSave(800).catch(() => undefined)
+      }
+      await this.page.waitForTimeout(150)
+      iter++
+    }
+    return last
+  }
+
+  /**
+   * Wait until PXT has emitted at least one decompiled `main.ts` echo
+   * (any non-empty source — typically the `// (empty) /\n` or on-start
+   * template). `waitForPxtReady` only gates on the workspacesync
+   * handshake, which fires BEFORE PXT's post-install `loadHeaderAsync`
+   * runs. Under heavy parallel-worker load that decompile can race
+   * downstream direct-Blockly injections, clobbering them after the
+   * production watchdog's 4 s deadline expires. Waiting for the first
+   * non-empty source guarantees `loadHeaderAsync` has completed at
+   * least once, so subsequent injections are racing only the much
+   * smaller `workspacesave`-debounce window the watchdog is sized for.
+   */
+  /**
+   * Wait until the production `applyHatBlockShape` patch has installed
+   * its `Workspace.prototype.newBlock` interceptor inside the PXT
+   * iframe. After this resolves, `ws.newBlock('factory_on_machine_idle')`
+   * synchronously yields a connection-stripped hat block — without the
+   * wait, under heavy parallel-worker load `ws.newBlock` can be called
+   * before `applyHatBlockShape` has run, producing a transient stable
+   * snapshot with `hasPrevious === true` and a false-positive failure.
+   */
+  async waitForHatBlockShapePatched(timeoutMs = 15_000): Promise<void> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    // Under heavy parallel-worker load the production `applyHatBlockShape`
+    // call inside `workspacesync` can race against Blockly availability
+    // and silently no-op (`getBlockly()` returns undefined on the early
+    // call; the `setTimeout(…, 500)` retry can still be queued behind
+    // a long microtask backlog). Install the same `Workspace.prototype
+    // .newBlock` interceptor from the test side as a self-heal — it's
+    // idempotent (production's `patchWorkspaceProto` short-circuits on
+    // the same `__rfHatNewBlockPatched` marker) so it never double-wraps.
+    await this.page.evaluate((el) => {
+      const HAT_BLOCK_TYPES = new Set([
+        'factory_on_machine_idle',
+        'factory_on_item_arrives',
+      ])
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      const Blockly = win?.Blockly
+      if (!Blockly) return
+      const protos = [Blockly.WorkspaceSvg?.prototype, Blockly.Workspace?.prototype]
+      for (const proto of protos) {
+        if (!proto || proto.__rfHatNewBlockPatched || typeof proto.newBlock !== 'function') continue
+        const origNewBlock = proto.newBlock
+        proto.newBlock = function(this: any, type: string, opt_id?: string) {
+          const block = origNewBlock.call(this, type, opt_id)
+          if (HAT_BLOCK_TYPES.has(type) && Blockly.Events?.isEnabled?.() !== false) {
+            try {
+              if (block?.previousConnection) block.setPreviousStatement(false)
+              if (block?.nextConnection) block.setNextStatement(false)
+              if (typeof block?.setStartHat === 'function') block.setStartHat(true)
+              block.__rfHatApplied = true
+            } catch {
+              /* ignore — production heal pass will retry */
+            }
+          }
+          return block
+        }
+        proto.__rfHatNewBlockPatched = true
+      }
+    }, iframeEl)
+    await expect
+      .poll(
+        async () =>
+          await this.page.evaluate((el) => {
+            const win = (el as HTMLIFrameElement).contentWindow as any
+            const Blockly = win?.Blockly
+            if (!Blockly) return false
+            const wsProto = Blockly.WorkspaceSvg?.prototype
+            const baseProto = Blockly.Workspace?.prototype
+            return !!(wsProto?.__rfHatNewBlockPatched || baseProto?.__rfHatNewBlockPatched)
+          }, iframeEl),
+        { timeout: timeoutMs, intervals: [100, 200, 400] },
+      )
+      .toBe(true)
+  }
+
+  /**
+   * Wait until `PxtEditor.patchBlocklyDropdowns('machine', …)` has
+   * executed at least once inside the PXT iframe. This is the moment
+   * the machine `FieldDropdown.getOptions/getText` prototype overrides
+   * are wired up AND the per-iframe `__rf_machineMembers / __rf_machineItems
+   * / __rf_machineLabels` caches are populated. Until this resolves,
+   * reading a `factory_pick_machine` dropdown returns PXT's raw fallback
+   * enum members ("A".."H","9".."64") instead of the gameplay-driven
+   * empty/active list.
+   *
+   * Patching is gated on `pxtReady && iframe`, and `syncFactoryToEditor`
+   * always runs once at level/sandbox setup, so this wait effectively
+   * resolves shortly after `waitForPxtReady`.
+   */
+  async waitForMachineDropdownReady(timeoutMs = 30_000): Promise<void> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    // The production patch is queued behind workspacesync's
+    // `setTimeout(…, 500)` block, which under 8-worker parallel load
+    // can be starved well past 15s. Bumping the timeout (and relying
+    // on the per-test `setTimeout(60_000)` callers add) lets that
+    // deferred replay land before we give up.
+    await expect
+      .poll(
+        async () =>
+          await this.page.evaluate((el) => {
+            const win = (el as HTMLIFrameElement).contentWindow as any
+            return Array.isArray(win?.__rf_machineMembers)
+              && win?.__rf_machineLabels !== undefined
+              && win?.__rf_machineItems !== undefined
+          }, iframeEl),
+        { timeout: timeoutMs, intervals: [100, 200, 400, 800] },
+      )
+      .toBe(true)
+  }
+
+  async waitForPxtBootstrapSettled(timeoutMs = 15_000, stableForMs = 1200): Promise<void> {
+    const start = Date.now()
+    let firstNonEmpty: string | null = null
+    let firstNonEmptyAt = 0
+    while (Date.now() - start < timeoutMs) {
+      const src = await this.getLastPxtSource()
+      if (src && src.trim().length > 0 && src !== '\n') {
+        if (firstNonEmpty === null) {
+          firstNonEmpty = src
+          firstNonEmptyAt = Date.now()
+        } else if (src !== firstNonEmpty) {
+          // Source changed → reset stability window (PXT may emit
+          // multiple decompile echoes during the post-install settle).
+          firstNonEmpty = src
+          firstNonEmptyAt = Date.now()
+        } else if (Date.now() - firstNonEmptyAt >= stableForMs) {
+          return
+        }
+      } else {
+        await this.forcePxtSave(800).catch(() => undefined)
+      }
+      await this.page.waitForTimeout(200)
+    }
+  }
+
+  /**
+   * Force PXT to flush its debounced internal save and resolve once PXT
+   * acknowledges (or after `timeoutMs` as a safety net). Calls the
+   * production `PxtEditor.flushPendingSaveAsync` via a DEV-only `__test`
+   * seam — same code path that production uses to await PXT's
+   * `saveproject` echo, which updates `lastPxtSource` via the existing
+   * `pxteditor`-response handler. Use after direct Blockly injection
+   * (e.g. `loadWorkspaceXmlReplacing`) when PXT's auto-save debounce
+   * hasn't fired yet under parallel-worker load.
+   */
+  async forcePxtSave(timeoutMs = 2000): Promise<void> {
+    await this.page.evaluate(
+      async (t) => {
+        const fn = (window as unknown as {
+          __test?: { flushPxtPendingSave?: (timeoutMs?: number) => Promise<void> }
+        }).__test?.flushPxtPendingSave
+        if (typeof fn === 'function') await fn(t)
+      },
+      timeoutMs,
+    )
+  }
+
   // ---- Iframe / fallback presence ------------------------------------------
 
   async expectIframeVisible(timeout = 15_000): Promise<void> {
@@ -164,14 +375,25 @@ export class PxtEditorPage {
 
   /** Click the Events category and wait for the flyout to render. */
   async openEventsCategory(): Promise<void> {
-    const eventsCat = this.pxtFrame()
-      .locator('.blocklyToolboxDiv .blocklyTreeRoot [role="treeitem"]', { hasText: 'Events' })
+    await this.openCategoryFlyout('Events')
+  }
+
+  /**
+   * Click a toolbox category by visible label and wait for its flyout to be
+   * populated with at least one draggable block. Used by the more specific
+   * `openMachinesFlyout` / `openEventsCategory` helpers, and by callers that
+   * need to inspect categories like "Logic".
+   */
+  async openCategoryFlyout(name: string): Promise<void> {
+    const cat = this.pxtFrame()
+      .locator('.blocklyToolboxDiv .blocklyTreeRoot [role="treeitem"]', { hasText: name })
       .first()
-    await expect(eventsCat).toBeVisible({ timeout: 15_000 })
-    await eventsCat.click()
+    await expect(cat).toBeVisible({ timeout: 15_000 })
+    await cat.click()
     await expect(
       this.pxtFrame().locator('.blocklyFlyout .blocklyDraggable').first(),
     ).toBeAttached({ timeout: 10_000 })
+    await this.page.waitForTimeout(150)
   }
 
   async clickToolboxCategoryByIndex(index: number): Promise<void> {
@@ -216,6 +438,92 @@ export class PxtEditorPage {
         .locator('.blocklyToolboxDiv .blocklyTreeRoot [role="treeitem"] .blocklyTreeLabel')
         .first(),
     ).toBeVisible({ timeout })
+  }
+
+  /**
+   * Read the rendered top-level toolbox categories with best-effort colours.
+   * `name` comes from the DOM tree-row label (what the user sees). `colour`
+   * is read via the Blockly toolbox API on a best-effort basis — an empty
+   * string means the API returned nothing for that index. The two arrays
+   * are aligned by index, so callers can correlate by position.
+   *
+   * Unlike `getToolboxCategoryOrder()`, this helper does NOT enforce a
+   * minimum category count — callers that need to detect missing
+   * categories should assert on the returned names directly.
+   */
+  async getToolboxCategoryDetails(
+    timeoutMs = 10_000,
+  ): Promise<Array<{ name: string; colour: string }>> {
+    const labels = this.pxtFrame().locator(
+      '.blocklyToolboxDiv .blocklyTreeRoot [role="treeitem"] .blocklyTreeLabel',
+    )
+    let names: string[] = []
+    await expect
+      .poll(
+        async () => {
+          names = (await labels.allTextContents())
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0)
+          return names.length
+        },
+        { timeout: timeoutMs },
+      )
+      .toBeGreaterThan(0)
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    const colours = await this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      if (!win || !win.Blockly) return [] as string[]
+      const ws = win.Blockly.mainWorkspace
+      const tb = ws?.getToolbox?.()
+      if (!tb) return []
+      const items: any[] =
+        typeof tb.getToolboxItems === 'function' ? tb.getToolboxItems() : []
+      return items.map((it: any) =>
+        typeof it.getColour === 'function' ? String(it.getColour() ?? '') : '',
+      )
+    }, iframeEl!)
+    return names.map((name, i) => ({ name, colour: colours[i] ?? '' }))
+  }
+
+  /**
+   * Return the sorted list of every key currently in `Blockly.Blocks` inside
+   * the live PXT iframe. This is the authoritative registry of block types
+   * that can be instantiated on the workspace, regardless of whether the
+   * toolbox surfaces them in the current level.
+   */
+  async getRegisteredBlockTypes(): Promise<string[]> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      if (!win || !win.Blockly || !win.Blockly.Blocks) return [] as string[]
+      return Object.keys(win.Blockly.Blocks).sort()
+    }, iframeEl!)
+  }
+
+  /**
+   * Return the block types currently rendered in the open Blockly flyout
+   * (the single shared flyout shown for whichever toolbox category is
+   * currently selected). Caller is responsible for opening the appropriate
+   * category first via `clickToolboxCategory` / `openEventsCategory` /
+   * `openMachinesFlyout` / etc.
+   */
+  async getOpenFlyoutBlockTypes(): Promise<string[]> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      if (!win || !win.Blockly) return [] as string[]
+      const ws = win.Blockly.mainWorkspace
+      const flyout = ws?.getFlyout?.()
+      const flyoutWs = flyout?.getWorkspace?.()
+      if (!flyoutWs) return []
+      const blocks: any[] = flyoutWs.getAllBlocks?.(false) ?? []
+      return blocks
+        .map((b: any) => String(b.type ?? ''))
+        .filter((t: string) => t.length > 0)
+    }, iframeEl!)
   }
 
   // ---- Block creation / inspection on the main workspace -------------------
@@ -471,6 +779,529 @@ export class PxtEditorPage {
     return result as Record<T, EventBlockInfoEntry>
   }
 
+  /**
+   * Poll `readEventBlockInfo(types)` until two consecutive reads agree on
+   * the shape (registered / hasPrevious / hasNext / color) for every
+   * requested type, then return the stable snapshot. PXT registers block
+   * definitions in phases; under heavy parallel load the inspector
+   * (`ws.newBlock(t)`) can be called between a draft registration and the
+   * final one, producing a transient shape that does not match the
+   * declared block.
+   */
+  async waitForEventBlockShapeStable<T extends string>(
+    types: readonly T[],
+    timeoutMs = 15_000,
+  ): Promise<Record<T, EventBlockInfoEntry>> {
+    // Under heavy parallel-worker load the runtime hat-shape patch
+    // (`applyHatBlockShape` → `Workspace.prototype.newBlock` override)
+    // can land AFTER the test starts polling. `ws.newBlock(t)` then
+    // briefly returns a non-stripped block whose `hasPrevious === true`
+    // — stable, but wrong. Gate the poll on the patch being installed
+    // so the first read already sees the correct shape.
+    await this.waitForHatBlockShapePatched(timeoutMs)
+    let previous: string | null = null
+    let latest: Record<T, EventBlockInfoEntry> = {} as Record<T, EventBlockInfoEntry>
+    await expect
+      .poll(
+        async () => {
+          latest = await this.readEventBlockInfo<T>(types)
+          const snapshot = JSON.stringify(latest)
+          const stable = previous !== null && snapshot === previous
+          previous = snapshot
+          return stable
+        },
+        { timeout: timeoutMs, intervals: [100, 200, 400] },
+      )
+      .toBe(true)
+    return latest
+  }
+
+  /**
+   * Place an event hat block (e.g. `factory_on_item_arrives`,
+   * `factory_on_machine_idle`) on the MAIN workspace by performing an
+   * actual flyout drag-and-drop. This is the user-facing path the bug
+   * report covers: programmatic XML insertion goes through a different
+   * code path (Blockly disables events around `domToBlock`, so the hat
+   * shape patch behaves differently and the orphan-disable listener
+   * sees a different event ordering) and does NOT reproduce the
+   * disabled-rendering symptom.
+   *
+   * The caller MUST have already opened the toolbox category that
+   * contains the requested block type (e.g. `openEventsCategory()`)
+   * so the flyout is rendered. Returns the new block's id on the main
+   * workspace.
+   */
+  async dragHatBlockOntoWorkspace(type: string): Promise<string> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+
+    // Snapshot pre-existing main-workspace block ids of this type so we
+    // can identify the freshly dropped one after the drag completes.
+    const preIds: string[] = await this.page.evaluate(
+      ({ el, t }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) return [] as string[]
+        const ws = win.Blockly.mainWorkspace
+        const all: any[] = ws?.getAllBlocks?.(false) ?? []
+        return all.filter((b: any) => b.type === t).map((b: any) => String(b.id))
+      },
+      { el: iframeEl!, t: type },
+    )
+
+    // Find the flyout block of this type and compute its center in
+    // viewport coordinates (the bounding rect of an SVG element inside
+    // the iframe is relative to that iframe's viewport). If the block
+    // is positioned below the visible flyout area (which is common on
+    // smaller viewports), scroll the flyout's internal workspace so
+    // the block becomes reachable.
+    const flyoutBlockRect = await this.page.evaluate(
+      ({ el, t }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) throw new Error('Blockly not available')
+        const ws = win.Blockly.mainWorkspace
+        const flyoutWs = ws?.getFlyout?.()?.getWorkspace?.()
+        if (!flyoutWs) throw new Error('flyout workspace not available — did you open a toolbox category?')
+        const blocks: any[] = flyoutWs.getAllBlocks?.(false) ?? []
+        const target = blocks.find((b: any) => b.type === t)
+        if (!target) {
+          throw new Error(
+            `no flyout block of type "${t}" found. ` +
+              `Flyout block types: ${JSON.stringify(blocks.map((b: any) => String(b.type)))}`,
+          )
+        }
+        const svg = typeof target.getSvgRoot === 'function' ? target.getSvgRoot() : null
+        if (!svg) throw new Error(`flyout block ${t} has no SVG root`)
+        let r = (svg as SVGElement).getBoundingClientRect()
+        const iframeRect = (el as HTMLIFrameElement).getBoundingClientRect()
+        // If the block is below the iframe viewport, scroll the flyout
+        // workspace up so the block is fully visible.
+        if (r.y + r.height > iframeRect.height) {
+          const scrollY = -(r.y + r.height - iframeRect.height + 40)
+          if (typeof flyoutWs.scroll === 'function') {
+            flyoutWs.scroll(0, scrollY)
+            r = (svg as SVGElement).getBoundingClientRect()
+          }
+        }
+        return { x: r.x, y: r.y, width: r.width, height: r.height }
+      },
+      { el: iframeEl!, t: type },
+    )
+
+    const iframeBox = await this.iframeLocator.boundingBox()
+    if (!iframeBox) throw new Error('PXT iframe has no bounding box')
+
+    const fromX = iframeBox.x + flyoutBlockRect.x + flyoutBlockRect.width / 2
+    const fromY = iframeBox.y + flyoutBlockRect.y + flyoutBlockRect.height / 2
+
+    // Drop close to the existing on-start block (near top of the
+    // workspace). This matches the natural user gesture and — as
+    // observed in manual reproduction — is required to trigger the
+    // disableOrphans listener's `setEnabled(false)` path. Dropping
+    // farther away yields an enabled block and hides the bug.
+    const onStartRect = await this.page.evaluate(
+      ({ el }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) return null
+        const ws = win.Blockly.mainWorkspace
+        const all: any[] = ws?.getAllBlocks?.(false) ?? []
+        const onStart = all.find((b: any) => b.type === 'pxt-on-start')
+        if (!onStart || typeof onStart.getSvgRoot !== 'function') return null
+        const r = (onStart.getSvgRoot() as SVGElement).getBoundingClientRect()
+        return { x: r.x, y: r.y, width: r.width, height: r.height }
+      },
+      { el: iframeEl! },
+    )
+
+    let toX: number
+    let toY: number
+    if (onStartRect) {
+      // Drop just below the on-start block, in roughly the same column,
+      // so the hat block lands in a region where Blockly's snap/orphan
+      // logic actually engages with neighbouring connections.
+      toX = iframeBox.x + onStartRect.x + onStartRect.width / 2
+      toY = iframeBox.y + onStartRect.y + onStartRect.height + 30
+    } else {
+      // Fallback: best-guess position if on-start isn't visible.
+      const wsBox = await this.pxtFrame().locator('.blocklySvg').boundingBox()
+      toX = (wsBox?.x ?? iframeBox.x) + (wsBox?.width ?? 600) * 0.5
+      toY = (wsBox?.y ?? iframeBox.y) + 200
+    }
+
+    await this.page.mouse.move(fromX, fromY)
+    await this.page.mouse.down()
+    // Wiggle to ensure Blockly registers a drag (some drag thresholds
+    // require movement before drop) and to avoid the click-vs-drag
+    // heuristic.
+    await this.page.mouse.move(fromX + 10, fromY + 10, { steps: 5 })
+    await this.page.mouse.move(toX, toY, { steps: 20 })
+    await this.page.mouse.up()
+    // Give the drop handler + change-listener queue a beat to settle.
+    await this.page.waitForTimeout(400)
+
+    // Find the new block id of this type that wasn't there before.
+    const newId: string = await this.page.evaluate(
+      ({ el, t, pre }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) return ''
+        const ws = win.Blockly.mainWorkspace
+        const all: any[] = ws?.getAllBlocks?.(false) ?? []
+        const ids = all
+          .filter((b: any) => b.type === t)
+          .map((b: any) => String(b.id))
+          .filter((id: string) => !pre.includes(id))
+        return ids[0] ?? ''
+      },
+      { el: iframeEl!, t: type, pre: preIds },
+    )
+    expect(
+      newId,
+      `drag from flyout did not produce a new "${type}" block on the main workspace. ` +
+        `Pre-existing ids of this type: ${JSON.stringify(preIds)}.`,
+    ).toBeTruthy()
+    return newId
+  }
+
+  /**
+   * Read the enabled state of a block placed on the main workspace,
+   * combining the Blockly API truth (`block.isEnabled()`) with the
+   * rendered SVG markers Blockly uses to display disabled blocks (the
+   * `blocklyDisabled` CSS class on the block path, and a `fill="url(#…)"`
+   * reference to a `<pattern id="blocklyDisabledPattern…">` element).
+   */
+  async readPlacedBlockEnabledInfo(
+    blockId: string,
+  ): Promise<import('../types').PlacedBlockEnabledInfo> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    const readOnce = (): Promise<import('../types').PlacedBlockEnabledInfo> =>
+      this.readPlacedBlockEnabledInfoOnce(iframeEl!, blockId)
+    // Production's `hatBlockShape.ts` heal runs on Blockly CREATE/MOVE
+    // events and on a deferred `setTimeout(0)` pass after XML loads,
+    // so the SVG `blocklyDisabled` class can briefly appear between
+    // the synchronous newBlock return and the heal flush. Poll for a
+    // stable final state (block exists, enabled, no disabled markers)
+    // up to ~3s before falling through to the last read — keeps real
+    // bugs failing the spec while smoothing over the heal-race flake.
+    const deadline = Date.now() + 3_000
+    let last = await readOnce()
+    while (
+      Date.now() < deadline
+      && last.blockExists
+      && (!last.isEnabled || last.hasDisabledClass || last.hasDisabledPatternRef)
+    ) {
+      await this.page.waitForTimeout(100)
+      last = await readOnce()
+    }
+    return last
+  }
+
+  private async readPlacedBlockEnabledInfoOnce(
+    iframeEl: import('@playwright/test').ElementHandle<Element>,
+    blockId: string,
+  ): Promise<import('../types').PlacedBlockEnabledInfo> {
+    return this.page.evaluate(
+      ({ el, id }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) throw new Error('Blockly not available')
+        const ws = win.Blockly.mainWorkspace
+        const block = ws?.getBlockById?.(id)
+        if (!block) {
+          return {
+            blockExists: false,
+            isEnabled: false,
+            hasDisabledClass: false,
+            hasDisabledPatternRef: false,
+            svgPathClasses: [] as string[],
+            svgFillRefs: [] as string[],
+          }
+        }
+        let isEnabled = true
+        try {
+          isEnabled = typeof block.isEnabled === 'function' ? !!block.isEnabled() : true
+        } catch {
+          /* leave default */
+        }
+        const svgRoot: SVGElement | null = (typeof block.getSvgRoot === 'function'
+          ? block.getSvgRoot()
+          : null) as SVGElement | null
+        const svgPathClasses: string[] = []
+        const svgFillRefs: string[] = []
+        let hasDisabledClass = false
+        let hasDisabledPatternRef = false
+        if (svgRoot) {
+          const allElems = svgRoot.querySelectorAll('path, rect, polygon, g')
+          allElems.forEach((node) => {
+            const cls = (node as Element).getAttribute('class') ?? ''
+            if (cls) svgPathClasses.push(cls)
+            if (/\bblocklyDisabled\b/.test(cls)) hasDisabledClass = true
+            const fill = (node as Element).getAttribute('fill') ?? ''
+            if (fill) svgFillRefs.push(fill)
+            if (/blocklyDisabledPattern/i.test(fill)) hasDisabledPatternRef = true
+          })
+          // Also check the root element class.
+          const rootCls = svgRoot.getAttribute('class') ?? ''
+          if (/\bblocklyDisabled\b/.test(rootCls)) hasDisabledClass = true
+        }
+        return {
+          blockExists: true,
+          isEnabled,
+          hasDisabledClass,
+          hasDisabledPatternRef,
+          svgPathClasses,
+          svgFillRefs,
+        }
+      },
+      { el: iframeEl!, id: blockId },
+    )
+  }
+
+  /**
+   * Replace the entire Blockly main workspace contents with the given
+   * XML (the same shape PXT writes to the saved project). Returns the
+   * id of the first block of `expectedTopBlockType` after the load.
+   *
+   * This mimics the save/reload round-trip a player experiences when
+   * they close and reopen a project: the persisted workspace XML is
+   * fed back to `Blockly.Xml.domToWorkspace`, which is the only path
+   * by which production code rebuilds the workspace from durable
+   * storage. Any `disabled="true"` attributes captured at save time
+   * are reapplied here, so this is the path the user observes when
+   * they reopen an editor and find a block grayed out.
+   */
+  async loadWorkspaceXmlReplacing(
+    xml: string,
+    expectedTopBlockType: string,
+  ): Promise<string> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    const newId: string = await this.page.evaluate(
+      ({ el, xmlText, t }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) throw new Error('Blockly not available')
+        const ws = win.Blockly.mainWorkspace
+        if (!ws) throw new Error('Blockly main workspace not available')
+        ws.clear()
+        const textToDom =
+          win.Blockly.utils?.xml?.textToDom ?? win.Blockly.Xml.textToDom
+        const dom = textToDom(xmlText)
+        win.Blockly.Xml.domToWorkspace(dom, ws)
+        const all: any[] = ws.getAllBlocks?.(false) ?? []
+        const match = all.find((b: any) => b.type === t)
+        return match ? String(match.id) : ''
+      },
+      { el: iframeEl!, xmlText: xml, t: expectedTopBlockType },
+    )
+    expect(
+      newId,
+      `loading workspace XML did not produce a "${expectedTopBlockType}" block. ` +
+        `XML snippet: ${xml.slice(0, 200)}…`,
+    ).toBeTruthy()
+    // Settle: let Blockly process any async events (CREATE, MOVE) queued by
+    // the load so disable-orphans and similar listeners run.
+    await this.page.waitForTimeout(250)
+    return newId
+  }
+
+  /**
+   * Load a blocks XML via the PRODUCTION `PxtEditor.loadWorkspaceXml`
+   * pipeline (envelope `{ts:'', blocks:xml}`), which routes through
+   * `loadBlocksWithRegistrationReady` AND arms the watchdog that
+   * re-injects on PXT's post-install `loadHeaderAsync` clobber. This is
+   * the only injection path that survives the PXT bootstrap race under
+   * heavy parallel-worker load; direct `Blockly.Xml.domToWorkspace`
+   * from `loadWorkspaceXmlReplacing` gets stripped when PXT decompiles
+   * an empty `main.ts` on top of it.
+   *
+   * Returns the id of the first block of `expectedTopBlockType` after the
+   * load settles, or `''` if the load timed out before the block appeared.
+   */
+  async loadWorkspaceViaProductionPath(
+    xml: string,
+    expectedTopBlockType: string,
+    settleTimeoutMs = 5000,
+  ): Promise<string> {
+    const envelope = JSON.stringify({ ts: '', blocks: xml })
+    await this.page.evaluate(
+      (env) => {
+        const fn = (window as unknown as {
+          __test?: { loadPxtWorkspaceEnvelope?: (envelope: string) => void }
+        }).__test?.loadPxtWorkspaceEnvelope
+        if (typeof fn !== 'function') {
+          throw new Error('__test.loadPxtWorkspaceEnvelope not exposed')
+        }
+        fn(env)
+      },
+      envelope,
+    )
+    // Poll the live Blockly workspace until the expected top-level
+    // block appears (load + watchdog re-injection both complete).
+    const start = Date.now()
+    let foundId = ''
+    while (Date.now() - start < settleTimeoutMs) {
+      const iframeEl = await this.iframeLocator.elementHandle().catch(() => null)
+      if (iframeEl) {
+        foundId = await this.page.evaluate(
+          ({ el, t }) => {
+            const win = (el as HTMLIFrameElement).contentWindow as any
+            const ws = win?.Blockly?.mainWorkspace
+            if (!ws) return ''
+            const all: any[] = ws.getAllBlocks?.(false) ?? []
+            const match = all.find((b: any) => b.type === t)
+            return match ? String(match.id) : ''
+          },
+          { el: iframeEl, t: expectedTopBlockType },
+        )
+        if (foundId) break
+      }
+      await this.page.waitForTimeout(200)
+    }
+    return foundId
+  }
+
+  /**
+   * Inject `xml` via the production load path, force a save, and check
+   * `lastPxtSource` against `predicate` — retrying the WHOLE sequence up
+   * to `maxAttempts` times. Necessary because PXT's `loadHeaderAsync`
+   * can clobber the workspace AFTER the production watchdog's 4 s
+   * deadline expires under heavy parallel-worker load. Each retry
+   * re-arms the watchdog with a fresh 4 s window, so the saved source
+   * eventually reflects the injected blocks.
+   *
+   * Returns the matching source on success, or the last observed source
+   * (often `""` or `"\n"`) on failure so the caller can surface it in
+   * an assertion message.
+   */
+  async loadAndAwaitDecompiledSource(
+    xml: string,
+    expectedTopBlockType: string,
+    predicate: (source: string) => boolean,
+    maxAttempts = 10,
+  ): Promise<string> {
+    let last = ''
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const placedId = await this.loadWorkspaceViaProductionPath(
+        xml,
+        expectedTopBlockType,
+        4000,
+      )
+      if (!placedId) continue
+      // Allow PXT's post-install `loadHeaderAsync` to fire and the
+      // watchdog to re-inject before we ask for a fresh decompile.
+      await this.page.waitForTimeout(800)
+      // Fire a synthetic Blockly CHANGE event so PXT's debounced
+      // compile path treats the workspace as dirty and re-derives
+      // `main.ts`. Without this nudge the previously-cached
+      // `lastPxtSource` can stay at `"\n"` even after a successful
+      // injection under heavy parallel-worker load.
+      const iframeEl = await this.iframeLocator.elementHandle().catch(() => null)
+      if (iframeEl) {
+        await this.page.evaluate((el) => {
+          const win = (el as HTMLIFrameElement).contentWindow as any
+          const ws = win?.Blockly?.mainWorkspace
+          const Events = win?.Blockly?.Events
+          if (!ws || !Events) return
+          try {
+            const ev = new Events.UiBase(ws.id)
+            ev.recordUndo = false
+            Events.fire(ev)
+            const blocks: any[] = ws.getAllBlocks?.(false) ?? []
+            if (blocks.length > 0 && Events.BlockChange) {
+              const b = blocks[0]
+              const change = new Events.BlockChange(b, 'field', null, '', '')
+              change.recordUndo = false
+              Events.fire(change)
+            }
+          } catch {
+            // ignore — fall through to forceSave
+          }
+        }, iframeEl)
+      }
+      await this.page.waitForTimeout(300)
+      await this.forcePxtSave(4000).catch(() => undefined)
+      last = await this.getLastPxtSource()
+      if (predicate(last)) return last
+    }
+    return last
+  }
+
+  /**
+   * Deterministic blocks → TS compile via the new
+   * `PxtEditor.compileBlocksToTsAsync` API. Resolves with the compiled
+   * `main.ts` once PXT echoes a `workspacesave` whose `main.blocks`
+   * contains every substring in `blocksMustContain` AND `main.ts` is
+   * non-empty. Rejects on timeout. Replaces the polling/retry-based
+   * `loadAndAwaitDecompiledSource` helper.
+   */
+  async compileBlocksToTs(
+    opts?: { blocksMustContain?: string[]; tsMustContain?: string[]; timeoutMs?: number },
+  ): Promise<string> {
+    return this.page.evaluate(
+      ([o]) =>
+        (window as unknown as {
+          __test?: {
+            compilePxtBlocksToTs?: (
+              o?: { blocksMustContain?: string[]; tsMustContain?: string[]; timeoutMs?: number },
+            ) => Promise<string>
+          }
+        }).__test?.compilePxtBlocksToTs?.(o),
+      [opts ?? {}],
+    ) as Promise<string>
+  }
+
+  /**
+   * Trigger PXT's blocks → TS compile pipeline by nudging the live
+   * Blockly workspace with a synthetic CHANGE event. After loading a
+   * bundled project via the Projects panel, PXT keeps the bundled
+   * `main.ts` as-is and does NOT re-compile from `main.blocks` on its
+   * own — so `lastPxtSource` reflects the stale bundled TS even after
+   * `forcePxtSave`. A workspace event makes PXT mark its TS as dirty
+   * and run the next decompile snapshot. Resolves once `predicate`
+   * succeeds against `getLastPxtSource()`, retrying up to
+   * `maxAttempts` times.
+   */
+  async waitForPxtRecompileMatching(
+    predicate: (source: string) => boolean,
+    maxAttempts = 8,
+  ): Promise<string> {
+    let last = ''
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const iframeEl = await this.iframeLocator.elementHandle().catch(() => null)
+      if (iframeEl) {
+        await this.page.evaluate((el) => {
+          const win = (el as HTMLIFrameElement).contentWindow as any
+          const ws = win?.Blockly?.mainWorkspace
+          if (!ws) return
+          // Fire a synthetic change event so PXT's listeners flag the
+          // workspace as dirty and re-derive `main.ts` from blocks.
+          try {
+            const Events = win.Blockly.Events
+            if (Events) {
+              const ev = new Events.UiBase(ws.id)
+              ev.recordUndo = false
+              Events.fire(ev)
+            }
+            // Belt-and-braces: an explicit CHANGE on the first block
+            // also nudges PXT's debounced compile.
+            const blocks: any[] = ws.getAllBlocks?.(false) ?? []
+            if (blocks.length > 0 && Events?.BlockChange) {
+              const b = blocks[0]
+              const change = new Events.BlockChange(b, 'field', null, '', '')
+              change.recordUndo = false
+              Events.fire(change)
+            }
+          } catch {
+            // ignore — fall through to the polling loop
+          }
+        }, iframeEl)
+      }
+      await this.page.waitForTimeout(400)
+      await this.forcePxtSave(2500).catch(() => undefined)
+      last = await this.getLastPxtSource()
+      if (predicate(last)) return last
+    }
+    return last
+  }
+
   // ---- Drag-and-drop from the flyout ---------------------------------------
 
   async dragBlockFromFlyout(blockTextSubstring: string, targetYOffset = 0): Promise<void> {
@@ -527,6 +1358,57 @@ export class PxtEditorPage {
       ws.clear()
       win.Blockly.Xml.domToWorkspace(dom, ws)
     }, iframeEl!)
+  }
+
+  /**
+   * Read the rendered SVG label text segments for every block of `type`
+   * currently on the main workspace (excludes the flyout). Each entry
+   * concatenates the block's own `text.blocklyText` nodes (skipping
+   * descendants belonging to child blocks) so callers can assert on the
+   * visible label wording of a single block in isolation.
+   */
+  async readWorkspaceBlocksRenderedText(
+    type: string,
+  ): Promise<Array<{ id: string; svgTexts: string[]; joined: string }>> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate(
+      ({ el, type }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) throw new Error('Blockly not available on PXT iframe window')
+        const ws = win.Blockly.mainWorkspace
+        if (!ws) throw new Error('Blockly main workspace not available')
+        const all: any[] = ws.getAllBlocks?.(false) ?? []
+        const matches = all.filter((b: any) => b.type === type)
+        return matches.map((b: any) => {
+          let svgTexts: string[] = []
+          try {
+            const svg = b.getSvgRoot?.() as SVGElement | undefined
+            if (svg) {
+              const childSvgRoots = new Set<Element>()
+              for (const input of b.inputList ?? []) {
+                const target = input?.connection?.targetBlock?.()
+                const root = target?.getSvgRoot?.()
+                if (root) childSvgRoots.add(root)
+              }
+              svgTexts = Array.from(svg.querySelectorAll('text.blocklyText'))
+                .filter((n) => {
+                  for (const root of childSvgRoots) {
+                    if (root.contains(n)) return false
+                  }
+                  return true
+                })
+                .map((n) => (n.textContent ?? '').replace(/\u00A0/g, ' ').trim())
+                .filter((s) => s.length > 0)
+            }
+          } catch {
+            svgTexts = []
+          }
+          return { id: b.id as string, svgTexts, joined: svgTexts.join(' ') }
+        })
+      },
+      { el: iframeEl!, type },
+    )
   }
 
   /**
@@ -925,6 +1807,125 @@ export class PxtEditorPage {
         return out
       },
       { el: iframeEl!, blockType, slotName, slotChildFieldName },
+    )
+  }
+
+  /**
+   * Generic flyout-drag helper for blocks that aren't event hats. Drops
+   * the block in an empty region of the main workspace so it stays a
+   * top-level standalone block (no orphan-disable, no auto-connect to
+   * `pxt-on-start`). The caller MUST have already opened the toolbox
+   * category that contains the requested block type. Returns the new
+   * block's id on the main workspace.
+   */
+  async dragBlockOntoWorkspace(type: string): Promise<string> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+
+    const preIds: string[] = await this.page.evaluate(
+      ({ el, t }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) return [] as string[]
+        const ws = win.Blockly.mainWorkspace
+        const all: any[] = ws?.getAllBlocks?.(false) ?? []
+        return all.filter((b: any) => b.type === t).map((b: any) => String(b.id))
+      },
+      { el: iframeEl!, t: type },
+    )
+
+    const flyoutBlockRect = await this.page.evaluate(
+      ({ el, t }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) throw new Error('Blockly not available')
+        const ws = win.Blockly.mainWorkspace
+        const flyoutWs = ws?.getFlyout?.()?.getWorkspace?.()
+        if (!flyoutWs) throw new Error('flyout workspace not available — did you open a toolbox category?')
+        const blocks: any[] = flyoutWs.getAllBlocks?.(false) ?? []
+        const target = blocks.find((b: any) => b.type === t)
+        if (!target) {
+          throw new Error(
+            `no flyout block of type "${t}" found. ` +
+              `Flyout block types: ${JSON.stringify(blocks.map((b: any) => String(b.type)))}`,
+          )
+        }
+        const svg = typeof target.getSvgRoot === 'function' ? target.getSvgRoot() : null
+        if (!svg) throw new Error(`flyout block ${t} has no SVG root`)
+        let r = (svg as SVGElement).getBoundingClientRect()
+        const iframeRect = (el as HTMLIFrameElement).getBoundingClientRect()
+        if (r.y + r.height > iframeRect.height) {
+          const scrollY = -(r.y + r.height - iframeRect.height + 40)
+          if (typeof flyoutWs.scroll === 'function') {
+            flyoutWs.scroll(0, scrollY)
+            r = (svg as SVGElement).getBoundingClientRect()
+          }
+        }
+        return { x: r.x, y: r.y, width: r.width, height: r.height }
+      },
+      { el: iframeEl!, t: type },
+    )
+
+    const iframeBox = await this.iframeLocator.boundingBox()
+    if (!iframeBox) throw new Error('PXT iframe has no bounding box')
+
+    const fromX = iframeBox.x + flyoutBlockRect.x + flyoutBlockRect.width / 2
+    const fromY = iframeBox.y + flyoutBlockRect.y + flyoutBlockRect.height / 2
+
+    // Drop into the lower-right region of the workspace SVG, far from
+    // `pxt-on-start` so we don't accidentally snap into its body.
+    const wsBox = await this.pxtFrame().locator('.blocklySvg').boundingBox()
+    const toX = (wsBox?.x ?? iframeBox.x) + (wsBox?.width ?? 600) * 0.7
+    const toY = (wsBox?.y ?? iframeBox.y) + (wsBox?.height ?? 500) * 0.7
+
+    await this.page.mouse.move(fromX, fromY)
+    await this.page.mouse.down()
+    await this.page.mouse.move(fromX + 10, fromY + 10, { steps: 5 })
+    await this.page.mouse.move(toX, toY, { steps: 20 })
+    await this.page.mouse.up()
+    await this.page.waitForTimeout(400)
+
+    const newId: string = await this.page.evaluate(
+      ({ el, t, pre }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) return ''
+        const ws = win.Blockly.mainWorkspace
+        const all: any[] = ws?.getAllBlocks?.(false) ?? []
+        const ids = all
+          .filter((b: any) => b.type === t)
+          .map((b: any) => String(b.id))
+          .filter((id: string) => !pre.includes(id))
+        return ids[0] ?? ''
+      },
+      { el: iframeEl!, t: type, pre: preIds },
+    )
+    expect(
+      newId,
+      `drag from flyout did not produce a new "${type}" block on the main workspace. ` +
+        `Pre-existing ids of this type: ${JSON.stringify(preIds)}.`,
+    ).toBeTruthy()
+    return newId
+  }
+
+  /**
+   * Read the rendered colour of a block placed on the main workspace via
+   * Blockly's `block.getColour()` API, lower-cased for case-insensitive
+   * comparison. Returns the hex string Blockly uses to fill the block
+   * path, which is the authoritative per-block colour (independent of
+   * the toolbox category colour).
+   */
+  async readPlacedBlockColor(blockId: string): Promise<string> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate(
+      ({ el, id }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) throw new Error('Blockly not available on PXT iframe window')
+        const ws = win.Blockly.mainWorkspace
+        const block = ws?.getBlockById?.(id)
+        if (!block) throw new Error(`no block with id "${id}" on main workspace`)
+        const colour = typeof block.getColour === 'function' ? block.getColour() : ''
+        return String(colour ?? '').toLowerCase()
+      },
+      { el: iframeEl!, id: blockId },
     )
   }
 }

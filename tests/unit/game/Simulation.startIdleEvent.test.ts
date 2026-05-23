@@ -47,18 +47,18 @@ describe('Simulation: synthetic machine_cycle_completed for stuck-idle freshly-s
     expect(m.enabled).toBe(true)
   })
 
-  it('emits even without a recipe set (a quality_checker / splitter / recycler started with no inputs)', () => {
+  it('emits even without a recipe set (a splitter / recycler started with no inputs)', () => {
     const cycleEvents: SimulationEvent[] = []
     sim.on('machine_cycle_completed', (e) => cycleEvents.push(e))
 
-    const qc = new Machine('qc1', 'quality_checker')
-    qc.start()
-    sim.addMachine(qc)
+    const sp = new Machine('sp1', 'splitter')
+    sp.start()
+    sim.addMachine(sp)
 
     sim.tick()
 
     expect(cycleEvents).toHaveLength(1)
-    expect(cycleEvents[0].data['machineId']).toBe('qc1')
+    expect(cycleEvents[0].data['machineId']).toBe('sp1')
   })
 
   it('does NOT re-emit on subsequent ticks while the machine remains stuck idle', () => {

@@ -47,4 +47,19 @@ export class CommandQueueRunner {
     this.queue.length = 0
     this.pendingWaitTicks = 0
   }
+
+  /**
+   * Drain non-WAIT commands at the head of the queue without touching
+   * `pendingWaitTicks`. Stops at the first WAIT (which stays queued
+   * for the next regular `tick()`). Used between successive arrival
+   * handler invocations so per-item routing overrides apply before
+   * the next handler's `currentItem` lookup races them.
+   */
+  drainHead(): void {
+    if (this.pendingWaitTicks > 0) return
+    while (this.queue.length > 0 && this.queue[0].type !== 'WAIT') {
+      const c = this.queue.shift()!
+      if (c.type !== 'WAIT') this.dispatcher.execute(c)
+    }
+  }
 }

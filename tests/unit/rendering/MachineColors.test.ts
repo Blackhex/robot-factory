@@ -10,7 +10,7 @@
  * No Three.js import — we assert against the pure data export only.
  */
 import { describe, it, expect } from 'vitest'
-import { MACHINE_COLORS } from '../../../src/rendering/RenderingAssets'
+import { MACHINE_COLORS, MACHINE_ICONS } from '../../../src/rendering/RenderingAssets'
 
 /** Convert a 24-bit RGB hex to HSL hue in degrees [0, 360). */
 function hueDegrees(hex: number): number {
@@ -60,5 +60,23 @@ describe('MACHINE_COLORS visual regressions', () => {
         ).not.toBe(colorB)
       }
     }
+  })
+})
+
+// Checker removal — RED contract: the `quality_checker` rendering
+// assets must be gone from both the color map and the icon map.
+describe('RenderingAssets — Checker removal', () => {
+  it('MACHINE_COLORS has no `quality_checker` entry', () => {
+    expect(Object.keys(MACHINE_COLORS)).not.toContain('quality_checker')
+    expect(
+      (MACHINE_COLORS as Record<string, number>)['quality_checker'],
+    ).toBeUndefined()
+  })
+
+  it('MACHINE_ICONS has no `quality_checker` entry', () => {
+    expect(Object.keys(MACHINE_ICONS)).not.toContain('quality_checker')
+    expect(
+      (MACHINE_ICONS as Record<string, string>)['quality_checker'],
+    ).toBeUndefined()
   })
 })
