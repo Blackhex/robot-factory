@@ -1,0 +1,1472 @@
+{
+  "version": 1,
+  "type": "bundle",
+  "projects": [
+    {
+      "name": "Assembly",
+      "save": {
+        "version": 3,
+        "grid": [
+          {
+            "x": 9,
+            "z": 13,
+            "machineType": "part_fabricator",
+            "rotation": "north",
+            "name": "Part Fabricator 1"
+          },
+          {
+            "x": 12,
+            "z": 13,
+            "machineType": "part_fabricator",
+            "rotation": "north",
+            "name": "Part Fabricator 2"
+          },
+          {
+            "x": 6,
+            "z": 13,
+            "machineType": "part_fabricator",
+            "rotation": "north",
+            "name": "Part Fabricator 3"
+          },
+          {
+            "x": 9,
+            "z": 9,
+            "machineType": "assembler",
+            "rotation": "north",
+            "name": "Assembler 1"
+          },
+          {
+            "x": 9,
+            "z": 6,
+            "machineType": "splitter",
+            "rotation": "north",
+            "name": "Splitter 1"
+          },
+          {
+            "x": 9,
+            "z": 3,
+            "machineType": "factory_output",
+            "rotation": "north",
+            "name": "Factory Output 1"
+          },
+          {
+            "x": 12,
+            "z": 6,
+            "machineType": "recycler",
+            "rotation": "east",
+            "name": "Recycler 1"
+          },
+          {
+            "x": 9,
+            "z": 15,
+            "machineType": "splitter",
+            "rotation": "north",
+            "name": "Splitter 3"
+          }
+        ],
+        "belts": [
+          {
+            "sourceSlot": "front",
+            "destinationSlot": "back",
+            "path": [
+              [
+                9,
+                13
+              ],
+              [
+                9,
+                12
+              ],
+              [
+                9,
+                11
+              ],
+              [
+                9,
+                10
+              ],
+              [
+                9,
+                9
+              ]
+            ],
+            "name": "belt 2"
+          },
+          {
+            "sourceSlot": "front",
+            "destinationSlot": "left",
+            "path": [
+              [
+                6,
+                13
+              ],
+              [
+                6,
+                12
+              ],
+              [
+                6,
+                11
+              ],
+              [
+                6,
+                10
+              ],
+              [
+                6,
+                9
+              ],
+              [
+                7,
+                9
+              ],
+              [
+                8,
+                9
+              ],
+              [
+                9,
+                9
+              ]
+            ],
+            "name": "belt 3"
+          },
+          {
+            "sourceSlot": "front",
+            "destinationSlot": "back",
+            "path": [
+              [
+                9,
+                9
+              ],
+              [
+                9,
+                8
+              ],
+              [
+                9,
+                7
+              ],
+              [
+                9,
+                6
+              ]
+            ],
+            "name": "belt 4"
+          },
+          {
+            "sourceSlot": "front",
+            "destinationSlot": "back",
+            "path": [
+              [
+                9,
+                6
+              ],
+              [
+                9,
+                5
+              ],
+              [
+                9,
+                4
+              ],
+              [
+                9,
+                3
+              ]
+            ],
+            "name": "belt 5"
+          },
+          {
+            "sourceSlot": "right",
+            "destinationSlot": "back",
+            "path": [
+              [
+                9,
+                6
+              ],
+              [
+                10,
+                6
+              ],
+              [
+                11,
+                6
+              ],
+              [
+                12,
+                6
+              ]
+            ],
+            "name": "belt 1"
+          },
+          {
+            "sourceSlot": "front",
+            "destinationSlot": "right",
+            "path": [
+              [
+                12,
+                13
+              ],
+              [
+                12,
+                12
+              ],
+              [
+                12,
+                11
+              ],
+              [
+                12,
+                10
+              ],
+              [
+                12,
+                9
+              ],
+              [
+                11,
+                9
+              ],
+              [
+                10,
+                9
+              ],
+              [
+                9,
+                9
+              ]
+            ],
+            "name": "belt 6"
+          },
+          {
+            "sourceSlot": "front",
+            "destinationSlot": "back",
+            "path": [
+              [
+                12,
+                6
+              ],
+              [
+                13,
+                6
+              ],
+              [
+                13,
+                7
+              ],
+              [
+                13,
+                8
+              ],
+              [
+                13,
+                9
+              ],
+              [
+                13,
+                10
+              ],
+              [
+                13,
+                11
+              ],
+              [
+                13,
+                12
+              ],
+              [
+                13,
+                13
+              ],
+              [
+                13,
+                14
+              ],
+              [
+                13,
+                15
+              ],
+              [
+                13,
+                16
+              ],
+              [
+                12,
+                16
+              ],
+              [
+                11,
+                16
+              ],
+              [
+                10,
+                16
+              ],
+              [
+                9,
+                16
+              ],
+              [
+                9,
+                15
+              ]
+            ],
+            "name": "belt 7"
+          },
+          {
+            "sourceSlot": "right",
+            "destinationSlot": "back",
+            "path": [
+              [
+                9,
+                15
+              ],
+              [
+                10,
+                15
+              ],
+              [
+                11,
+                15
+              ],
+              [
+                12,
+                15
+              ],
+              [
+                12,
+                14
+              ],
+              [
+                12,
+                13
+              ]
+            ],
+            "name": "belt 8"
+          },
+          {
+            "sourceSlot": "front",
+            "destinationSlot": "back",
+            "path": [
+              [
+                9,
+                15
+              ],
+              [
+                9,
+                14
+              ],
+              [
+                9,
+                13
+              ]
+            ],
+            "name": "belt 9"
+          },
+          {
+            "sourceSlot": "left",
+            "destinationSlot": "back",
+            "path": [
+              [
+                9,
+                15
+              ],
+              [
+                8,
+                15
+              ],
+              [
+                7,
+                15
+              ],
+              [
+                6,
+                15
+              ],
+              [
+                6,
+                14
+              ],
+              [
+                6,
+                13
+              ]
+            ],
+            "name": "belt 10"
+          }
+        ],
+        "pxtWorkspace": {
+          "ts": "events.onItemArrives(machines.pickMachine(Machine.E), function () {\n    if (logic.currentItemIsDefective()) {\n        machines.routeCurrentItemTo(machines.pickMachine(Machine.E), SplitterOutputs.Right)\n    } else {\n        machines.routeCurrentItemTo(machines.pickMachine(Machine.E), SplitterOutputs.Forward)\n    }\n})\nevents.onItemArrives(machines.pickMachine(Machine.H), function () {\n    if (logic.currentItemIs(PartType.WheelSmall)) {\n        machines.routeCurrentItemTo(machines.pickMachine(Machine.H), SplitterOutputs.Forward)\n    } else {\n        machines.routeCurrentItemTo(machines.pickMachine(Machine.H), SplitterOutputs.Left)\n    }\n})\nmachines.setRecipe(machines.pickMachine(Machine.A), Recipe.WheelPressSmall)\nmachines.setRecipe(machines.pickMachine(Machine.B), Recipe.WheelPressSmall)\nmachines.setRecipe(machines.pickMachine(Machine.C), Recipe.CircuitPrinterBasic)\nmachines.setRecipe(machines.pickMachine(Machine.D), Recipe.AssembleDrivetrainBasic)\nmachines.setRecipe(machines.pickMachine(Machine.H), Recipe.WheelPressSmall)\nmachines.setMachineSpeed(machines.pickMachine(Machine.D), 3)\nmachines.startMachine(machines.pickMachine(Machine.A))\nmachines.startMachine(machines.pickMachine(Machine.B))\nmachines.startMachine(machines.pickMachine(Machine.C))\nmachines.startMachine(machines.pickMachine(Machine.D))\nmachines.startMachine(machines.pickMachine(Machine.H))\nmachines.startMachine(machines.pickMachine(Machine.E))\nmachines.startMachine(machines.pickMachine(Machine.G))\nmachines.startMachine(machines.pickMachine(Machine.F))\n",
+          "blocks": {
+            "tag": "xml",
+            "attrs": {
+              "xmlns": "https://developers.google.com/blockly/xml"
+            },
+            "children": [
+              {
+                "tag": "block",
+                "attrs": {
+                  "type": "factory_on_item_arrives",
+                  "id": "rct6d}?,StJvf.]e@RZ!",
+                  "x": "-30",
+                  "y": "-270"
+                },
+                "children": [
+                  {
+                    "tag": "value",
+                    "attrs": {
+                      "name": "machine"
+                    },
+                    "children": [
+                      {
+                        "tag": "shadow",
+                        "attrs": {
+                          "type": "factory_pick_machine",
+                          "id": "xi~./d-AQ3+|}|`D@HGm"
+                        },
+                        "children": [
+                          {
+                            "tag": "field",
+                            "attrs": {
+                              "name": "machine"
+                            },
+                            "children": [
+                              "Machine.E"
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "statement",
+                    "attrs": {
+                      "name": "HANDLER"
+                    },
+                    "children": [
+                      {
+                        "tag": "block",
+                        "attrs": {
+                          "type": "controls_if",
+                          "id": "t0|!WHxsF|,WGK[l#dga"
+                        },
+                        "children": [
+                          {
+                            "tag": "mutation",
+                            "attrs": {
+                              "else": "1"
+                            }
+                          },
+                          {
+                            "tag": "value",
+                            "attrs": {
+                              "name": "IF0"
+                            },
+                            "children": [
+                              {
+                                "tag": "shadow",
+                                "attrs": {
+                                  "type": "logic_boolean",
+                                  "id": "!5l/(]5%7dW*;SphQMFf"
+                                },
+                                "children": [
+                                  {
+                                    "tag": "field",
+                                    "attrs": {
+                                      "name": "BOOL"
+                                    },
+                                    "children": [
+                                      "TRUE"
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "tag": "block",
+                                "attrs": {
+                                  "type": "factory_current_item_defective",
+                                  "id": "@-+~T1iL*F#FOS?i5$4("
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "tag": "statement",
+                            "attrs": {
+                              "name": "DO0"
+                            },
+                            "children": [
+                              {
+                                "tag": "block",
+                                "attrs": {
+                                  "type": "factory_route_current_item_to",
+                                  "id": "mS4lOoQ$~Thl;]=0bNj1"
+                                },
+                                "children": [
+                                  {
+                                    "tag": "field",
+                                    "attrs": {
+                                      "name": "side"
+                                    },
+                                    "children": [
+                                      "SplitterOutputs.Right"
+                                    ]
+                                  },
+                                  {
+                                    "tag": "value",
+                                    "attrs": {
+                                      "name": "machine"
+                                    },
+                                    "children": [
+                                      {
+                                        "tag": "shadow",
+                                        "attrs": {
+                                          "type": "factory_pick_machine",
+                                          "id": "wd}9D/;V_W~RPOTHA;Hn"
+                                        },
+                                        "children": [
+                                          {
+                                            "tag": "field",
+                                            "attrs": {
+                                              "name": "machine"
+                                            },
+                                            "children": [
+                                              "Machine.E"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "tag": "statement",
+                            "attrs": {
+                              "name": "ELSE"
+                            },
+                            "children": [
+                              {
+                                "tag": "block",
+                                "attrs": {
+                                  "type": "factory_route_current_item_to",
+                                  "id": "8qiEfO:0}_Kerb414`Z;"
+                                },
+                                "children": [
+                                  {
+                                    "tag": "field",
+                                    "attrs": {
+                                      "name": "side"
+                                    },
+                                    "children": [
+                                      "SplitterOutputs.Forward"
+                                    ]
+                                  },
+                                  {
+                                    "tag": "value",
+                                    "attrs": {
+                                      "name": "machine"
+                                    },
+                                    "children": [
+                                      {
+                                        "tag": "shadow",
+                                        "attrs": {
+                                          "type": "factory_pick_machine",
+                                          "id": "Ie0;OZfEkv3C8_|$ZGbf"
+                                        },
+                                        "children": [
+                                          {
+                                            "tag": "field",
+                                            "attrs": {
+                                              "name": "machine"
+                                            },
+                                            "children": [
+                                              "Machine.E"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "tag": "block",
+                "attrs": {
+                  "type": "factory_on_item_arrives",
+                  "id": "%Jv4Yc76xTi?mLp!=@UT",
+                  "x": "590",
+                  "y": "-270"
+                },
+                "children": [
+                  {
+                    "tag": "value",
+                    "attrs": {
+                      "name": "machine"
+                    },
+                    "children": [
+                      {
+                        "tag": "shadow",
+                        "attrs": {
+                          "type": "factory_pick_machine",
+                          "id": "r3r*b;kuQ}dBj3FF^|!1"
+                        },
+                        "children": [
+                          {
+                            "tag": "field",
+                            "attrs": {
+                              "name": "machine"
+                            },
+                            "children": [
+                              "Machine.H"
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "statement",
+                    "attrs": {
+                      "name": "HANDLER"
+                    },
+                    "children": [
+                      {
+                        "tag": "block",
+                        "attrs": {
+                          "type": "controls_if",
+                          "id": ",/B[2o8^Vwd8[w:mfsd7"
+                        },
+                        "children": [
+                          {
+                            "tag": "mutation",
+                            "attrs": {
+                              "else": "1"
+                            }
+                          },
+                          {
+                            "tag": "value",
+                            "attrs": {
+                              "name": "IF0"
+                            },
+                            "children": [
+                              {
+                                "tag": "shadow",
+                                "attrs": {
+                                  "type": "logic_boolean",
+                                  "id": "ZVH4v[k;3`%bpjl#7m7_"
+                                },
+                                "children": [
+                                  {
+                                    "tag": "field",
+                                    "attrs": {
+                                      "name": "BOOL"
+                                    },
+                                    "children": [
+                                      "TRUE"
+                                    ]
+                                  }
+                                ]
+                              },
+                              {
+                                "tag": "block",
+                                "attrs": {
+                                  "type": "factory_current_item_is",
+                                  "id": "/a%H$]th`z7[|q|_$Wi3"
+                                },
+                                "children": [
+                                  {
+                                    "tag": "field",
+                                    "attrs": {
+                                      "name": "partType"
+                                    },
+                                    "children": [
+                                      "PartType.WheelSmall"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "tag": "statement",
+                            "attrs": {
+                              "name": "DO0"
+                            },
+                            "children": [
+                              {
+                                "tag": "block",
+                                "attrs": {
+                                  "type": "factory_route_current_item_to",
+                                  "id": "]7D]s+2cZ1pc9|w[rB0c"
+                                },
+                                "children": [
+                                  {
+                                    "tag": "field",
+                                    "attrs": {
+                                      "name": "side"
+                                    },
+                                    "children": [
+                                      "SplitterOutputs.Forward"
+                                    ]
+                                  },
+                                  {
+                                    "tag": "value",
+                                    "attrs": {
+                                      "name": "machine"
+                                    },
+                                    "children": [
+                                      {
+                                        "tag": "shadow",
+                                        "attrs": {
+                                          "type": "factory_pick_machine",
+                                          "id": "QmQKwpBwqzaj:!L#)zi%"
+                                        },
+                                        "children": [
+                                          {
+                                            "tag": "field",
+                                            "attrs": {
+                                              "name": "machine"
+                                            },
+                                            "children": [
+                                              "Machine.H"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "tag": "statement",
+                            "attrs": {
+                              "name": "ELSE"
+                            },
+                            "children": [
+                              {
+                                "tag": "block",
+                                "attrs": {
+                                  "type": "factory_route_current_item_to",
+                                  "id": "l3BhBbXCfw}7l$ETl$nU"
+                                },
+                                "children": [
+                                  {
+                                    "tag": "field",
+                                    "attrs": {
+                                      "name": "side"
+                                    },
+                                    "children": [
+                                      "SplitterOutputs.Left"
+                                    ]
+                                  },
+                                  {
+                                    "tag": "value",
+                                    "attrs": {
+                                      "name": "machine"
+                                    },
+                                    "children": [
+                                      {
+                                        "tag": "shadow",
+                                        "attrs": {
+                                          "type": "factory_pick_machine",
+                                          "id": "kCeG5`M73.jP6TnumW}$"
+                                        },
+                                        "children": [
+                                          {
+                                            "tag": "field",
+                                            "attrs": {
+                                              "name": "machine"
+                                            },
+                                            "children": [
+                                              "Machine.H"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "tag": "block",
+                "attrs": {
+                  "type": "pxt-on-start",
+                  "id": "fZZB7Ffm):pd}$@qOc/F",
+                  "x": "-38",
+                  "y": "93"
+                },
+                "children": [
+                  {
+                    "tag": "statement",
+                    "attrs": {
+                      "name": "HANDLER"
+                    },
+                    "children": [
+                      {
+                        "tag": "block",
+                        "attrs": {
+                          "type": "factory_set_recipe",
+                          "id": "pU#w;{s27Wh$?u=xx:bg"
+                        },
+                        "children": [
+                          {
+                            "tag": "field",
+                            "attrs": {
+                              "name": "recipe"
+                            },
+                            "children": [
+                              "Recipe.WheelPressSmall"
+                            ]
+                          },
+                          {
+                            "tag": "value",
+                            "attrs": {
+                              "name": "machine"
+                            },
+                            "children": [
+                              {
+                                "tag": "shadow",
+                                "attrs": {
+                                  "type": "factory_pick_machine",
+                                  "id": ":6~2qN[bhUkWcp]9SqT."
+                                },
+                                "children": [
+                                  {
+                                    "tag": "field",
+                                    "attrs": {
+                                      "name": "machine"
+                                    },
+                                    "children": [
+                                      "Machine.A"
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          },
+                          {
+                            "tag": "next",
+                            "children": [
+                              {
+                                "tag": "block",
+                                "attrs": {
+                                  "type": "factory_set_recipe",
+                                  "id": "GUxpk|zVyH6*qaO79u_8"
+                                },
+                                "children": [
+                                  {
+                                    "tag": "field",
+                                    "attrs": {
+                                      "name": "recipe"
+                                    },
+                                    "children": [
+                                      "Recipe.WheelPressSmall"
+                                    ]
+                                  },
+                                  {
+                                    "tag": "value",
+                                    "attrs": {
+                                      "name": "machine"
+                                    },
+                                    "children": [
+                                      {
+                                        "tag": "shadow",
+                                        "attrs": {
+                                          "type": "factory_pick_machine",
+                                          "id": ",ab@n}NQAZs;sW_Hjo=:"
+                                        },
+                                        "children": [
+                                          {
+                                            "tag": "field",
+                                            "attrs": {
+                                              "name": "machine"
+                                            },
+                                            "children": [
+                                              "Machine.B"
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "tag": "next",
+                                    "children": [
+                                      {
+                                        "tag": "block",
+                                        "attrs": {
+                                          "type": "factory_set_recipe",
+                                          "id": "ONHT.*g=AA2{RMhHXp+T"
+                                        },
+                                        "children": [
+                                          {
+                                            "tag": "field",
+                                            "attrs": {
+                                              "name": "recipe"
+                                            },
+                                            "children": [
+                                              "Recipe.CircuitPrinterBasic"
+                                            ]
+                                          },
+                                          {
+                                            "tag": "value",
+                                            "attrs": {
+                                              "name": "machine"
+                                            },
+                                            "children": [
+                                              {
+                                                "tag": "shadow",
+                                                "attrs": {
+                                                  "type": "factory_pick_machine",
+                                                  "id": "h8Nhx2S?r;,lCb~U||Ep"
+                                                },
+                                                "children": [
+                                                  {
+                                                    "tag": "field",
+                                                    "attrs": {
+                                                      "name": "machine"
+                                                    },
+                                                    "children": [
+                                                      "Machine.C"
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          },
+                                          {
+                                            "tag": "next",
+                                            "children": [
+                                              {
+                                                "tag": "block",
+                                                "attrs": {
+                                                  "type": "factory_set_recipe",
+                                                  "id": ")R6}+iGUcgmSqM9l?fiF"
+                                                },
+                                                "children": [
+                                                  {
+                                                    "tag": "field",
+                                                    "attrs": {
+                                                      "name": "recipe"
+                                                    },
+                                                    "children": [
+                                                      "Recipe.AssembleDrivetrainBasic"
+                                                    ]
+                                                  },
+                                                  {
+                                                    "tag": "value",
+                                                    "attrs": {
+                                                      "name": "machine"
+                                                    },
+                                                    "children": [
+                                                      {
+                                                        "tag": "shadow",
+                                                        "attrs": {
+                                                          "type": "factory_pick_machine",
+                                                          "id": "^}+tGP4i7Vc_cM@!XQFi"
+                                                        },
+                                                        "children": [
+                                                          {
+                                                            "tag": "field",
+                                                            "attrs": {
+                                                              "name": "machine"
+                                                            },
+                                                            "children": [
+                                                              "Machine.D"
+                                                            ]
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  },
+                                                  {
+                                                    "tag": "next",
+                                                    "children": [
+                                                      {
+                                                        "tag": "block",
+                                                        "attrs": {
+                                                          "type": "factory_set_recipe",
+                                                          "id": "]k^poAoER}LNh@I5QrXy"
+                                                        },
+                                                        "children": [
+                                                          {
+                                                            "tag": "field",
+                                                            "attrs": {
+                                                              "name": "recipe"
+                                                            },
+                                                            "children": [
+                                                              "Recipe.WheelPressSmall"
+                                                            ]
+                                                          },
+                                                          {
+                                                            "tag": "value",
+                                                            "attrs": {
+                                                              "name": "machine"
+                                                            },
+                                                            "children": [
+                                                              {
+                                                                "tag": "shadow",
+                                                                "attrs": {
+                                                                  "type": "factory_pick_machine",
+                                                                  "id": "fy!Id5W-z0`EdRW*K:AP"
+                                                                },
+                                                                "children": [
+                                                                  {
+                                                                    "tag": "field",
+                                                                    "attrs": {
+                                                                      "name": "machine"
+                                                                    },
+                                                                    "children": [
+                                                                      "Machine.H"
+                                                                    ]
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          },
+                                                          {
+                                                            "tag": "next",
+                                                            "children": [
+                                                              {
+                                                                "tag": "block",
+                                                                "attrs": {
+                                                                  "type": "factory_set_machine_speed",
+                                                                  "id": "YLU[wh|.`AZatb.Y%/c0"
+                                                                },
+                                                                "children": [
+                                                                  {
+                                                                    "tag": "value",
+                                                                    "attrs": {
+                                                                      "name": "machine"
+                                                                    },
+                                                                    "children": [
+                                                                      {
+                                                                        "tag": "shadow",
+                                                                        "attrs": {
+                                                                          "type": "factory_pick_machine",
+                                                                          "id": "N9!)E%.Jv3?g8O#uK;n("
+                                                                        },
+                                                                        "children": [
+                                                                          {
+                                                                            "tag": "field",
+                                                                            "attrs": {
+                                                                              "name": "machine"
+                                                                            },
+                                                                            "children": [
+                                                                              "Machine.D"
+                                                                            ]
+                                                                          }
+                                                                        ]
+                                                                      }
+                                                                    ]
+                                                                  },
+                                                                  {
+                                                                    "tag": "value",
+                                                                    "attrs": {
+                                                                      "name": "speed"
+                                                                    },
+                                                                    "children": [
+                                                                      {
+                                                                        "tag": "shadow",
+                                                                        "attrs": {
+                                                                          "type": "math_number_minmax",
+                                                                          "id": "z85HIUP9Oe8lrIirr-6m"
+                                                                        },
+                                                                        "children": [
+                                                                          {
+                                                                            "tag": "mutation",
+                                                                            "attrs": {
+                                                                              "min": "1",
+                                                                              "max": "10",
+                                                                              "label": "Speed",
+                                                                              "precision": "0"
+                                                                            }
+                                                                          },
+                                                                          {
+                                                                            "tag": "field",
+                                                                            "attrs": {
+                                                                              "name": "SLIDER"
+                                                                            },
+                                                                            "children": [
+                                                                              "3"
+                                                                            ]
+                                                                          }
+                                                                        ]
+                                                                      }
+                                                                    ]
+                                                                  },
+                                                                  {
+                                                                    "tag": "next",
+                                                                    "children": [
+                                                                      {
+                                                                        "tag": "block",
+                                                                        "attrs": {
+                                                                          "type": "factory_start_machine",
+                                                                          "id": "Z/KajZ_.6Q$nd3mW6?-$"
+                                                                        },
+                                                                        "children": [
+                                                                          {
+                                                                            "tag": "value",
+                                                                            "attrs": {
+                                                                              "name": "machine"
+                                                                            },
+                                                                            "children": [
+                                                                              {
+                                                                                "tag": "shadow",
+                                                                                "attrs": {
+                                                                                  "type": "factory_pick_machine",
+                                                                                  "id": "pu6d!^]MP-TbDu?rD`,{"
+                                                                                },
+                                                                                "children": [
+                                                                                  {
+                                                                                    "tag": "field",
+                                                                                    "attrs": {
+                                                                                      "name": "machine"
+                                                                                    },
+                                                                                    "children": [
+                                                                                      "Machine.A"
+                                                                                    ]
+                                                                                  }
+                                                                                ]
+                                                                              }
+                                                                            ]
+                                                                          },
+                                                                          {
+                                                                            "tag": "next",
+                                                                            "children": [
+                                                                              {
+                                                                                "tag": "block",
+                                                                                "attrs": {
+                                                                                  "type": "factory_start_machine",
+                                                                                  "id": "{IIQmCHsuxkzJhq#l[o("
+                                                                                },
+                                                                                "children": [
+                                                                                  {
+                                                                                    "tag": "value",
+                                                                                    "attrs": {
+                                                                                      "name": "machine"
+                                                                                    },
+                                                                                    "children": [
+                                                                                      {
+                                                                                        "tag": "shadow",
+                                                                                        "attrs": {
+                                                                                          "type": "factory_pick_machine",
+                                                                                          "id": "AL4d5|Qjrd/w}`3UPDdH"
+                                                                                        },
+                                                                                        "children": [
+                                                                                          {
+                                                                                            "tag": "field",
+                                                                                            "attrs": {
+                                                                                              "name": "machine"
+                                                                                            },
+                                                                                            "children": [
+                                                                                              "Machine.B"
+                                                                                            ]
+                                                                                          }
+                                                                                        ]
+                                                                                      }
+                                                                                    ]
+                                                                                  },
+                                                                                  {
+                                                                                    "tag": "next",
+                                                                                    "children": [
+                                                                                      {
+                                                                                        "tag": "block",
+                                                                                        "attrs": {
+                                                                                          "type": "factory_start_machine",
+                                                                                          "id": "Eq[yKUe!lJ~cLH#Kibh,"
+                                                                                        },
+                                                                                        "children": [
+                                                                                          {
+                                                                                            "tag": "value",
+                                                                                            "attrs": {
+                                                                                              "name": "machine"
+                                                                                            },
+                                                                                            "children": [
+                                                                                              {
+                                                                                                "tag": "shadow",
+                                                                                                "attrs": {
+                                                                                                  "type": "factory_pick_machine",
+                                                                                                  "id": "179,Oqm1#dmA)?tcVmXK"
+                                                                                                },
+                                                                                                "children": [
+                                                                                                  {
+                                                                                                    "tag": "field",
+                                                                                                    "attrs": {
+                                                                                                      "name": "machine"
+                                                                                                    },
+                                                                                                    "children": [
+                                                                                                      "Machine.C"
+                                                                                                    ]
+                                                                                                  }
+                                                                                                ]
+                                                                                              }
+                                                                                            ]
+                                                                                          },
+                                                                                          {
+                                                                                            "tag": "next",
+                                                                                            "children": [
+                                                                                              {
+                                                                                                "tag": "block",
+                                                                                                "attrs": {
+                                                                                                  "type": "factory_start_machine",
+                                                                                                  "id": "2_4b2Q9DIY1QF3E{$LK6"
+                                                                                                },
+                                                                                                "children": [
+                                                                                                  {
+                                                                                                    "tag": "value",
+                                                                                                    "attrs": {
+                                                                                                      "name": "machine"
+                                                                                                    },
+                                                                                                    "children": [
+                                                                                                      {
+                                                                                                        "tag": "shadow",
+                                                                                                        "attrs": {
+                                                                                                          "type": "factory_pick_machine",
+                                                                                                          "id": "ocC5Quh=p`@3P9(?0|^0"
+                                                                                                        },
+                                                                                                        "children": [
+                                                                                                          {
+                                                                                                            "tag": "field",
+                                                                                                            "attrs": {
+                                                                                                              "name": "machine"
+                                                                                                            },
+                                                                                                            "children": [
+                                                                                                              "Machine.D"
+                                                                                                            ]
+                                                                                                          }
+                                                                                                        ]
+                                                                                                      }
+                                                                                                    ]
+                                                                                                  },
+                                                                                                  {
+                                                                                                    "tag": "next",
+                                                                                                    "children": [
+                                                                                                      {
+                                                                                                        "tag": "block",
+                                                                                                        "attrs": {
+                                                                                                          "type": "factory_start_machine",
+                                                                                                          "id": "dsP)3D13}jMDU}|~)!lx"
+                                                                                                        },
+                                                                                                        "children": [
+                                                                                                          {
+                                                                                                            "tag": "value",
+                                                                                                            "attrs": {
+                                                                                                              "name": "machine"
+                                                                                                            },
+                                                                                                            "children": [
+                                                                                                              {
+                                                                                                                "tag": "shadow",
+                                                                                                                "attrs": {
+                                                                                                                  "type": "factory_pick_machine",
+                                                                                                                  "id": "B~#/CY$=Vnma?T_j1/0{"
+                                                                                                                },
+                                                                                                                "children": [
+                                                                                                                  {
+                                                                                                                    "tag": "field",
+                                                                                                                    "attrs": {
+                                                                                                                      "name": "machine"
+                                                                                                                    },
+                                                                                                                    "children": [
+                                                                                                                      "Machine.H"
+                                                                                                                    ]
+                                                                                                                  }
+                                                                                                                ]
+                                                                                                              }
+                                                                                                            ]
+                                                                                                          },
+                                                                                                          {
+                                                                                                            "tag": "next",
+                                                                                                            "children": [
+                                                                                                              {
+                                                                                                                "tag": "block",
+                                                                                                                "attrs": {
+                                                                                                                  "type": "factory_start_machine",
+                                                                                                                  "id": "t:mo+ynNAf:9ifde?WI]"
+                                                                                                                },
+                                                                                                                "children": [
+                                                                                                                  {
+                                                                                                                    "tag": "value",
+                                                                                                                    "attrs": {
+                                                                                                                      "name": "machine"
+                                                                                                                    },
+                                                                                                                    "children": [
+                                                                                                                      {
+                                                                                                                        "tag": "shadow",
+                                                                                                                        "attrs": {
+                                                                                                                          "type": "factory_pick_machine",
+                                                                                                                          "id": ",%lX0AJ;2^Q7#5[Aom1%"
+                                                                                                                        },
+                                                                                                                        "children": [
+                                                                                                                          {
+                                                                                                                            "tag": "field",
+                                                                                                                            "attrs": {
+                                                                                                                              "name": "machine"
+                                                                                                                            },
+                                                                                                                            "children": [
+                                                                                                                              "Machine.E"
+                                                                                                                            ]
+                                                                                                                          }
+                                                                                                                        ]
+                                                                                                                      }
+                                                                                                                    ]
+                                                                                                                  },
+                                                                                                                  {
+                                                                                                                    "tag": "next",
+                                                                                                                    "children": [
+                                                                                                                      {
+                                                                                                                        "tag": "block",
+                                                                                                                        "attrs": {
+                                                                                                                          "type": "factory_start_machine",
+                                                                                                                          "id": "ZlLl$Aj@HWWg%uaCUy^D"
+                                                                                                                        },
+                                                                                                                        "children": [
+                                                                                                                          {
+                                                                                                                            "tag": "value",
+                                                                                                                            "attrs": {
+                                                                                                                              "name": "machine"
+                                                                                                                            },
+                                                                                                                            "children": [
+                                                                                                                              {
+                                                                                                                                "tag": "shadow",
+                                                                                                                                "attrs": {
+                                                                                                                                  "type": "factory_pick_machine",
+                                                                                                                                  "id": "kP01UC!_eJf]cI#B:raS"
+                                                                                                                                },
+                                                                                                                                "children": [
+                                                                                                                                  {
+                                                                                                                                    "tag": "field",
+                                                                                                                                    "attrs": {
+                                                                                                                                      "name": "machine"
+                                                                                                                                    },
+                                                                                                                                    "children": [
+                                                                                                                                      "Machine.G"
+                                                                                                                                    ]
+                                                                                                                                  }
+                                                                                                                                ]
+                                                                                                                              }
+                                                                                                                            ]
+                                                                                                                          },
+                                                                                                                          {
+                                                                                                                            "tag": "next",
+                                                                                                                            "children": [
+                                                                                                                              {
+                                                                                                                                "tag": "block",
+                                                                                                                                "attrs": {
+                                                                                                                                  "type": "factory_start_machine",
+                                                                                                                                  "id": "T(X;OFf];)TZF3{9Go{{"
+                                                                                                                                },
+                                                                                                                                "children": [
+                                                                                                                                  {
+                                                                                                                                    "tag": "value",
+                                                                                                                                    "attrs": {
+                                                                                                                                      "name": "machine"
+                                                                                                                                    },
+                                                                                                                                    "children": [
+                                                                                                                                      {
+                                                                                                                                        "tag": "shadow",
+                                                                                                                                        "attrs": {
+                                                                                                                                          "type": "factory_pick_machine",
+                                                                                                                                          "id": "6ODyq%-o),.cm}Bc({p}"
+                                                                                                                                        },
+                                                                                                                                        "children": [
+                                                                                                                                          {
+                                                                                                                                            "tag": "field",
+                                                                                                                                            "attrs": {
+                                                                                                                                              "name": "machine"
+                                                                                                                                            },
+                                                                                                                                            "children": [
+                                                                                                                                              "Machine.F"
+                                                                                                                                            ]
+                                                                                                                                          }
+                                                                                                                                        ]
+                                                                                                                                      }
+                                                                                                                                    ]
+                                                                                                                                  }
+                                                                                                                                ]
+                                                                                                                              }
+                                                                                                                            ]
+                                                                                                                          }
+                                                                                                                        ]
+                                                                                                                      }
+                                                                                                                    ]
+                                                                                                                  }
+                                                                                                                ]
+                                                                                                              }
+                                                                                                            ]
+                                                                                                          }
+                                                                                                        ]
+                                                                                                      }
+                                                                                                    ]
+                                                                                                  }
+                                                                                                ]
+                                                                                              }
+                                                                                            ]
+                                                                                          }
+                                                                                        ]
+                                                                                      }
+                                                                                    ]
+                                                                                  }
+                                                                                ]
+                                                                              }
+                                                                            ]
+                                                                          }
+                                                                        ]
+                                                                      }
+                                                                    ]
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        ]
+                                                      }
+                                                    ]
+                                                  }
+                                                ]
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    ]
+                                  }
+                                ]
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
