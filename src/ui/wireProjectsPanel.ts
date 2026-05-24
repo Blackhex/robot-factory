@@ -76,6 +76,13 @@ export interface WireProjectsPanelOptions {
   pxtEditor: PxtEditorLike
   audio: AudioLike
   syncFactoryToEditor: () => void
+  /**
+   * Re-populate the simulation from the freshly loaded factory and apply
+   * the build-phase recipe preview. Mirrors the composition-root helper
+   * used by `setupLevelRendering()` so recipe-status badges appear
+   * immediately after a Projects-menu load.
+   */
+  populateSimulation: () => void
   /** Hide selection panels synchronously before a destructive load. */
   machinePanel: SelectionPanelLike
   beltPanel: SelectionPanelLike
@@ -106,6 +113,7 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
     pxtEditor,
     audio,
     syncFactoryToEditor,
+    populateSimulation,
     machinePanel,
     beltPanel,
     getFactoryRenderer,
@@ -135,8 +143,15 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
     f.clear()
     getItemRenderer()?.clear()
     await mutate(f)
-    getFactoryRenderer()?.syncMeshes()
+    // syncFactoryToEditor() MUST run before populateSimulation(): the latter
+    // calls pxtEditor.getProgram(), and the BlockInterpreter resolves
+    // `Machine.A`/etc. via its cached machine list. Without a fresh sync,
+    // a destructive replace leaves the interpreter pointing at the
+    // previous factory's machine ids, so SET_RECIPE commands no-op and
+    // the recipe-status badge fails to appear on the 2nd+ Projects-menu load.
     syncFactoryToEditor()
+    populateSimulation()
+    getFactoryRenderer()?.syncMeshes()
     getGridInteraction()?.enable()
   }
 

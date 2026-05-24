@@ -275,6 +275,28 @@ describe('Architecture', () => {
         }
       }
     })
+
+    it('must not value-import the concrete Machine or Recipe classes from game/', () => {
+      // GIVEN — renderer talks to machines through the abstract MachineRuntimeView
+      // shape exposed by MachineMeshRenderer; value-importing the concrete Machine
+      // or Recipe classes (constructors / static members) from game/ would
+      // re-couple the rendering layer to the simulation's internal entity types.
+      // Pure `import type` references are allowed because they are erased at
+      // compile time and don't create runtime coupling.
+
+      // WHEN + THEN
+      for (const file of tsFilesIn(renderingDir)) {
+        const content = readFileSync(file, 'utf-8')
+        const fileLabel = relative(renderingDir, file).replace(/\\/g, '/')
+        const matches = content.match(
+          /^import\s+(?!type\s)[^;]*?\bfrom\s+['"][^'"]*game\/(?:Machine|Recipe)(?:\.ts)?['"]/gm,
+        ) ?? []
+        expect(
+          matches,
+          `rendering/${fileLabel} value-imports from game/Machine or game/Recipe: ${matches.join(' | ')}`,
+        ).toEqual([])
+      }
+    })
   })
 
   // ── File existence: game ──────────────────────────────

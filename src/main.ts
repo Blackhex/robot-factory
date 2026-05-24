@@ -184,7 +184,10 @@ async function main(): Promise<void> {
     resizeHandle: editorResizeHandle,
     pxtEditor,
     refitCamera: () => editorViewport.refitCameraToCurrentLevel(),
-    onOpenChange: (open) => toolbar.setEditorPanelOpen(open),
+    onOpenChange: (open) => {
+      toolbar.setEditorPanelOpen(open)
+      if (!open) applyBuildPhaseProgramPreview()
+    },
   })
   const closeEditor = (): void => editorVisibility.close()
   const toggleEditor = (): void => editorVisibility.toggle()
@@ -279,6 +282,16 @@ async function main(): Promise<void> {
     if (itemRenderer && gameManager.simulation) {
       itemRenderer.cacheBeltTopology(gameManager.simulation.getBelts())
     }
+    applyBuildPhaseProgramPreview()
+  }
+
+  function applyBuildPhaseProgramPreview(): void {
+    const state = gameManager.getCurrentState()
+    if (state !== 'build_phase' && state !== 'sandbox') return
+    const commands = pxtEditor.getProgram()
+    if (commands.length === 0) return
+    gameManager.applyBuildPhaseConfigPreview(commands)
+    factoryRenderer?.syncMeshes()
   }
 
   interface SetupLevelRenderingConfig {
@@ -294,7 +307,19 @@ async function main(): Promise<void> {
 
     cleanupLevelRendering()
 
-    factoryRenderer = new FactoryRenderer(factory, sceneManager)
+    factoryRenderer = new FactoryRenderer(factory, sceneManager, {
+      getMachineRuntime: (id) => {
+        const sim = gameManager.simulation
+        if (!sim) return null
+        const m = sim.getMachine(id)
+        if (!m) return null
+        return {
+          hasRecipe: m.currentRecipe != null,
+          recipeOutputType: m.currentRecipe?.outputs[0]?.type ?? null,
+          dependenciesSatisfied: sim.areRecipeDependenciesSatisfied(id),
+        }
+      },
+    })
     factoryRenderer.renderGrid()
     itemRenderer = new ItemRenderer(sceneManager.getScene())
     itemRenderer.setTerminalDrainGraceDecider(createTerminalDrainGraceDecider({
@@ -314,6 +339,7 @@ async function main(): Promise<void> {
     machinePanel.setAvailableMachineTypes([...config.availableMachines])
 
     autoRestoreFactory()
+    populateSimulation()
     factoryRenderer.syncMeshes()
     syncFactoryToEditor()
 
@@ -471,6 +497,7 @@ async function main(): Promise<void> {
     pxtEditor,
     audio,
     syncFactoryToEditor,
+    populateSimulation,
     machinePanel,
     beltPanel,
     getFactoryRenderer: () => factoryRenderer,
@@ -561,7 +588,7 @@ async function main(): Promise<void> {
       ? (beltLogicalId: string): number =>
           ConveyorBelt.getBeltSpeedByLogicalId(sim, beltLogicalId)
       : undefined
-    factoryRenderer?.tick(dt, paused, getSpeed)
+    factoryRenderer?.tick(dt, paused, getSpeed, sceneManager.getCamera())
     keyboardPan.update(dt)
     cameraController.update(dt)
 

@@ -161,7 +161,13 @@ export class ProjectsPanelPage {
   async doubleClickSlot(name: string): Promise<void> {
     const row = this.slotByName(name)
     await expect(row).toBeVisible()
-    await row.dblclick()
+    // Aim at the row's top-left padding so the dblclick lands on the row
+    // itself rather than the inline name `<input>` (which lives in the
+    // center of the row and consumes pointer gestures via the
+    // `stopRowGestures` wiring in `createInlineNameInput`). Without an
+    // explicit position the click can land on the input and never fire
+    // the row-level `dblclick → onLoadSlot` handler.
+    await row.dblclick({ position: { x: 2, y: 2 } })
   }
 
   async deleteSlot(name: string): Promise<void> {

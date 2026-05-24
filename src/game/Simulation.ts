@@ -1,10 +1,4 @@
-import type {
-  GameOverInfo,
-  MachineOutputPort,
-  SimulationCommand,
-  SimulationEvent,
-  SimulationEventType,
-} from './types.ts'
+import type { GameOverInfo, MachineOutputPort, SimulationCommand, SimulationEvent, SimulationEventType } from './types.ts'
 import { OUTPUT_PORTS, SLOT_FIELD } from './types.ts'
 import { Machine } from './Machine.ts'
 import { ConveyorBelt } from './ConveyorBelt.ts'
@@ -13,6 +7,7 @@ import { SimulationCommandDispatcher } from './SimulationCommandDispatcher.ts'
 import { CommandQueueRunner } from './CommandQueueRunner.ts'
 import { detectNoRecipeStart } from './NoRecipeGuard.ts'
 import { detectStarvation, type StarvationContext } from './StarvationGuard.ts'
+import { areRecipeDependenciesSatisfied as analyzeRecipeDependencies } from './BadgeSatisfiabilityAnalyzer.ts'
 import type { Item } from './Item.ts'
 
 // Public bridge types — wired by the editor / wireSimulationEffects layer.
@@ -314,9 +309,10 @@ export class Simulation {
     }
     return undefined
   }
-  /** Machine position map (set from Factory grid data). */
   private machinePositions: Map<string, { x: number; z: number }> = new Map()
   setMachinePosition(machineId: string, x: number, z: number): void { this.machinePositions.set(machineId, { x, z }) }
+  getMachinePosition(machineId: string): { x: number; z: number } | undefined { return this.machinePositions.get(machineId) }
+  areRecipeDependenciesSatisfied(machineId: string): boolean { return analyzeRecipeDependencies(machineId, this) }
 
   private updateScoring(): void {
     for (const machine of this.machines.values()) {

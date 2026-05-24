@@ -190,6 +190,7 @@ describe('wireProjectsPanel — name change wiring', () => {
         },
         audio: { playUIClick: vi.fn(), playError: vi.fn() },
         syncFactoryToEditor: vi.fn(),
+        populateSimulation: vi.fn(),
         machinePanel: { hide: vi.fn() },
         beltPanel: { hide: vi.fn() },
         getFactoryRenderer: () => null,

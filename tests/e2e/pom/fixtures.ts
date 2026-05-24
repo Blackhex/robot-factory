@@ -13,6 +13,7 @@ import { LevelFailedScreenPage } from './screens/LevelFailedScreenPage'
 import { FactoryGridPage } from './canvas/FactoryGridPage'
 import { BeltObject } from './canvas/BeltObject'
 import { SimulationProbe } from './canvas/SimulationProbe'
+import { RecipeIconProbe } from './canvas/probes/RecipeIconProbe'
 import { PxtEditorPage } from './editor/PxtEditorPage'
 import { GameOverModalPage } from './screens/GameOverModalPage'
 import { ProjectsPanelPage } from './screens/ProjectsPanelPage'
@@ -35,6 +36,7 @@ type Pages = {
   belt: BeltObject
   probe: SimulationProbe
   pxt: PxtEditorPage
+  recipeIcon: RecipeIconProbe
   gameOverModal: GameOverModalPage
   projectsPanel: ProjectsPanelPage
   saves: SaveManager
@@ -57,6 +59,7 @@ export const test = base.extend<Pages>({
   grid: async ({ page, probe }, use) => { await use(new FactoryGridPage(page, probe)) },
   belt: async ({ page, probe }, use) => { await use(new BeltObject(page, probe)) },
   pxt: async ({ page }, use) => { await use(new PxtEditorPage(page)) },
+  recipeIcon: async ({ page }, use) => { await use(new RecipeIconProbe(page)) },
   projectsPanel: async ({ page }, use) => { await use(new ProjectsPanelPage(page)) },
   gameOverModal: async ({ page }, use) => { await use(new GameOverModalPage(page)) },
   saves: async ({ page }, use) => { await use(new SaveManager(page)) },

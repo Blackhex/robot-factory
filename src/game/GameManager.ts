@@ -1,4 +1,4 @@
-import type { SimulationEvent } from './types.ts'
+import type { SimulationCommand, SimulationEvent } from './types.ts'
 import { Factory } from './Factory.ts'
 import { Simulation } from './Simulation.ts'
 import { Machine } from './Machine.ts'
@@ -151,19 +151,36 @@ export class GameManager {
     const simulation = this._simulation
     if (!factory || !simulation) return
 
-    for (const info of factory.getMachines()) {
-      simulation.addMachine(new Machine(info.id, info.type))
+    const factoryMachines = factory.getMachines()
+    const factoryMachineIds = new Set(factoryMachines.map((m) => m.id))
+    for (const id of [...simulation.getMachines().keys()]) {
+      if (!factoryMachineIds.has(id)) simulation.removeMachine(id)
+    }
+    for (const info of factoryMachines) {
+      if (!simulation.getMachines().has(info.id)) {
+        simulation.addMachine(new Machine(info.id, info.type))
+      }
       simulation.setMachinePosition(info.id, info.x, info.z)
     }
 
-    for (const info of factory.getBelts()) {
-      // Create one ConveyorBelt per path segment
+    const factoryBelts = factory.getBelts()
+    const factorySegmentIds = new Set<string>()
+    for (const info of factoryBelts) {
+      const segments = ConveyorBelt.fromBeltInfo(info)
+      for (const segment of segments) factorySegmentIds.add(segment.id)
+    }
+    for (const id of [...simulation.getBelts().keys()]) {
+      if (!factorySegmentIds.has(id)) simulation.removeBelt(id)
+    }
+    for (const info of factoryBelts) {
+      const firstSegmentId = ConveyorBelt.segmentIdFor(info.id, 0)
+      if (simulation.getBelts().has(firstSegmentId)) continue
       for (const segment of ConveyorBelt.fromBeltInfo(info)) {
         simulation.addBelt(segment)
       }
       simulation.setMachineOutputBelt(
         info.sourceMachine.id,
-        ConveyorBelt.segmentIdFor(info.id, 0),
+        firstSegmentId,
         derivePortFromBeltSource(info),
       )
     }
@@ -173,6 +190,21 @@ export class GameManager {
     // `Factory.getBelts()` and preserve removed-belt items only for
     // exact source/destination slot replacements.
     factory.attachSimulation(simulation)
+  }
+
+  applyBuildPhaseConfigPreview(commands: ReadonlyArray<SimulationCommand>): void {
+    if (this._state !== 'build_phase' && this._state !== 'sandbox') return
+    const sim = this._simulation
+    if (!sim) return
+    for (const command of commands) {
+      if (
+        command.type === 'SET_RECIPE' ||
+        command.type === 'SET_MACHINE_SPEED' ||
+        command.type === 'SET_BELT_SPEED'
+      ) {
+        sim.executeCommand(command)
+      }
+    }
   }
 
   // --- Progress ---

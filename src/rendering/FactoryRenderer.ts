@@ -1,10 +1,10 @@
 import * as THREE from 'three'
 import type { Factory } from '../game/Factory'
-import type { MachineType } from '../game/types'
+import type { MachineType, ItemType } from '../game/types'
 import type { SceneManager } from './SceneManager'
 import { FactoryInteractionRaycaster, type MachineInteractionHit } from './FactoryInteractionRaycaster'
 import { BeltMeshRenderer } from './BeltMeshRenderer'
-import { MachineMeshRenderer, type MachineMeshGroup } from './MachineMeshRenderer'
+import { MachineMeshRenderer, type MachineMeshGroup, type MachineRuntimeView } from './MachineMeshRenderer'
 import { GRID_COLORS } from './RenderingAssets'
 
 export {
@@ -23,6 +23,7 @@ export class FactoryRenderer {
   readonly machineMeshes: Map<string, THREE.Mesh>
   readonly slotMeshes: Map<string, MachineMeshGroup>
   readonly machineIcons: Map<string, THREE.Mesh>
+  readonly recipeIcons: Map<string, THREE.Mesh>
   readonly machineArrows: Map<string, MachineMeshGroup>
   private readonly beltMeshes: Map<string, THREE.Mesh> = new Map()
   private readonly cellBeltIds: Map<THREE.Mesh, string[]> = new Map()
@@ -33,7 +34,11 @@ export class FactoryRenderer {
   readonly machineMaterials: Map<MachineType, THREE.MeshStandardMaterial>
   readonly iconMaterials: Map<MachineType, THREE.MeshBasicMaterial>
 
-  constructor(factory: Factory, sceneManager: SceneManager) {
+  constructor(
+    factory: Factory,
+    sceneManager: SceneManager,
+    options?: { getMachineRuntime?: (machineId: string) => MachineRuntimeView | null },
+  ) {
     this.factory = factory
     this.scene = sceneManager.getScene()
 
@@ -41,10 +46,12 @@ export class FactoryRenderer {
       factory: this.factory,
       scene: this.scene,
       gridToWorld: (x, z) => this.gridToWorld(x, z),
+      getMachineRuntime: options?.getMachineRuntime,
     })
     this.machineMeshes = this.machineMeshRenderer.machineMeshes
     this.slotMeshes = this.machineMeshRenderer.slotMeshes
     this.machineIcons = this.machineMeshRenderer.machineIcons
+    this.recipeIcons = this.machineMeshRenderer.recipeIcons
     this.machineArrows = this.machineMeshRenderer.machineArrows
     this.machineMaterials = this.machineMeshRenderer.machineMaterials
     this.machineHighlightMaterials = this.machineMeshRenderer.machineHighlightMaterials
@@ -142,6 +149,14 @@ export class FactoryRenderer {
     this.updateBelts()
   }
 
+  getRecipeBadgeOutputType(machineId: string): ItemType | null {
+    return this.machineMeshRenderer.getRecipeBadgeOutputType(machineId)
+  }
+
+  getRecipeBadgeDependenciesSatisfied(machineId: string): boolean | null {
+    return this.machineMeshRenderer.getRecipeBadgeDependenciesSatisfied(machineId)
+  }
+
   /**
    * Advance per-frame animation by elapsed real seconds. Call from rAF only.
    *
@@ -158,8 +173,10 @@ export class FactoryRenderer {
     dt: number,
     paused: boolean,
     getSpeed?: (beltLogicalId: string) => number,
+    camera?: THREE.Camera,
   ): void {
     this.beltMeshRenderer.tickChevronScroll(dt, paused, getSpeed)
+    if (camera) this.machineMeshRenderer.tickBillboards(camera)
   }
 
   dispose(): void {

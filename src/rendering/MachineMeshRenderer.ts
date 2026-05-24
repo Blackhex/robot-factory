@@ -1,12 +1,20 @@
 import * as THREE from 'three'
 import type { Factory, MachineInfo } from '../game/Factory'
 import { directionToDegrees, slotPositionToOffset } from '../game/Factory'
-import type { MachineType } from '../game/types'
+import type { ItemType, MachineType } from '../game/types'
 import {
   MACHINE_COLORS,
+  RECIPE_ICON_COLORS,
   createArrowTexture,
   createMachineIconTexture,
+  createRecipeItemBadgeTexture,
 } from './RenderingAssets'
+
+export type MachineRuntimeView = {
+  hasRecipe: boolean
+  recipeOutputType: ItemType | null
+  dependenciesSatisfied: boolean
+}
 
 export type MachineMeshGroup = {
   inputs: THREE.Mesh[]
@@ -17,6 +25,7 @@ export type MachineMeshRendererOptions = {
   factory: Factory
   scene: THREE.Scene
   gridToWorld: (x: number, z: number) => THREE.Vector3
+  getMachineRuntime?: (machineId: string) => MachineRuntimeView | null
 }
 
 type SlotOffset = {
@@ -28,6 +37,7 @@ export class MachineMeshRenderer {
   readonly machineMeshes: Map<string, THREE.Mesh> = new Map()
   readonly slotMeshes: Map<string, MachineMeshGroup> = new Map()
   readonly machineIcons: Map<string, THREE.Mesh> = new Map()
+  readonly recipeIcons: Map<string, THREE.Mesh> = new Map()
   readonly machineArrows: Map<string, MachineMeshGroup> = new Map()
   readonly machineMaterials: Map<MachineType, THREE.MeshStandardMaterial> = new Map()
   readonly machineHighlightMaterials: Map<MachineType, THREE.MeshStandardMaterial> = new Map()
@@ -38,6 +48,10 @@ export class MachineMeshRenderer {
   private readonly factory: Factory
   private readonly scene: THREE.Scene
   private readonly gridToWorld: (x: number, z: number) => THREE.Vector3
+  private readonly getMachineRuntime?: (machineId: string) => MachineRuntimeView | null
+  private readonly recipeIconGeometry: THREE.PlaneGeometry
+  private readonly recipeBadgeTextures: Map<ItemType, THREE.CanvasTexture> = new Map()
+  private readonly recipeIconMaterials: Map<string, THREE.MeshBasicMaterial> = new Map()
   private readonly machineGeometry: THREE.BoxGeometry
   private readonly slotGeometry: THREE.BoxGeometry
   private readonly inputSlotMaterial: THREE.MeshStandardMaterial
@@ -53,6 +67,9 @@ export class MachineMeshRenderer {
     this.factory = options.factory
     this.scene = options.scene
     this.gridToWorld = options.gridToWorld
+    this.getMachineRuntime = options.getMachineRuntime
+
+    this.recipeIconGeometry = new THREE.PlaneGeometry(0.85, 0.85)
 
     this.machineGeometry = new THREE.BoxGeometry(0.9, 0.9, 0.9)
     for (const [type, color] of Object.entries(MACHINE_COLORS)) {
@@ -125,6 +142,18 @@ export class MachineMeshRenderer {
     for (const machine of currentMachines) this.ensureMachineMesh(machine)
   }
 
+  getRecipeBadgeOutputType(machineId: string): ItemType | null {
+    const view = this.getMachineRuntime?.(machineId) ?? null
+    if (!view || !view.hasRecipe) return null
+    return view.recipeOutputType
+  }
+
+  getRecipeBadgeDependenciesSatisfied(machineId: string): boolean | null {
+    const view = this.getMachineRuntime?.(machineId) ?? null
+    if (!view || !view.hasRecipe || view.recipeOutputType == null) return null
+    return view.dependenciesSatisfied
+  }
+
   highlightMachine(machineId: string): void {
     if (this.highlightedMachineId) this.restoreMachineMaterial(this.highlightedMachineId)
     this.highlightedMachineId = machineId
@@ -148,6 +177,19 @@ export class MachineMeshRenderer {
     this.highlightedMachineId = null
   }
 
+  /** Y-axis billboard: rotate recipe icons so their plane normal faces the camera in the horizontal plane, staying upright. */
+  tickBillboards(camera: THREE.Camera): void {
+    const cx = camera.position.x
+    const cz = camera.position.z
+    for (const icon of this.recipeIcons.values()) {
+      const dx = cx - icon.position.x
+      const dz = cz - icon.position.z
+      icon.rotation.x = 0
+      icon.rotation.z = 0
+      icon.rotation.y = Math.atan2(dx, dz)
+    }
+  }
+
   dispose(): void {
     for (const [, mesh] of this.machineMeshes) this.scene.remove(mesh)
     this.machineMeshes.clear()
@@ -157,6 +199,11 @@ export class MachineMeshRenderer {
 
     for (const [, icon] of this.machineIcons) this.scene.remove(icon)
     this.machineIcons.clear()
+
+    for (const [, icon] of this.recipeIcons) this.scene.remove(icon)
+    this.recipeIcons.clear()
+    for (const material of this.recipeIconMaterials.values()) material.dispose()
+    this.recipeIconMaterials.clear()
 
     for (const [, arrows] of this.machineArrows) this.removeMeshGroup(arrows)
     this.machineArrows.clear()
@@ -178,6 +225,9 @@ export class MachineMeshRenderer {
     this.iconMaterials.clear()
 
     this.iconGeometry.dispose()
+    this.recipeIconGeometry.dispose()
+    for (const texture of this.recipeBadgeTextures.values()) texture.dispose()
+    this.recipeBadgeTextures.clear()
     this.arrowGeometry.dispose()
     if (this.inputArrowMaterial.map) this.inputArrowMaterial.map.dispose()
     this.inputArrowMaterial.dispose()
@@ -202,6 +252,17 @@ export class MachineMeshRenderer {
     if (icon) {
       this.scene.remove(icon)
       this.machineIcons.delete(id)
+    }
+
+    const recipeIcon = this.recipeIcons.get(id)
+    if (recipeIcon) {
+      this.scene.remove(recipeIcon)
+      this.recipeIcons.delete(id)
+    }
+    const recipeIconMaterial = this.recipeIconMaterials.get(id)
+    if (recipeIconMaterial) {
+      recipeIconMaterial.dispose()
+      this.recipeIconMaterials.delete(id)
     }
 
     const arrows = this.machineArrows.get(id)
@@ -242,6 +303,7 @@ export class MachineMeshRenderer {
     }
 
     this.ensureIconMesh(machine, worldPos)
+    this.ensureRecipeIconMesh(machine, worldPos)
     const arrows = this.ensureArrowMeshes(machine.id, inputOffsets.length, outputOffsets.length)
     this.positionArrowMeshes(arrows, inputOffsets, outputOffsets, worldPos)
   }
@@ -306,6 +368,60 @@ export class MachineMeshRenderer {
       icon.material = iconMaterial
     }
     icon.position.set(worldPos.x, 0.91, worldPos.z)
+  }
+
+  private ensureRecipeIconMesh(machine: MachineInfo, worldPos: THREE.Vector3): void {
+    const runtime = this.getMachineRuntime?.(machine.id) ?? null
+    const existing = this.recipeIcons.get(machine.id)
+    if (!runtime || !runtime.hasRecipe || runtime.recipeOutputType == null) {
+      if (existing) {
+        this.scene.remove(existing)
+        this.recipeIcons.delete(machine.id)
+      }
+      const material = this.recipeIconMaterials.get(machine.id)
+      if (material) {
+        material.dispose()
+        this.recipeIconMaterials.delete(machine.id)
+      }
+      return
+    }
+    const texture = this.getOrCreateBadgeTexture(runtime.recipeOutputType)
+    let material = this.recipeIconMaterials.get(machine.id)
+    if (!material) {
+      material = new THREE.MeshBasicMaterial({
+        map: texture,
+        color: RECIPE_ICON_COLORS.ready,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+      this.recipeIconMaterials.set(machine.id, material)
+    } else if (material.map !== texture) {
+      material.map = texture
+      material.needsUpdate = true
+    }
+    const targetColor = runtime.dependenciesSatisfied ? RECIPE_ICON_COLORS.ready : RECIPE_ICON_COLORS.missing
+    if (material.color.getHex() !== targetColor) material.color.setHex(targetColor)
+
+    let icon = existing
+    if (!icon) {
+      icon = new THREE.Mesh(this.recipeIconGeometry, material)
+      this.scene.add(icon)
+      this.recipeIcons.set(machine.id, icon)
+    } else if (icon.material !== material) {
+      icon.material = material
+    }
+    icon.userData.recipeOutputType = runtime.recipeOutputType // debug-only; tests read via FactoryRenderer.getRecipeBadgeOutputType
+    icon.position.set(worldPos.x, 1.7, worldPos.z)
+  }
+
+  private getOrCreateBadgeTexture(itemType: ItemType): THREE.CanvasTexture {
+    let texture = this.recipeBadgeTextures.get(itemType)
+    if (!texture) {
+      texture = createRecipeItemBadgeTexture(itemType)
+      this.recipeBadgeTextures.set(itemType, texture)
+    }
+    return texture
   }
 
   private ensureArrowMeshes(id: string, inputCount: number, outputCount: number): MachineMeshGroup {

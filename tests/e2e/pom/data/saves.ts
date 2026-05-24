@@ -88,4 +88,69 @@ export class SaveManager {
       { slotId, name, save: save as unknown },
     )
   }
+
+  /**
+   * Pre-seed a sandbox project slot WITHOUT marking it as the most
+   * recently loaded slot — i.e. `lastLoadedId` stays `null`. The user
+   * then has to actively open the Projects panel and double-click the
+   * slot to load it. Used to exercise the Projects-menu load path
+   * (`projectsPanel.onLoadSlot` → `runDestructiveFactoryReplace` in
+   * `src/ui/wireProjectsPanel.ts`), which is distinct from the
+   * page-refresh / `autoRestoreFactory` path covered by
+   * `seedSandboxProjectAsActive`.
+   */
+  async seedSandboxProjectSlot(name: string, save: FactorySaveLike): Promise<void> {
+    const slotId = `e2e-${Math.floor(Math.random() * 1e9).toString(36)}`
+    await this.page.addInitScript(
+      ({ slotId, name, save }: { slotId: string; name: string; save: unknown }) => {
+        if (window.top !== window.self) return
+        const index = {
+          version: 1,
+          slots: [{ id: slotId, name, savedAt: Date.now() }],
+          lastLoadedId: null,
+        }
+        try {
+          localStorage.setItem('rf_sandbox_projects_index', JSON.stringify(index))
+          localStorage.setItem(`rf_sandbox_project_${slotId}`, JSON.stringify(save))
+        } catch {
+          /* ignore */
+        }
+      },
+      { slotId, name, save: save as unknown },
+    )
+  }
+
+  /**
+   * Pre-seed MULTIPLE sandbox project slots in a single index, with
+   * `lastLoadedId: null` so none autoload. Used by tests that exercise
+   * chained Projects-menu loads (load slot A, then load slot B).
+   */
+  async seedSandboxProjectSlots(
+    entries: Array<{ name: string; save: FactorySaveLike }>,
+  ): Promise<void> {
+    const seeded = entries.map((e) => ({
+      id: `e2e-${Math.floor(Math.random() * 1e9).toString(36)}`,
+      name: e.name,
+      save: e.save,
+    }))
+    await this.page.addInitScript(
+      (items: Array<{ id: string; name: string; save: unknown }>) => {
+        if (window.top !== window.self) return
+        const index = {
+          version: 1,
+          slots: items.map((it) => ({ id: it.id, name: it.name, savedAt: Date.now() })),
+          lastLoadedId: null,
+        }
+        try {
+          localStorage.setItem('rf_sandbox_projects_index', JSON.stringify(index))
+          for (const it of items) {
+            localStorage.setItem(`rf_sandbox_project_${it.id}`, JSON.stringify(it.save))
+          }
+        } catch {
+          /* ignore */
+        }
+      },
+      seeded as Array<{ id: string; name: string; save: unknown }>,
+    )
+  }
 }
