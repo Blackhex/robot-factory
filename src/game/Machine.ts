@@ -55,6 +55,13 @@ export class Machine {
   pendingDefectFromInput = false
 
   /**
+   * Set by `consumeInputs` to the Items removed from `inputSlots` for the
+   * current cycle, ordered to match `recipe.inputs` (expanded by quantity).
+   * Read by `produceOutput` to populate the assembly's `components`.
+   */
+  pendingComponents: Item[] = []
+
+  /**
    * Set on the false→true edge of `enabled` (i.e., a real `start()` flip).
    * Consumed by `Simulation.updateMachines` after the machine ticks: if
    * the machine remained idle this tick (no real state change, no cycle
@@ -66,7 +73,10 @@ export class Machine {
    */
   firstIdleAfterStartPending = false
 
-  constructor(id: string, machineType: MachineType, maxInputSlots = 4) {
+  /** Recycler-only: queued items waiting to be parked into the primary output, one per tick. */
+  readonly recyclerOutputQueue: Item[] = []
+
+  constructor(id: string, machineType: MachineType, maxInputSlots = 3) {
     this.id = id
     this.machineType = machineType
     this.maxInputSlots = maxInputSlots
@@ -105,10 +115,12 @@ export class Machine {
     this.itemsProduced = 0
     this.enabled = false
     this.pendingDefectFromInput = false
+    this.pendingComponents = []
     this.firstIdleAfterStartPending = false
     this.outputSidesConfig = SPLITTER_ALL_SIDES_BITS
     this.routingCounter = 0
     this.perItemRouteOverrides.clear()
+    this.recyclerOutputQueue.length = 0
   }
 
   addInput(item: Item): boolean {

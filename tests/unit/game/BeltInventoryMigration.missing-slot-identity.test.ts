@@ -37,7 +37,7 @@ describe('planBeltInventoryMigration() - missing slot identity', () => {
         { x: 5, z: 0 },
       ],
     })
-    const item = createItem('sensor_camera', 71)
+    const item = createItem('wheel_small', 71)
     const inventory = removedInventory({
       sourceMachine,
       destinationMachine,
@@ -91,7 +91,7 @@ describe('planBeltInventoryMigration() - missing slot identity', () => {
         { x: 5, z: 0 },
       ],
     })
-    const item = createItem('sensor_camera', 72)
+    const item = createItem('wheel_small', 72)
     const inventory = removedInventory({
       sourceMachine,
       destinationMachine,
@@ -145,7 +145,7 @@ describe('planBeltInventoryMigration() - missing slot identity', () => {
         { x: 5, z: 0 },
       ],
     })
-    const item = createItem('sensor_camera', 73)
+    const item = createItem('wheel_small', 73)
     const inventory = removedInventory({
       sourceMachine,
       destinationMachine,
@@ -203,7 +203,7 @@ describe('planBeltInventoryMigration() - missing slot identity', () => {
       ],
     })
     const firstItem = createItem('wheel_small', 73)
-    const secondItem = createItem('sensor_camera', 74)
+    const secondItem = createItem('wheel_small', 74)
     const inventory = removedInventory({
       sourceMachine,
       destinationMachine,

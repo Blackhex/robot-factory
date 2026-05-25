@@ -141,10 +141,8 @@ describe('areRecipeDependenciesSatisfied (static recipe-dependency analyzer)', (
 
   it('traverses through a splitter (fab → splitter → assembler)', () => {
     // GIVEN — single fabricator routed through a splitter to a fabricator-only
-    // recipe with one required type. Use assemble_sensor_array_basic? — it
-    // needs 2 sensor types. Instead use a single-required-input setup: build
-    // wheel_small + circuit_basic for assemble_drivetrain_basic, with the
-    // wheel feed going through a splitter.
+    // recipe with one required type. Build wheel_small + circuit_basic for
+    // assemble_drivetrain_basic, with the wheel feed going through a splitter.
     const sim = new Simulation()
     const assembler = new Machine('assembler', 'assembler')
     assembler.setRecipe(recipe('assemble_drivetrain_basic'))
@@ -295,7 +293,7 @@ describe('areRecipeDependenciesSatisfied (static recipe-dependency analyzer)', (
     expect(isSatisfied(sim, 'assembler')).toBe(false)
   })
 
-  it.todo('treats a Recycler as a producer of raw_material when an upstream Recycler is belt-connected (no current recipe requires raw_material; revisit if one is added)')
+  it.todo('treats a Recycler as a producer of any T that is producible by some recipe in the registry (so Recycler outputs are recursively satisfiable)')
 
   it('traverses through a multi-cell belt chain (no intermediate machines)', () => {
     // GIVEN — producers placed 3 cells away from the assembler, connected

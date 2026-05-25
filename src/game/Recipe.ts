@@ -44,30 +44,6 @@ const wheelPressLarge: Recipe = {
   machineType: 'part_fabricator',
 }
 
-const sensorFabProximity: Recipe = {
-  id: 'sensor_fab_proximity',
-  inputs: [],
-  outputs: [{ type: 'sensor_proximity', quantity: 1 }],
-  processingTicks: 6,
-  machineType: 'part_fabricator',
-}
-
-const sensorFabCamera: Recipe = {
-  id: 'sensor_fab_camera',
-  inputs: [],
-  outputs: [{ type: 'sensor_camera', quantity: 1 }],
-  processingTicks: 8,
-  machineType: 'part_fabricator',
-}
-
-const sensorFabLidar: Recipe = {
-  id: 'sensor_fab_lidar',
-  inputs: [],
-  outputs: [{ type: 'sensor_lidar', quantity: 1 }],
-  processingTicks: 10,
-  machineType: 'part_fabricator',
-}
-
 const batteryAssemblyStandard: Recipe = {
   id: 'battery_assembly_standard',
   inputs: [],
@@ -140,29 +116,6 @@ const assembleDrivetrainAdvanced: Recipe = {
   machineType: 'assembler',
 }
 
-const assembleSensorArrayBasic: Recipe = {
-  id: 'assemble_sensor_array_basic',
-  inputs: [
-    { type: 'sensor_proximity', quantity: 2 },
-    { type: 'circuit_basic', quantity: 1 },
-  ],
-  outputs: [{ type: 'sensor_array_basic', quantity: 1 }],
-  processingTicks: 8,
-  machineType: 'assembler',
-}
-
-const assembleSensorArrayAdvanced: Recipe = {
-  id: 'assemble_sensor_array_advanced',
-  inputs: [
-    { type: 'sensor_camera', quantity: 1 },
-    { type: 'sensor_lidar', quantity: 1 },
-    { type: 'circuit_advanced', quantity: 1 },
-  ],
-  outputs: [{ type: 'sensor_array_advanced', quantity: 1 }],
-  processingTicks: 12,
-  machineType: 'assembler',
-}
-
 const assemblePowerUnitStandard: Recipe = {
   id: 'assemble_power_unit_standard',
   inputs: [
@@ -192,7 +145,6 @@ const assembleRobotExplorer: Recipe = {
   inputs: [
     { type: 'chassis_light', quantity: 1 },
     { type: 'drivetrain_basic', quantity: 1 },
-    { type: 'sensor_array_basic', quantity: 1 },
     { type: 'power_unit_standard', quantity: 1 },
   ],
   outputs: [{ type: 'robot_explorer', quantity: 1 }],
@@ -205,24 +157,10 @@ const assembleRobotWorker: Recipe = {
   inputs: [
     { type: 'chassis_heavy', quantity: 1 },
     { type: 'drivetrain_advanced', quantity: 1 },
-    { type: 'sensor_array_basic', quantity: 1 },
     { type: 'power_unit_high', quantity: 1 },
   ],
   outputs: [{ type: 'robot_worker', quantity: 1 }],
   processingTicks: 25,
-  machineType: 'assembler',
-}
-
-const assembleRobotGuardian: Recipe = {
-  id: 'assemble_robot_guardian',
-  inputs: [
-    { type: 'chassis_heavy', quantity: 1 },
-    { type: 'drivetrain_advanced', quantity: 1 },
-    { type: 'sensor_array_advanced', quantity: 1 },
-    { type: 'power_unit_high', quantity: 1 },
-  ],
-  outputs: [{ type: 'robot_guardian', quantity: 1 }],
-  processingTicks: 30,
   machineType: 'assembler',
 }
 
@@ -232,9 +170,6 @@ const ALL_RECIPES: ReadonlyArray<Recipe> = [
   wheelPress,
   wheelPressMedium,
   wheelPressLarge,
-  sensorFabProximity,
-  sensorFabCamera,
-  sensorFabLidar,
   batteryAssemblyStandard,
   batteryAssemblyHigh,
   chassisStamperLight,
@@ -243,13 +178,10 @@ const ALL_RECIPES: ReadonlyArray<Recipe> = [
   circuitPrinterAdvanced,
   assembleDrivetrainBasic,
   assembleDrivetrainAdvanced,
-  assembleSensorArrayBasic,
-  assembleSensorArrayAdvanced,
   assemblePowerUnitStandard,
   assemblePowerUnitHigh,
   assembleRobotExplorer,
   assembleRobotWorker,
-  assembleRobotGuardian,
 ]
 
 const recipeMap = new Map<string, Recipe>()

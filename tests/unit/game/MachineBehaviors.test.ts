@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Machine } from '../../../src/game/Machine'
 import { ALL_OUTPUTS_CONNECTED_ENV } from '../../../src/game/MachineBehaviors'
-import { createItem, resetItemIdCounter } from '../../../src/game/Item'
+import { resetItemIdCounter } from '../../../src/game/Item'
 import { ALL_MACHINE_TYPES } from '../../../src/game/types'
 import type { Recipe } from '../../../src/game/Recipe'
 
@@ -24,7 +24,7 @@ function readMachineSource(): string {
 function smallFabRecipe(): Recipe {
   return {
     id: 'test_small_fab',
-    inputs: [{ type: 'raw_material', quantity: 1 }],
+    inputs: [],
     outputs: [{ type: 'wheel_small', quantity: 1 }],
     processingTicks: 2,
     machineType: 'part_fabricator',
@@ -90,7 +90,6 @@ describe('MachineBehaviors strategy registry', () => {
       const m = new Machine('pf1', 'part_fabricator')
       m.setRecipe(smallFabRecipe())
       m.start()
-      m.addInput(createItem('raw_material'))
 
       // WHEN — tick until processing completes.
       // The default tick handles `idle` and `processing` states in distinct
@@ -192,28 +191,6 @@ describe('MachineBehaviors strategy registry', () => {
       // THEN
       expect(m.outputSlot).not.toBeNull()
       expect(m.outputSlot?.type).toBe('wheel_small')
-    })
-
-    it('recycler speed=3: hardcoded 3-tick recipe produces raw_material after 1+ceil(3/3)=2 ticks', () => {
-      // GIVEN — recycler has hardcoded baseTicks = 3 in its tick handler
-      resetItemIdCounter()
-      const r = new Machine('rec1', 'recycler')
-      r.speed = 3
-      r.start()
-      r.addInput(createItem('wheel_small'))
-
-      // WHEN — tick 1: idle → consume input, processingTimer = ceil(3/3)=1, state=processing
-      r.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
-
-      // THEN — not yet produced
-      expect(r.outputSlot).toBeNull()
-
-      // WHEN — tick 2: timer-- → 0, park raw_material in primary output
-      r.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
-
-      // THEN
-      expect(r.outputSlot).not.toBeNull()
-      expect(r.outputSlot?.type).toBe('raw_material')
     })
   })
 })

@@ -111,7 +111,7 @@ describe('ConveyorBelt — one-item-per-cell contract', () => {
       'wheel_large',
       'circuit_basic',
       'circuit_advanced',
-      'sensor_camera',
+      'battery_standard',
       'chassis_light',
       'wheel_small',
       'circuit_basic',

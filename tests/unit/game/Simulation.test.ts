@@ -796,7 +796,7 @@ describe('Simulation', () => {
       tickN(sim, 11)
       belt.addItem(createItem('robot_explorer'))
       tickN(sim, 11)
-      belt.addItem(createItem('robot_guardian'))
+      belt.addItem(createItem('robot_worker'))
       tickN(sim, 11)
 
       // THEN — exactly 3 robots counted, regardless of how many ticks elapsed
@@ -1027,11 +1027,11 @@ describe('Simulation', () => {
       tickN(sim, 11)
       belt.addItem(createItem('wheel_medium'))
       tickN(sim, 11)
-      belt.addItem(createItem('sensor_camera'))
+      belt.addItem(createItem('battery_standard'))
       tickN(sim, 11)
       belt.addItem(createItem('drivetrain_basic'))
       tickN(sim, 11)
-      belt.addItem(createItem('sensor_array_basic'))
+      belt.addItem(createItem('power_unit_standard'))
       tickN(sim, 11)
       belt.addItem(createItem('robot_worker'))
       tickN(sim, 11)
@@ -1221,23 +1221,6 @@ describe('Recycler', () => {
     resetItemIdCounter()
   })
 
-  it('should convert any item to raw_material', () => {
-    // GIVEN
-    const recycler = new Machine('rec1', 'recycler')
-    recycler.start()
-    recycler.addInput(createItem('wheel_small', 30))
-
-    // WHEN
-    // 1 tick to start + 3 ticks processing = 4 ticks
-    for (let i = 0; i < 4; i++) {
-      recycler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
-    }
-
-    // THEN
-    expect(recycler.outputSlot).not.toBeNull()
-    expect(recycler.outputSlot!.type).toBe('raw_material')
-  })
-
   it('should take exactly 3 ticks to process', () => {
     // GIVEN
     const recycler = new Machine('rec1', 'recycler')
@@ -1262,20 +1245,7 @@ describe('Recycler', () => {
 
     // THEN
     expect(recycler.outputSlot).not.toBeNull()
-    expect(recycler.outputSlot!.type).toBe('raw_material')
-  })
-
-  it('should consume the input item on start', () => {
-    // GIVEN
-    const recycler = new Machine('rec1', 'recycler')
-    recycler.start()
-    recycler.addInput(createItem('wheel_small'))
-
-    // WHEN
-    recycler.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV) // consumes input, starts processing
-
-    // THEN
-    expect(recycler.inputSlots).toHaveLength(0)
+    expect(recycler.outputSlot!.type).toBe('circuit_basic')
   })
 
   it('should become blocked when output is full', () => {

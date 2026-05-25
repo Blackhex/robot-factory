@@ -32,9 +32,6 @@ const RECIPE_TABLE = [
   { name: 'WheelPressSmall', id: 'wheel_press_small' },
   { name: 'WheelPressMedium', id: 'wheel_press_medium' },
   { name: 'WheelPressLarge', id: 'wheel_press_large' },
-  { name: 'SensorFabProximity', id: 'sensor_fab_proximity' },
-  { name: 'SensorFabCamera', id: 'sensor_fab_camera' },
-  { name: 'SensorFabLidar', id: 'sensor_fab_lidar' },
   { name: 'BatteryAssemblyStandard', id: 'battery_assembly_standard' },
   { name: 'BatteryAssemblyHigh', id: 'battery_assembly_high' },
   { name: 'ChassisStamperLight', id: 'chassis_stamper_light' },
@@ -43,13 +40,10 @@ const RECIPE_TABLE = [
   { name: 'CircuitPrinterAdvanced', id: 'circuit_printer_advanced' },
   { name: 'AssembleDrivetrainBasic', id: 'assemble_drivetrain_basic' },
   { name: 'AssembleDrivetrainAdvanced', id: 'assemble_drivetrain_advanced' },
-  { name: 'AssembleSensorArrayBasic', id: 'assemble_sensor_array_basic' },
-  { name: 'AssembleSensorArrayAdvanced', id: 'assemble_sensor_array_advanced' },
   { name: 'AssemblePowerUnitStandard', id: 'assemble_power_unit_standard' },
   { name: 'AssemblePowerUnitHigh', id: 'assemble_power_unit_high' },
   { name: 'AssembleRobotExplorer', id: 'assemble_robot_explorer' },
   { name: 'AssembleRobotWorker', id: 'assemble_robot_worker' },
-  { name: 'AssembleRobotGuardian', id: 'assemble_robot_guardian' },
 ] as const
 
 const BELT_TABLE = [
@@ -67,9 +61,6 @@ const PART_TYPE_TABLE = [
   { name: 'WheelSmall', id: 'wheel_small' },
   { name: 'WheelMedium', id: 'wheel_medium' },
   { name: 'WheelLarge', id: 'wheel_large' },
-  { name: 'SensorProximity', id: 'sensor_proximity' },
-  { name: 'SensorCamera', id: 'sensor_camera' },
-  { name: 'SensorLidar', id: 'sensor_lidar' },
   { name: 'BatteryStandard', id: 'battery_standard' },
   { name: 'BatteryHighCapacity', id: 'battery_high_capacity' },
   { name: 'ChassisLight', id: 'chassis_light' },
@@ -78,14 +69,10 @@ const PART_TYPE_TABLE = [
   { name: 'CircuitAdvanced', id: 'circuit_advanced' },
   { name: 'DrivetrainBasic', id: 'drivetrain_basic' },
   { name: 'DrivetrainAdvanced', id: 'drivetrain_advanced' },
-  { name: 'SensorArrayBasic', id: 'sensor_array_basic' },
-  { name: 'SensorArrayAdvanced', id: 'sensor_array_advanced' },
   { name: 'PowerUnitStandard', id: 'power_unit_standard' },
   { name: 'PowerUnitHigh', id: 'power_unit_high' },
-  { name: 'RawMaterial', id: 'raw_material' },
   { name: 'RobotExplorer', id: 'robot_explorer' },
   { name: 'RobotWorker', id: 'robot_worker' },
-  { name: 'RobotGuardian', id: 'robot_guardian' },
 ] as const
 
 // --- Derived ID arrays (index = enum numeric value) ----------------------
@@ -315,7 +302,7 @@ export class BlockInterpreter {
   /**
    * Legacy `factory.*` namespace — provides backward-compatible methods
    * that accept string arguments with quotes (e.g. `factory.startMachine("press_1")`).
-   * Also exposes enum objects (e.g. `factory.PartType.SensorCamera`).
+   * Also exposes enum objects (e.g. `factory.PartType.WheelSmall`).
    *
    * Composed by spreading the underlying namespace objects. All members
    * of those namespaces are arrow-function class fields, so `this` is

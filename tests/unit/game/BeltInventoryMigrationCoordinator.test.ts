@@ -38,7 +38,7 @@ describe('BeltInventoryMigrationCoordinator', () => {
         { x: 3, z: 0 },
       ],
     })
-    const capturedItem = createItem('sensor_camera', 73)
+    const capturedItem = createItem('wheel_small', 73)
     capturedItem.positionOnBelt = 0.35
     const removedSegment = new ConveyorBelt(`${removedBelt.id}_seg1`, 1, 0, 2, 0)
     removedSegment.insertItemAt(capturedItem, capturedItem.positionOnBelt)

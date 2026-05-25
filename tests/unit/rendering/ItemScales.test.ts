@@ -18,23 +18,17 @@ const SMALL_TYPES: readonly ItemType[] = [
   'wheel_small',
   'wheel_medium',
   'wheel_large',
-  'sensor_proximity',
-  'sensor_camera',
-  'sensor_lidar',
   'battery_standard',
   'battery_high_capacity',
   'chassis_light',
   'chassis_heavy',
   'circuit_basic',
   'circuit_advanced',
-  'raw_material',
 ]
 
 const MEDIUM_TYPES: readonly ItemType[] = [
   'drivetrain_basic',
   'drivetrain_advanced',
-  'sensor_array_basic',
-  'sensor_array_advanced',
   'power_unit_standard',
   'power_unit_high',
 ]
@@ -42,7 +36,6 @@ const MEDIUM_TYPES: readonly ItemType[] = [
 const LARGE_TYPES: readonly ItemType[] = [
   'robot_explorer',
   'robot_worker',
-  'robot_guardian',
 ]
 
 const ALL_TYPES: readonly ItemType[] = [
@@ -60,8 +53,8 @@ describe('getItemScale', () => {
     expect(medium).toBeLessThan(large)
   })
 
-  it('returns a positive finite number for every known ItemType (22 total)', () => {
-    expect(ALL_TYPES.length).toBe(22)
+  it('returns a positive finite number for every known ItemType (15 total)', () => {
+    expect(ALL_TYPES.length).toBe(15)
     for (const type of ALL_TYPES) {
       const scale = getItemScale(type)
       expect(Number.isFinite(scale)).toBe(true)

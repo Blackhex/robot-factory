@@ -176,12 +176,12 @@ describe('Machine', () => {
       expect(m.canAcceptInput()).toBe(false)
     })
 
-    it('should default to maxInputSlots = 4', () => {
+    it('should default to maxInputSlots = 3', () => {
       // GIVEN
       const m = new Machine('m4', 'assembler')
 
       // WHEN / THEN
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 3; i++) {
         expect(m.addInput(createItem('wheel_small'))).toBe(true)
       }
       expect(m.addInput(createItem('wheel_small'))).toBe(false)

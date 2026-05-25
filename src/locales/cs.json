@@ -122,9 +122,6 @@
     "wheel_small": "Malé kolo",
     "wheel_medium": "Střední kolo",
     "wheel_large": "Velké kolo",
-    "sensor_proximity": "Senzor přiblížení",
-    "sensor_camera": "Kamerový senzor",
-    "sensor_lidar": "LiDAR senzor",
     "battery_standard": "Standardní baterie",
     "battery_high_capacity": "Vysokokapacitní baterie",
     "chassis_light": "Lehký podvozek",
@@ -133,16 +130,12 @@
     "circuit_advanced": "Pokročilý obvod",
     "drivetrain_basic": "Základní pohon",
     "drivetrain_advanced": "Pokročilý pohon",
-    "sensor_array_basic": "Základní senzorové pole",
-    "sensor_array_advanced": "Pokročilé senzorové pole",
     "power_unit_standard": "Standardní napájecí jednotka",
     "power_unit_high": "Výkonná napájecí jednotka",
     "frame_basic": "Základní rám",
     "motor_standard": "Standardní motor",
     "robot_explorer": "Robot Průzkumník",
-    "robot_worker": "Robot Dělník",
-    "robot_guardian": "Robot Strážce",
-    "raw_material": "Surovina"
+    "robot_worker": "Robot Dělník"
   },
   "belts": {
     "belt_1": "Pás 1",
@@ -153,9 +146,6 @@
     "wheel_small": "Malá kola",
     "wheel_medium": "Střední kola",
     "wheel_large": "Velká kola",
-    "sensor_proximity": "Senzory přiblížení",
-    "sensor_camera": "Kamerové senzory",
-    "sensor_lidar": "LiDAR senzory",
     "battery_standard": "Standardní baterie",
     "battery_high_capacity": "Vysokokapacitní baterie",
     "chassis_light": "Lehké podvozky",
@@ -164,14 +154,10 @@
     "circuit_advanced": "Pokročilé obvody",
     "drivetrain_basic": "Základní pohony",
     "drivetrain_advanced": "Pokročilé pohony",
-    "sensor_array_basic": "Základní senzorová pole",
-    "sensor_array_advanced": "Pokročilá senzorová pole",
     "power_unit_standard": "Standardní napájecí jednotky",
     "power_unit_high": "Výkonné napájecí jednotky",
     "robot_explorer": "Roboti Průzkumníci",
     "robot_worker": "Roboti Dělníci",
-    "robot_guardian": "Roboti Strážci",
-    "raw_material": "Suroviny",
     "frame_basic": "Základní rámy",
     "motor_standard": "Standardní motory"
   },
@@ -179,9 +165,6 @@
     "wheel_press_small": "Malá kola",
     "wheel_press_medium": "Střední kola",
     "wheel_press_large": "Velká kola",
-    "sensor_fab_proximity": "Senzory přiblížení",
-    "sensor_fab_camera": "Kamerové senzory",
-    "sensor_fab_lidar": "LiDAR senzory",
     "battery_assembly_standard": "Standardní baterie",
     "battery_assembly_high": "Vysokokapacitní baterie",
     "chassis_stamper_light": "Lehký podvozek",
@@ -190,13 +173,10 @@
     "circuit_printer_advanced": "Pokročilé obvody",
     "assemble_drivetrain_basic": "Základní pohon",
     "assemble_drivetrain_advanced": "Pokročilý pohon",
-    "assemble_sensor_array_basic": "Základní senzorové pole",
-    "assemble_sensor_array_advanced": "Pokročilé senzorové pole",
     "assemble_power_unit_standard": "Standardní napájecí jednotka",
     "assemble_power_unit_high": "Výkonná napájecí jednotka",
     "assemble_robot_explorer": "Robot Průzkumník",
-    "assemble_robot_worker": "Robot Dělník",
-    "assemble_robot_guardian": "Robot Strážce"
+    "assemble_robot_worker": "Robot Dělník"
   },
   "levels": {
     "level_1": {
@@ -221,7 +201,7 @@
     },
     "level_6": {
       "name": "Vlastní roboti",
-      "description": "Definuj funkce pro stavbu tří různých modelů robotů."
+      "description": "Definuj funkce pro stavbu dvou různých modelů robotů."
     },
     "level_7": {
       "name": "Urgentní objednávka!",
@@ -237,7 +217,7 @@
     },
     "level_10": {
       "name": "Tovární magnát",
-      "description": "Řiď vícelinkovou výrobní halu pro všechny typy robotů."
+      "description": "Řiď vícelinkovou výrobní halu pro oba typy robotů."
     }
   },
   "scoring": {

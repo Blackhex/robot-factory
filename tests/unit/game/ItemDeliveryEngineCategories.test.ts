@@ -94,10 +94,10 @@ describe('ItemDeliveryEngine — per-category delivery counts', () => {
     expect(result.defectsDiscarded).toBe(0)
   })
 
-  it('non-defective raw_material bumps partsDelivered (raw_material is a part)', () => {
+  it('non-defective part (wheel_small) bumps partsDelivered', () => {
     // GIVEN
     const { belt, engine } = buildHarness()
-    belt.addItem(createItem('raw_material'))
+    belt.addItem(createItem('wheel_small'))
     advanceBeltToEnd(belt)
 
     // WHEN

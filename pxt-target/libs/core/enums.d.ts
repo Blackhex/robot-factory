@@ -7,24 +7,18 @@ declare const enum PartType {
     WheelMedium = 1,
     //% block="Large Wheel"
     WheelLarge = 2,
-    //% block="Proximity Sensor"
-    SensorProximity = 3,
-    //% block="Camera Sensor"
-    SensorCamera = 4,
-    //% block="LIDAR Sensor"
-    SensorLidar = 5,
     //% block="Standard Battery"
-    BatteryStandard = 6,
+    BatteryStandard = 3,
     //% block="High-Capacity Battery"
-    BatteryHighCapacity = 7,
+    BatteryHighCapacity = 4,
     //% block="Light Chassis"
-    ChassisLight = 8,
+    ChassisLight = 5,
     //% block="Heavy Chassis"
-    ChassisHeavy = 9,
+    ChassisHeavy = 6,
     //% block="Basic Circuit"
-    CircuitBasic = 10,
+    CircuitBasic = 7,
     //% block="Advanced Circuit"
-    CircuitAdvanced = 11,
+    CircuitAdvanced = 8,
 }
 
 // ─── Machine slots ───────────────────────────────────────────────────────────
@@ -172,42 +166,30 @@ declare const enum Recipe {
     WheelPressMedium = 1,
     //% block="Large Wheels"
     WheelPressLarge = 2,
-    //% block="Proximity Sensors"
-    SensorFabProximity = 3,
-    //% block="Camera Sensors"
-    SensorFabCamera = 4,
-    //% block="LIDAR Sensors"
-    SensorFabLidar = 5,
     //% block="Standard Batteries"
-    BatteryAssemblyStandard = 6,
+    BatteryAssemblyStandard = 3,
     //% block="High-Cap Batteries"
-    BatteryAssemblyHigh = 7,
+    BatteryAssemblyHigh = 4,
     //% block="Light Chassis"
-    ChassisStamperLight = 8,
+    ChassisStamperLight = 5,
     //% block="Heavy Chassis"
-    ChassisStamperHeavy = 9,
+    ChassisStamperHeavy = 6,
     //% block="Basic Circuits"
-    CircuitPrinterBasic = 10,
+    CircuitPrinterBasic = 7,
     //% block="Advanced Circuits"
-    CircuitPrinterAdvanced = 11,
+    CircuitPrinterAdvanced = 8,
     //% block="Basic Drivetrain"
-    AssembleDrivetrainBasic = 12,
+    AssembleDrivetrainBasic = 9,
     //% block="Adv. Drivetrain"
-    AssembleDrivetrainAdvanced = 13,
-    //% block="Basic Sensor Array"
-    AssembleSensorArrayBasic = 14,
-    //% block="Adv. Sensor Array"
-    AssembleSensorArrayAdvanced = 15,
+    AssembleDrivetrainAdvanced = 10,
     //% block="Std. Power Unit"
-    AssemblePowerUnitStandard = 16,
+    AssemblePowerUnitStandard = 11,
     //% block="High Power Unit"
-    AssemblePowerUnitHigh = 17,
+    AssemblePowerUnitHigh = 12,
     //% block="Explorer Robot"
-    AssembleRobotExplorer = 18,
+    AssembleRobotExplorer = 13,
     //% block="Worker Robot"
-    AssembleRobotWorker = 19,
-    //% block="Guardian Robot"
-    AssembleRobotGuardian = 20,
+    AssembleRobotWorker = 14,
 }
 
 // ─── Belt slots ──────────────────────────────────────────────────────────────

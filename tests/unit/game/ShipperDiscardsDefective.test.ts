@@ -172,7 +172,7 @@ describe('Shipper (factory_output) discards defective items', () => {
     tickN(sim, 11)
     belt.addItem(defective(createItem('robot_explorer')))
     tickN(sim, 11)
-    belt.addItem(createItem('robot_guardian'))
+    belt.addItem(createItem('robot_worker'))
     tickN(sim, 11)
     belt.addItem(defective(createItem('robot_worker')))
     tickN(sim, 11)

@@ -1,4 +1,4 @@
-﻿import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSimulationEffectsWireUp } from '../../../src/ui/wireSimulationEffects'
 import { createItem } from '../../../src/game/Item'
 import type { Item } from '../../../src/game/Item'
@@ -109,7 +109,7 @@ describe('createSimulationEffectsWireUp — onItemArrives bridge wiring (E4a)', 
     wireUp()
 
     const bridge = captureItemArrivalBridge(sim)
-    const item = createItem('raw_material', 75)
+    const item = createItem('wheel_small', 75)
     bridge('machine_X', item)
 
     expect(triggerOnItemArrives).toHaveBeenCalledTimes(1)
@@ -131,7 +131,7 @@ describe('createSimulationEffectsWireUp — onItemArrives bridge wiring (E4a)', 
     wireUp()
 
     const bridge = captureItemArrivalBridge(sim)
-    const result = bridge('machine_X', createItem('raw_material'))
+    const result = bridge('machine_X', createItem('wheel_small'))
 
     // The setter contract states the simulation enqueues commands itself;
     // the wire-up MUST forward them as the function's return value rather
@@ -146,7 +146,7 @@ describe('createSimulationEffectsWireUp — onItemArrives bridge wiring (E4a)', 
     wireUp()
 
     const bridge = captureItemArrivalBridge(sim)
-    const result = bridge('machine_X', createItem('raw_material'))
+    const result = bridge('machine_X', createItem('wheel_small'))
 
     expect(result).toEqual([])
     expect(sim.enqueueCommands).not.toHaveBeenCalled()
@@ -162,7 +162,7 @@ describe('createSimulationEffectsWireUp — onItemArrives bridge wiring (E4a)', 
     wireUp()
 
     const bridge = captureItemArrivalBridge(sim)
-    const result = bridge('machine_X', createItem('raw_material'))
+    const result = bridge('machine_X', createItem('wheel_small'))
 
     expect(result).toEqual([])
   })
@@ -182,7 +182,7 @@ describe('createSimulationEffectsWireUp — onItemArrives bridge wiring (E4a)', 
     const bridge = captureItemArrivalBridge(sim)
     let result: readonly SimulationCommand[] | undefined
     expect(() => {
-      result = bridge('machine_X', createItem('raw_material'))
+      result = bridge('machine_X', createItem('wheel_small'))
     }).not.toThrow()
 
     expect(triggerOnItemArrives).toHaveBeenCalledTimes(1)

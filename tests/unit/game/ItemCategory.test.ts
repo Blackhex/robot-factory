@@ -13,10 +13,9 @@ import type { ItemType } from '../../../src/game/types'
  *
  * The implementation must export:
  *   - `PART_ITEM_TYPES`     — readonly tuple of part-class ItemTypes
- *                             (wheels, sensors, batteries, chassis,
- *                              circuits, raw_material).
+ *                             (wheels, batteries, chassis, circuits).
  *   - `ASSEMBLY_ITEM_TYPES` — readonly tuple of assembly-class ItemTypes
- *                             (drivetrains, sensor arrays, power units).
+ *                             (drivetrains, power units).
  *   - `getItemCategory(t)`  — returns 'part' | 'assembly' | 'robot'.
  *
  * Each constant must have a compile-time exhaustiveness guard analogous
@@ -31,23 +30,17 @@ describe('ItemType categorisation', () => {
       'wheel_small',
       'wheel_medium',
       'wheel_large',
-      'sensor_proximity',
-      'sensor_camera',
-      'sensor_lidar',
       'battery_standard',
       'battery_high_capacity',
       'chassis_light',
       'chassis_heavy',
       'circuit_basic',
       'circuit_advanced',
-      'raw_material',
     ]
 
     const assemblyExpectations: ItemType[] = [
       'drivetrain_basic',
       'drivetrain_advanced',
-      'sensor_array_basic',
-      'sensor_array_advanced',
       'power_unit_standard',
       'power_unit_high',
     ]
@@ -55,7 +48,6 @@ describe('ItemType categorisation', () => {
     const robotExpectations: ItemType[] = [
       'robot_explorer',
       'robot_worker',
-      'robot_guardian',
     ]
 
     for (const t of partExpectations) {
@@ -113,14 +105,6 @@ describe('ItemType categorisation', () => {
       }
       // AND — the union has no extras beyond ALL_ITEM_TYPES
       expect(union.size).toBe(ALL_ITEM_TYPES.length)
-    })
-
-    it('PART_ITEM_TYPES contains raw_material (the catch-all input)', () => {
-      // GIVEN
-      const parts = new Set<ItemType>(PART_ITEM_TYPES)
-
-      // THEN
-      expect(parts.has('raw_material')).toBe(true)
     })
   })
 })

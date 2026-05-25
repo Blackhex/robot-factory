@@ -103,7 +103,7 @@ describe('Factory belt edit during running simulation — item migration M10 mov
 
       populateSim(factory, sim)
       sim.start()
-      const removedLeftId = injectItem(sim, oldLeftBelt, 3, 0, 'sensor_camera')
+      const removedLeftId = injectItem(sim, oldLeftBelt, 3, 0, 'wheel_small')
       const removedRightId = injectItem(sim, oldRightBelt, 3, 0, 'wheel_small')
       expect(oldLeftBelt.path[3]).toEqual({ x: 3, z: 4 })
       expect(oldRightBelt.path[3]).toEqual({ x: 3, z: 2 })

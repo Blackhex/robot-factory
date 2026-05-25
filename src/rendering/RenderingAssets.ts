@@ -139,40 +139,6 @@ function drawItemTypeGlyph(
     return
   }
 
-  if (itemType.startsWith('sensor_array_')) {
-    const adv = itemType === 'sensor_array_advanced'
-    const n = adv ? 3 : 2
-    const span = size * 0.42
-    const step = span / (n - 1)
-    const r = adv ? size * 0.05 : size * 0.07
-    for (let i = 0; i < n; i++) {
-      for (let j = 0; j < n; j++) {
-        const x = cx - span / 2 + i * step
-        const y = cy - span / 2 + j * step
-        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill()
-      }
-    }
-    // Center bar to guarantee non-blank center
-    ctx.fillRect(cx - size * 0.08, cy - size * 0.02, size * 0.16, size * 0.04)
-    return
-  }
-
-  if (itemType.startsWith('sensor_')) {
-    const w = size * 0.5
-    const h = size * 0.3
-    ctx.beginPath()
-    ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2)
-    ctx.fill()
-    const pupilR = itemType === 'sensor_lidar' ? size * 0.09
-      : itemType === 'sensor_camera' ? size * 0.07
-      : size * 0.06
-    ctx.save()
-    ctx.fillStyle = `rgb(${baseR},${baseG},${baseB})`
-    ctx.beginPath(); ctx.arc(cx, cy, pupilR, 0, Math.PI * 2); ctx.fill()
-    ctx.restore()
-    return
-  }
-
   if (itemType.startsWith('battery_')) {
     const w = size * 0.36
     const h = size * 0.5
@@ -284,16 +250,13 @@ function drawItemTypeGlyph(
     ctx.beginPath(); ctx.arc(cx - w * 0.22, cy + size * 0.02, size * 0.05, 0, Math.PI * 2); ctx.fill()
     ctx.beginPath(); ctx.arc(cx + w * 0.22, cy + size * 0.02, size * 0.05, 0, Math.PI * 2); ctx.fill()
     ctx.restore()
-    if (itemType === 'robot_guardian') {
-      ctx.fillRect(cx - size * 0.015, y - size * 0.14, size * 0.03, size * 0.14)
-      ctx.beginPath(); ctx.arc(cx, y - size * 0.16, size * 0.035, 0, Math.PI * 2); ctx.fill()
-    } else if (itemType === 'robot_worker') {
+    if (itemType === 'robot_worker') {
       ctx.fillRect(x - size * 0.05, y - size * 0.04, w + size * 0.1, size * 0.04)
     }
     return
   }
 
-  // Default (raw_material and any unmapped): diamond
+  // Default (any unmapped): diamond
   const d = size * 0.24
   ctx.beginPath()
   ctx.moveTo(cx, cy - d)

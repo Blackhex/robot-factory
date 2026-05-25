@@ -202,7 +202,11 @@ export class ItemDeliveryEngine {
             continue
           }
 
-          // No machine (or machine full) — try to transfer to a belt starting here
+          // Back-pressure invariant: if a machine occupies the destination cell, it is the sole legal sink; never hand the item onto another belt at that cell.
+          if (targetMachine) {
+            continue
+          }
+          // No machine — try to transfer to a belt starting here
           const nextBelt = this.deps.findBeltStartingAt(belt.toX, belt.toZ)
           if (nextBelt && nextBelt.id !== belt.id) {
             // Plain normalized position overshoot — no arc-length conversion.

@@ -58,7 +58,7 @@ describe('planBeltInventoryMigration() - capacity', () => {
         { x: 3, z: 0 },
       ],
     }
-    const item = createItem('sensor_camera', 87)
+    const item = createItem('wheel_small', 87)
     const inventory: RemovedBeltInventory = {
       sourceMachineId: sourceMachine.id,
       destinationMachineId: oldDestinationMachine.id,
@@ -101,7 +101,7 @@ describe('planBeltInventoryMigration() - capacity', () => {
       },
     ])
     expect(plan.placements[0].item.id).toBe(item.id)
-    expect(plan.placements[0].item.type).toBe('sensor_camera')
+    expect(plan.placements[0].item.type).toBe('wheel_small')
     expect(plan.placements[0].item.quality).toBe(87)
   })
 

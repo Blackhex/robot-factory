@@ -36,8 +36,8 @@ describe('Machine.canConsume', () => {
 
       // THEN
       expect(m.canConsume('wheel_small')).toBe(true)
-      expect(m.canConsume('robot_guardian')).toBe(true)
-      expect(m.canConsume('raw_material')).toBe(true)
+      expect(m.canConsume('robot_worker')).toBe(true)
+      expect(m.canConsume('drivetrain_basic')).toBe(true)
     })
 
     it('rejects every item type while disabled', () => {
@@ -46,8 +46,8 @@ describe('Machine.canConsume', () => {
 
       // THEN
       expect(m.canConsume('wheel_small')).toBe(false)
-      expect(m.canConsume('robot_guardian')).toBe(false)
-      expect(m.canConsume('raw_material')).toBe(false)
+      expect(m.canConsume('robot_worker')).toBe(false)
+      expect(m.canConsume('drivetrain_basic')).toBe(false)
     })
   })
 
@@ -58,7 +58,7 @@ describe('Machine.canConsume', () => {
 
       // THEN
       expect(m.canConsume('wheel_small')).toBe(true)
-      expect(m.canConsume('sensor_lidar')).toBe(true)
+      expect(m.canConsume('drivetrain_basic')).toBe(true)
     })
 
     it('recycler accepts any item type', () => {
@@ -79,20 +79,25 @@ describe('Machine.canConsume', () => {
       // THEN
       expect(m.canConsume('wheel_small')).toBe(false)
       expect(m.canConsume('chassis_light')).toBe(false)
-      expect(m.canConsume('raw_material')).toBe(false)
+      expect(m.canConsume('circuit_advanced')).toBe(false)
     })
 
-    it('rejects everything when its recipe has zero inputs', () => {
-      // GIVEN — wheel_press_small is a zero-input fabricator recipe.
+    it('with zero-input recipe, accepts the configured output type as pass-through and rejects everything else', () => {
+      // INTENTIONAL, USER-CONFIRMED BEHAVIOR CHANGE: a Fabricator whose
+      // recipe has zero inputs now passes through arriving items of its
+      // configured output type (no resource consumption, no Game Over).
+      // Arrivals of any other type remain a Game Over condition, which
+      // canConsume reports by returning false.
       const m = new Machine('pf2', 'part_fabricator')
       m.setRecipe(recipe('wheel_press_small'))
 
-      // ASSERT — confirm the recipe really has no inputs.
+      // ASSERT — confirm the recipe really has no inputs and produces wheel_small.
       expect(recipe('wheel_press_small').inputs).toHaveLength(0)
+      expect(recipe('wheel_press_small').outputs[0].type).toBe('wheel_small')
 
-      // THEN — nothing is consumable.
-      expect(m.canConsume('wheel_small')).toBe(false)
-      expect(m.canConsume('raw_material')).toBe(false)
+      // THEN — output-matching type is consumable (pass-through).
+      expect(m.canConsume('wheel_small')).toBe(true)
+      // THEN — any other type is still rejected.
       expect(m.canConsume('chassis_light')).toBe(false)
     })
   })
@@ -117,14 +122,13 @@ describe('Machine.canConsume', () => {
       expect(m.canConsume('circuit_basic')).toBe(true)
 
       // THEN — rejected non-inputs.
-      expect(m.canConsume('sensor_lidar')).toBe(false)
       expect(m.canConsume('chassis_light')).toBe(false)
       expect(m.canConsume('robot_explorer')).toBe(false)
     })
 
     it('accepts each input type for a multi-input robot recipe', () => {
       // GIVEN — assemble_robot_explorer:
-      //   inputs = chassis_light + drivetrain_basic + sensor_array_basic + power_unit_standard
+      //   inputs = chassis_light + drivetrain_basic + power_unit_standard
       const m = new Machine('asm3', 'assembler')
       m.setRecipe(recipe('assemble_robot_explorer'))
 
@@ -132,7 +136,6 @@ describe('Machine.canConsume', () => {
       const accepted: ItemType[] = [
         'chassis_light',
         'drivetrain_basic',
-        'sensor_array_basic',
         'power_unit_standard',
       ]
       for (const type of accepted) {
@@ -142,7 +145,7 @@ describe('Machine.canConsume', () => {
       // THEN — non-recipe types are rejected.
       expect(m.canConsume('chassis_heavy')).toBe(false)
       expect(m.canConsume('wheel_small')).toBe(false)
-      expect(m.canConsume('raw_material')).toBe(false)
+      expect(m.canConsume('drivetrain_advanced')).toBe(false)
     })
   })
 
@@ -167,7 +170,7 @@ describe('Machine.canConsume', () => {
       // THEN — non-input types are rejected.
       expect(m.canConsume('robot_worker')).toBe(false)
       expect(m.canConsume('wheel_small')).toBe(false)
-      expect(m.canConsume('raw_material')).toBe(false)
+      expect(m.canConsume('chassis_light')).toBe(false)
     })
   })
 })

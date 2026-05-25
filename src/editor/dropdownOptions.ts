@@ -48,6 +48,47 @@ export function buildDropdownOptions(
 }
 
 /**
+ * True if `value` is a valid enum value for the given `kind` — i.e. it's
+ * `Machine.<member>` / `Belt.<member>` and `<member>` appears in
+ * `enumMembers`. Used to suppress Blockly "unavailable option" warnings
+ * when loading saved programs whose machine/belt refs point at slots not
+ * currently placed in the factory.
+ */
+export function isValidEnumValue(
+  kind: DropdownKind,
+  value: unknown,
+  enumMembers: readonly string[],
+): boolean {
+  if (typeof value !== 'string') return false
+  const prefix = `${enumNameFor(kind)}.`
+  if (!value.startsWith(prefix)) return false
+  return enumMembers.includes(value.slice(prefix.length))
+}
+
+/**
+ * Monkey-patch `Blockly.FieldDropdown.prototype.doClassValidation_` so
+ * machine/belt fields accept any enum value (even ones whose slot is not
+ * currently placed) without logging Blockly's "unavailable option"
+ * warning. Other fields fall through to the original validator unchanged.
+ */
+export function patchFieldDropdownClassValidation(
+  blockly: any,
+  iframeWindow: any,
+  machineBlockTypes: readonly string[],
+  beltBlockTypes: readonly string[],
+): void {
+  const orig = blockly.FieldDropdown.prototype.doClassValidation_
+  blockly.FieldDropdown.prototype.doClassValidation_ = function(this: any, v: any) {
+    const b = this.sourceBlock_, f = this.name
+    if (b && f === 'machine' && machineBlockTypes.includes(b.type)
+        && isValidEnumValue('machine', v, iframeWindow.__rf_machineMembers || [])) return v
+    if (b && f === 'belt' && beltBlockTypes.includes(b.type)
+        && isValidEnumValue('belt', v, iframeWindow.__rf_beltMembers || [])) return v
+    return orig.call(this, v)
+  }
+}
+
+/**
  * Resolve dropdown display text for a machine/belt field's current value.
  * - If `labelMap` is empty (no machines/belts at all), returns `emptyLabel`
  *   regardless of `value`.

@@ -89,7 +89,7 @@ describe('createTerminalDrainGraceDecider', () => {
   it('returns false when the endpoint machine cannot consume the arriving item type', async () => {
     const decider = await createDecider(startedAssemblerThatConsumes('wheel_small'))
 
-    expect(decider(ENDPOINT, { type: 'raw_material' })).toBe(false)
+    expect(decider(ENDPOINT, { type: 'wheel_medium' })).toBe(false)
   })
 
   it('returns false when the endpoint machine has no input capacity left', async () => {

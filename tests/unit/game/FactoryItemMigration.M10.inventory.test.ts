@@ -83,7 +83,7 @@ describe('Factory belt edit during running simulation — item migration M10 inv
         // discard semantics for the unrecomputable left lane, not overflow.
         injectItem(sim, oldRightBelt, 6, 0, 'wheel_small'),
       ]
-      const removedLeftId = injectItem(sim, oldLeftBelt, 3, 0, 'sensor_camera')
+      const removedLeftId = injectItem(sim, oldLeftBelt, 3, 0, 'wheel_small')
       expect(oldLeftBelt.path[3]).toEqual({ x: 3, z: 4 })
       expect(orderedItemIdsOnFactoryBelt(sim, oldRightBelt)).toEqual(rightSlotIds)
       expect(orderedItemIdsOnFactoryBelt(sim, oldLeftBelt)).toEqual([removedLeftId])
@@ -116,7 +116,7 @@ describe('Factory belt edit during running simulation — item migration M10 inv
       populateSim(factory, sim)
       sim.start()
       const discardedFrontId = injectItem(sim, oldFrontBelt, 3, 0, 'wheel_small')
-      const retainedLeftId = injectItem(sim, oldLeftBelt, 3, 0, 'sensor_camera')
+      const retainedLeftId = injectItem(sim, oldLeftBelt, 3, 0, 'wheel_small')
       expect(oldFrontBelt.path[3]).toEqual({ x: 4, z: 3 })
       expect(oldLeftBelt.path[3]).toEqual({ x: 3, z: 4 })
       expect(orderedItemIdsOnFactoryBelt(sim, oldFrontBelt)).toEqual([discardedFrontId])

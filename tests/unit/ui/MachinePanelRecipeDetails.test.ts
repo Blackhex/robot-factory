@@ -178,13 +178,13 @@ describe('MachinePanel recipe inputs/outputs rows', () => {
       recipeName: 'Pass-through',
       itemsProduced: 0,
       inputs: [],
-      recipeInputs: [{ type: 'raw_material', quantity: 3 }],
-      recipeOutputs: [{ type: 'raw_material', quantity: 3 }],
+      recipeInputs: [{ type: 'wheel_small', quantity: 3 }],
+      recipeOutputs: [{ type: 'wheel_small', quantity: 3 }],
     }
     panel.setRuntimeInfo(info)
 
     const value = rowValue(parent, 'machine_panel.recipe_inputs')
-    expect(value).toBe('3× Raw Material')
+    expect(value).toBe('3× Small Wheel')
     expect(value).not.toMatch(/,\s*$/)
     expect(value).not.toMatch(/^\s*,/)
   })

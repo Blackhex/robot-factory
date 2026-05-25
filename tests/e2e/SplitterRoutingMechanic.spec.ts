@@ -10,19 +10,19 @@ const TEST_TIMEOUT_MS = 180_000
 const DELIVERY_TIMEOUT_MS = 60_000
 
 // Player program: produce wheels at the fabricator (Machine.A), forward
-// every item that lands at the splitter (Machine.B) out the Right side
+// every item that lands at the splitter (Machine.B) out the Forward side
 // (the only side connected to a belt — see the layout below). The
 // `events.onItemArrives` handler is the only mechanism that sets
 // `outputSidesConfig` — without it, the splitter falls back to the
 // default round-robin over all three sides (Left, Forward, Right) and
 // parks items into unconnected output slots until those slots wedge.
-const PROGRAM_ROUTE_RIGHT_ON_ARRIVAL = [
+const PROGRAM_ROUTE_FORWARD_ON_ARRIVAL = [
   'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)',
   'machines.startMachine(Machine.A)',
   'machines.startMachine(Machine.B)',
   'machines.startMachine(Machine.C)',
   'events.onItemArrives(Machine.B, () => {',
-  '  machines.routeItemsTo(Machine.B, SplitterOutputs.Right)',
+  '  machines.routeItemsTo(Machine.B, SplitterOutputs.Forward)',
   '})',
 ].join('\n')
 
@@ -104,12 +104,12 @@ test.describe('Splitter routing — on-item-arrives → route-items-to bridge', 
 
     const isPxtLoaded = await pxt.isPxtIframeVisible(3000)
     if (isPxtLoaded) {
-      await pxt.setFallbackProgramViaValueAssignment(PROGRAM_ROUTE_RIGHT_ON_ARRIVAL)
+      await pxt.setFallbackProgramViaValueAssignment(PROGRAM_ROUTE_FORWARD_ON_ARRIVAL)
     } else {
       await editorPanel.expectFallbackTextareaVisible()
-      await editorPanel.fillFallbackProgram(PROGRAM_ROUTE_RIGHT_ON_ARRIVAL)
+      await editorPanel.fillFallbackProgram(PROGRAM_ROUTE_FORWARD_ON_ARRIVAL)
     }
-    await editorPanel.expectFallbackValue(PROGRAM_ROUTE_RIGHT_ON_ARRIVAL)
+    await editorPanel.expectFallbackValue(PROGRAM_ROUTE_FORWARD_ON_ARRIVAL)
 
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
@@ -126,7 +126,7 @@ test.describe('Splitter routing — on-item-arrives → route-items-to bridge', 
     // The DIRECT proof that the on-item-arrives → route-items-to bridge is
     // working end-to-end is that the splitter's persistent
     // `outputSidesConfig` flips from the default 7 (all sides round-robin)
-    // to 4 (Right only = bit 4). The ONLY path that mutates this field is
+    // to 2 (Forward only = bit 2). The ONLY path that mutates this field is
     // the SET_OUTPUT_SIDES command dispatched from the player's handler;
     // if `PxtEditor.triggerOnItemArrives` is missing (the production bug),
     // the bridge in `wireSimulationEffects` returns `[]` for every arrival,
@@ -140,7 +140,7 @@ test.describe('Splitter routing — on-item-arrives → route-items-to bridge', 
       },
       {
         message:
-          'Expected splitter.outputSidesConfig to flip from default 7 to 4 (Right ' +
+          'Expected splitter.outputSidesConfig to flip from default 7 to 2 (Forward ' +
           'only) within the timeout. SET_OUTPUT_SIDES is dispatched only by the ' +
           'player\'s `routeItemsTo` call inside `events.onItemArrives`; if the ' +
           'PxtEditor.triggerOnItemArrives delegation is absent (the production bug), ' +
@@ -148,11 +148,11 @@ test.describe('Splitter routing — on-item-arrives → route-items-to bridge', 
         timeout: DELIVERY_TIMEOUT_MS,
         intervals: [500],
       },
-    ).toBe(4)
+    ).toBe(2)
 
     // -------- Failing assertion (B): handler keeps firing -----------------
     // With the fix in place, items flow continuously via the connected
-    // Right belt. Without the fix the assertion above already fails, but
+    // Forward belt. Without the fix the assertion above already fails, but
     // we keep this end-to-end delivery check to pin the user-visible
     // symptom from the bug report: "only the first assembly reached the
     // goal; subsequent items wedged the splitter".
@@ -164,7 +164,7 @@ test.describe('Splitter routing — on-item-arrives → route-items-to bridge', 
       {
         message:
           'Expected at least 5 items delivered to factory_output via the splitter\'s ' +
-          'Right side. The on-item-arrives → route-items-to bridge must dispatch a ' +
+          'Forward side. The on-item-arrives → route-items-to bridge must dispatch a ' +
           'SET_OUTPUT_SIDES command for every arriving item; today the bridge silently ' +
           'returns [] because PxtEditor lacks a triggerOnItemArrives delegation, so the ' +
           'splitter wedges with at most 2 items reaching the connected belt.',

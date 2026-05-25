@@ -88,23 +88,26 @@ describe('Machine.canAcceptItemType', () => {
 
   describe('recipe-driven assembler — full quota across all inputs', () => {
     it('rejects every recipe-listed type once each input quota is at the limit', () => {
-      // GIVEN
+      // GIVEN — assemble_power_unit_standard: 1× battery_standard + 1×
+      // circuit_basic (total quota = 2, strictly less than the default
+      // maxInputSlots = 3, so quota-saturation can be observed while a
+      // free slot still remains — i.e. canAcceptInput() stays true).
       const m = new Machine('asm', 'assembler')
-      m.setRecipe(recipe('assemble_drivetrain_basic'))
+      m.setRecipe(recipe('assemble_power_unit_standard'))
 
-      // WHEN — fill exactly to recipe quota: 2× wheel + 1× circuit.
-      expect(m.addInput(createItem('wheel_small'))).toBe(true)
-      expect(m.addInput(createItem('wheel_small'))).toBe(true)
+      // WHEN — fill exactly to recipe quota: 1× battery + 1× circuit.
+      expect(m.addInput(createItem('battery_standard'))).toBe(true)
       expect(m.addInput(createItem('circuit_basic'))).toBe(true)
 
-      // ASSERT — 3/4 slots used. Cheap path still says "room".
-      expect(m.inputSlots).toHaveLength(3)
+      // ASSERT — 2/3 slots used. Cheap "any slot free" path still true.
+      expect(m.inputSlots).toHaveLength(2)
       expect(m.canAcceptInput()).toBe(true)
 
-      // THEN — every recipe-listed type is at quota.
-      expect(canAcceptItemType(m, 'wheel_small')).toBe(false)
+      // THEN — every recipe-listed type is at quota; further pushes are
+      // rejected by per-type quota, NOT by capacity.
+      expect(canAcceptItemType(m, 'battery_standard')).toBe(false)
       expect(canAcceptItemType(m, 'circuit_basic')).toBe(false)
-      expect(m.addInput(createItem('wheel_small'))).toBe(false)
+      expect(m.addInput(createItem('battery_standard'))).toBe(false)
       expect(m.addInput(createItem('circuit_basic'))).toBe(false)
     })
   })
@@ -128,7 +131,7 @@ describe('Machine.canAcceptItemType', () => {
       expect(third).toBe(false)
       expect(fourth).toBe(false)
       expect(m.inputSlots).toHaveLength(1)
-      // 3 input slots remain free for the type the assembler is starved for.
+      // 2 input slots remain free for the type the assembler is starved for.
       expect(canAcceptItemType(m, 'wheel_small')).toBe(true)
       expect(m.addInput(createItem('wheel_small'))).toBe(true)
       expect(m.addInput(createItem('wheel_small'))).toBe(true)
@@ -137,29 +140,31 @@ describe('Machine.canAcceptItemType', () => {
 
   describe('recipe-driven machine with NO recipe set', () => {
     it('falls back to canAcceptInput while slots are free', () => {
-      // GIVEN — assembler/painter/part_fabricator with no recipe yet.
-      const types: MachineType[] = ['assembler', 'painter', 'part_fabricator']
+      // GIVEN — assembler/painter with no recipe yet. (part_fabricator is
+      // excluded: its no-recipe contract is "reject everything" per the
+      // pass-through spec — see FabricatorPassThrough.test.ts.)
+      const types: MachineType[] = ['assembler', 'painter']
       for (const t of types) {
         const m = new Machine(`m_${t}`, t)
         // ASSERT — no recipe.
         expect(m.currentRecipe).toBeNull()
-        // THEN — query mirrors canAcceptInput (which is true: 0/4 slots).
+        // THEN — query mirrors canAcceptInput (which is true: 0/3 slots).
         expect(m.canAcceptInput()).toBe(true)
         expect(canAcceptItemType(m, 'wheel_small')).toBe(m.canAcceptInput())
         expect(canAcceptItemType(m, 'circuit_basic')).toBe(m.canAcceptInput())
-        expect(canAcceptItemType(m, 'raw_material')).toBe(m.canAcceptInput())
+        expect(canAcceptItemType(m, 'wheel_medium')).toBe(m.canAcceptInput())
       }
     })
 
     it('falls back to canAcceptInput when slots are completely full', () => {
-      // GIVEN — assembler with no recipe but 4 items shoved in.
+      // GIVEN — assembler with no recipe but 3 items shoved in.
       const m = new Machine('asm', 'assembler')
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 3; i++) {
         expect(m.addInput(createItem('wheel_small'))).toBe(true)
       }
 
       // ASSERT — slots full, no recipe.
-      expect(m.inputSlots).toHaveLength(4)
+      expect(m.inputSlots).toHaveLength(3)
       expect(m.currentRecipe).toBeNull()
       expect(m.canAcceptInput()).toBe(false)
 
@@ -176,18 +181,17 @@ describe('Machine.canAcceptItemType', () => {
 
       // THEN — empty.
       expect(canAcceptItemType(m, 'wheel_small')).toBe(true)
-      expect(canAcceptItemType(m, 'sensor_lidar')).toBe(true)
+      expect(canAcceptItemType(m, 'circuit_advanced')).toBe(true)
 
-      // WHEN — fill all 4 slots with mixed types.
+      // WHEN — fill all 3 slots with mixed types.
       expect(m.addInput(createItem('wheel_small'))).toBe(true)
       expect(m.addInput(createItem('circuit_basic'))).toBe(true)
       expect(m.addInput(createItem('chassis_light'))).toBe(true)
-      expect(m.addInput(createItem('battery_standard'))).toBe(true)
 
       // THEN — full → all rejected.
       expect(m.canAcceptInput()).toBe(false)
       expect(canAcceptItemType(m, 'wheel_small')).toBe(false)
-      expect(canAcceptItemType(m, 'sensor_lidar')).toBe(false)
+      expect(canAcceptItemType(m, 'circuit_advanced')).toBe(false)
     })
 
     it('recycler mirrors canAcceptInput regardless of item type', () => {
@@ -199,7 +203,7 @@ describe('Machine.canAcceptItemType', () => {
       expect(canAcceptItemType(m, 'robot_worker')).toBe(true)
 
       // WHEN — fill exactly maxInputSlots.
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 3; i++) {
         expect(m.addInput(createItem('robot_worker'))).toBe(true)
       }
 
@@ -223,9 +227,9 @@ describe('Machine.canAcceptItemType', () => {
 
       // THEN — canAcceptItemType matches that short-circuit.
       expect(canAcceptItemType(enabled, 'wheel_small')).toBe(true)
-      expect(canAcceptItemType(enabled, 'robot_guardian')).toBe(true)
+      expect(canAcceptItemType(enabled, 'robot_worker')).toBe(true)
       expect(canAcceptItemType(disabled, 'wheel_small')).toBe(true)
-      expect(canAcceptItemType(disabled, 'robot_guardian')).toBe(true)
+      expect(canAcceptItemType(disabled, 'robot_worker')).toBe(true)
     })
 
     it('continues to report acceptance after consuming many items', () => {

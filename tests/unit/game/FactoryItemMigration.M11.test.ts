@@ -32,7 +32,7 @@ describe('Factory belt edit during running simulation — item migration M11', (
 
       populateSim(factory, sim)
       sim.start()
-      const nonmatchingItemId = injectItem(sim, nonmatchingLane, 2, 0.0, 'sensor_camera')
+      const nonmatchingItemId = injectItem(sim, nonmatchingLane, 2, 0.0, 'wheel_small')
       attachSimToFactory(factory, sim)
 
       // WHEN: both same-endpoint lanes are removed, but only the empty sibling's slot pair is recreated.

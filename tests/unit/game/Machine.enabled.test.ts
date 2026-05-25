@@ -450,24 +450,6 @@ describe('Machine.tick() — non-default machine types respect enabled', () => {
     expect(sp.state).toBe('idle')
   })
 
-  it('disabled recycler does not consume input or produce raw_material', () => {
-    // GIVEN
-    const rc = new Machine('rc1', 'recycler')
-    rc.addInput(createItem('wheel_small'))
-    expect(rc.enabled).toBe(false)
-
-    // WHEN
-    for (let i = 0; i < DISABLED_TICK_COUNT; i++) {
-      rc.tick(Math.random, ALL_OUTPUTS_CONNECTED_ENV)
-    }
-
-    // THEN — recycler normally consumes input on entering 'processing'; gate must prevent that
-    expect(rc.inputSlots.length).toBe(1)
-    expect(rc.outputSlot).toBeNull()
-    expect(rc.state).toBe('idle')
-    expect(rc.processingTimer).toBe(0)
-  })
-
   it('disabled factory_output does not consume inputs while enabled is false', () => {
     // GIVEN — Shipper defaults to enabled === false and must no longer act
     // as a passive sink when items are pushed into it directly.

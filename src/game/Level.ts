@@ -101,8 +101,7 @@ const levels: LevelDefinition[] = [
     unlockedBlocks: 5,
     goals: [
       { type: 'produce_robots', target: 2, itemType: 'robot_explorer' },
-      { type: 'produce_robots', target: 2, itemType: 'robot_worker' },
-      { type: 'produce_robots', target: 2, itemType: 'robot_guardian' },
+      { type: 'produce_robots', target: 4, itemType: 'robot_worker' },
     ],
     parScores: { speed: 3, cost: 30, quality: 80 },
   },
@@ -151,8 +150,7 @@ const levels: LevelDefinition[] = [
     unlockedBlocks: 7,
     goals: [
       { type: 'produce_robots', target: 5, itemType: 'robot_explorer' },
-      { type: 'produce_robots', target: 5, itemType: 'robot_worker' },
-      { type: 'produce_robots', target: 5, itemType: 'robot_guardian' },
+      { type: 'produce_robots', target: 10, itemType: 'robot_worker' },
       { type: 'quality_target', target: 85 },
     ],
     parScores: { speed: 6, cost: 35, quality: 85 },

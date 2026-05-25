@@ -415,7 +415,7 @@ describe('planBeltInventoryMigration() — discrete one-item-per-cell contract',
     const old5 = buildBelt('old', straightPath(0, 0, 5))
     const repl5 = buildBelt('repl', straightPath(0, 0, 5))
     const a = createItem('wheel_small', 73)
-    const b = createItem('sensor_camera', 91)
+    const b = createItem('wheel_small', 91)
     const inventory = buildCaptured(old5, [
       { segmentIndex: 0, positionOnCell: 0.1, item: a },
       { segmentIndex: 3, positionOnCell: 0.9, item: b },
@@ -430,7 +430,7 @@ describe('planBeltInventoryMigration() — discrete one-item-per-cell contract',
     expect(placedB?.item).toBe(b)
     expect(placedA?.item.type).toBe('wheel_small')
     expect(placedA?.item.quality).toBe(73)
-    expect(placedB?.item.type).toBe('sensor_camera')
+    expect(placedB?.item.type).toBe('wheel_small')
     expect(placedB?.item.quality).toBe(91)
   })
 })

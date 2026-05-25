@@ -1,6 +1,7 @@
 import type { Machine } from './Machine.ts'
 import type { ConveyorBelt } from './ConveyorBelt.ts'
 import type { ItemType } from './types.ts'
+import { getAllRecipes } from './Recipe.ts'
 
 /**
  * Narrow read-only view onto the simulation that the static
@@ -20,8 +21,9 @@ export interface SimulationReader {
  * currently-assigned recipe has at least one upstream producer
  * reachable via the configured belt topology, where:
  *   - A "producer" of type T is a machine whose `currentRecipe.outputs`
- *     contains T, OR a `recycler` when T === 'raw_material' (recyclers
- *     have no recipe but unconditionally emit raw_material).
+ *     contains T, OR a `recycler` when T is produced by ANY recipe in
+ *     the game — the recycler can either pass-through/repair a basic
+ *     part of type T or unpack an assembly that contains T as a component.
  *   - Splitters are transparent: the analyzer recurses upstream through
  *     them, since whatever feeds the splitter ultimately feeds the
  *     target.
@@ -99,7 +101,7 @@ function hasUpstreamProducer(
         continue
       }
       if (source.machineType === 'recycler') {
-        if (itemType === 'raw_material') return true
+        if (isProducibleByAnyRecipe(itemType)) return true
         continue
       }
       const outputs = source.currentRecipe?.outputs
@@ -111,4 +113,11 @@ function hasUpstreamProducer(
 
 function cellKey(x: number, z: number): string {
   return `${x},${z}`
+}
+
+function isProducibleByAnyRecipe(itemType: ItemType): boolean {
+  for (const r of getAllRecipes()) {
+    if (r.outputs.some((o) => o.type === itemType)) return true
+  }
+  return false
 }

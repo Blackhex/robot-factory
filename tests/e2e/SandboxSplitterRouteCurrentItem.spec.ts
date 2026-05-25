@@ -26,11 +26,11 @@ const DELIVERY_TIMEOUT_MS = 60_000
  *
  *     Fabricator → Splitter (Machine.B) → factory_output
  *
- * One downstream belt off the splitter's Right side suffices for the
- * delivery proof; the handler always routes to Right for clean items.
- * (Defective items would route Forward — left unwired in this minimal
+ * One downstream belt off the splitter's Forward side suffices for the
+ * delivery proof; the handler always routes to Forward for clean items.
+ * (Defective items would route Right — left unwired in this minimal
  * scaffold so a defective produced by the fabricator simply wedges
- * the splitter's Forward slot. The fabricator does not emit defectives
+ * the splitter's Right slot. The fabricator does not emit defectives
  * at this level without a dedicated recipe, so the deliveries
  * assertion stays clean.)
  *
@@ -42,16 +42,16 @@ const DELIVERY_TIMEOUT_MS = 60_000
  *     enqueued, the splitter falls back to default round-robin and
  *     wedges into the two unconnected sides.
  */
-const PROGRAM_ROUTE_CURRENT_RIGHT = [
+const PROGRAM_ROUTE_CURRENT_FORWARD = [
   'machines.setRecipe(Machine.A, Recipe.WheelPressSmall)',
   'machines.startMachine(Machine.A)',
   'machines.startMachine(Machine.B)',
   'machines.startMachine(Machine.C)',
   'events.onItemArrives(Machine.B, () => {',
   '  if (logic.currentItemIsDefective()) {',
-  '    machines.routeCurrentItemTo(Machine.B, SplitterOutputs.Forward)',
-  '  } else {',
   '    machines.routeCurrentItemTo(Machine.B, SplitterOutputs.Right)',
+  '  } else {',
+  '    machines.routeCurrentItemTo(Machine.B, SplitterOutputs.Forward)',
   '  }',
   '})',
 ].join('\n')
@@ -128,12 +128,12 @@ test.describe('Sandbox — routeCurrentItemTo synchronous per-item routing', () 
 
     const isPxtLoaded = await pxt.isPxtIframeVisible(3000)
     if (isPxtLoaded) {
-      await pxt.setFallbackProgramViaValueAssignment(PROGRAM_ROUTE_CURRENT_RIGHT)
+      await pxt.setFallbackProgramViaValueAssignment(PROGRAM_ROUTE_CURRENT_FORWARD)
     } else {
       await editorPanel.expectFallbackTextareaVisible()
-      await editorPanel.fillFallbackProgram(PROGRAM_ROUTE_CURRENT_RIGHT)
+      await editorPanel.fillFallbackProgram(PROGRAM_ROUTE_CURRENT_FORWARD)
     }
-    await editorPanel.expectFallbackValue(PROGRAM_ROUTE_CURRENT_RIGHT)
+    await editorPanel.expectFallbackValue(PROGRAM_ROUTE_CURRENT_FORWARD)
 
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
@@ -148,7 +148,7 @@ test.describe('Sandbox — routeCurrentItemTo synchronous per-item routing', () 
 
     // -------- Failing assertion (A): items DO get delivered ----------------
     // The per-item override path enqueues a ROUTE_CURRENT_ITEM_TO command
-    // per arrival → the splitter routes each item to the connected Right
+    // per arrival → the splitter routes each item to the connected Forward
     // belt → factory_output records the delivery. Without
     // `machines.routeCurrentItemTo` defined on the interpreter, the
     // handler body throws on first arrival, no override is enqueued,
@@ -172,7 +172,7 @@ test.describe('Sandbox — routeCurrentItemTo synchronous per-item routing', () 
     // -------- Failing assertion (B): sticky config UNCHANGED --------------
     // `routeCurrentItemTo` MUST NOT mutate the splitter's persistent
     // `outputSidesConfig`. With the sticky path (`routeItemsTo`) the
-    // value would flip from 7 (default, all sides) to 4 (Right only).
+    // value would flip from 7 (default, all sides) to 2 (Forward only).
     // The per-item path leaves the field at 7 forever — that is the
     // user-visible discriminator between the two blocks.
     const snap = await probe.readDiagnosticSnapshot()

@@ -38,7 +38,7 @@ describe('planBeltInventoryMigration() - slot isolation', () => {
       ],
     }
     const matchingItem = createItem('wheel_small', 91)
-    const nonmatchingItem = createItem('sensor_camera', 72)
+    const nonmatchingItem = createItem('wheel_small', 72)
     const matchingInventory: RemovedBeltInventory = {
       sourceMachineId: sourceMachine.id,
       destinationMachineId: destinationMachine.id,
@@ -140,7 +140,7 @@ describe('planBeltInventoryMigration() - slot isolation', () => {
     }
     const rightItems = [createItem('wheel_small', 91), createItem('wheel_small', 92)]
     const leftItems = [createItem('wheel_medium', 81), createItem('wheel_medium', 82)]
-    const nonmatchingItem = createItem('sensor_camera', 73)
+    const nonmatchingItem = createItem('wheel_small', 73)
     const rightInventory: RemovedBeltInventory = {
       sourceMachineId: sourceMachine.id,
       destinationMachineId: destinationMachine.id,

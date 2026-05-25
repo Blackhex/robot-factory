@@ -19,10 +19,10 @@ describe('Item', () => {
 
   it('should create an item with the specified type', () => {
     // WHEN
-    const item = createItem('sensor_camera')
+    const item = createItem('wheel_small')
 
     // THEN
-    expect(item.type).toBe('sensor_camera')
+    expect(item.type).toBe('wheel_small')
   })
 
   it('should use default quality of 80', () => {

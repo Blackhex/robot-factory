@@ -122,9 +122,6 @@
     "wheel_small": "Small Wheel",
     "wheel_medium": "Medium Wheel",
     "wheel_large": "Large Wheel",
-    "sensor_proximity": "Proximity Sensor",
-    "sensor_camera": "Camera Sensor",
-    "sensor_lidar": "LiDAR Sensor",
     "battery_standard": "Standard Battery",
     "battery_high_capacity": "High-Capacity Battery",
     "chassis_light": "Light Chassis",
@@ -133,16 +130,12 @@
     "circuit_advanced": "Advanced Circuit",
     "drivetrain_basic": "Basic Drivetrain",
     "drivetrain_advanced": "Advanced Drivetrain",
-    "sensor_array_basic": "Basic Sensor Array",
-    "sensor_array_advanced": "Advanced Sensor Array",
     "power_unit_standard": "Standard Power Unit",
     "power_unit_high": "High-Power Unit",
     "frame_basic": "Basic Frame",
     "motor_standard": "Standard Motor",
     "robot_explorer": "Explorer Robot",
-    "robot_worker": "Worker Robot",
-    "robot_guardian": "Guardian Robot",
-    "raw_material": "Raw Material"
+    "robot_worker": "Worker Robot"
   },
   "belts": {
     "belt_1": "Belt 1",
@@ -153,9 +146,6 @@
     "wheel_small": "Small Wheels",
     "wheel_medium": "Medium Wheels",
     "wheel_large": "Large Wheels",
-    "sensor_proximity": "Proximity Sensors",
-    "sensor_camera": "Camera Sensors",
-    "sensor_lidar": "LiDAR Sensors",
     "battery_standard": "Standard Batteries",
     "battery_high_capacity": "High-Capacity Batteries",
     "chassis_light": "Light Chassis",
@@ -164,14 +154,10 @@
     "circuit_advanced": "Advanced Circuits",
     "drivetrain_basic": "Basic Drivetrains",
     "drivetrain_advanced": "Advanced Drivetrains",
-    "sensor_array_basic": "Basic Sensor Arrays",
-    "sensor_array_advanced": "Advanced Sensor Arrays",
     "power_unit_standard": "Standard Power Units",
     "power_unit_high": "High-Power Units",
     "robot_explorer": "Explorer Robots",
     "robot_worker": "Worker Robots",
-    "robot_guardian": "Guardian Robots",
-    "raw_material": "Raw Materials",
     "frame_basic": "Basic Frames",
     "motor_standard": "Standard Motors"
   },
@@ -179,9 +165,6 @@
     "wheel_press_small": "Small Wheels",
     "wheel_press_medium": "Medium Wheels",
     "wheel_press_large": "Large Wheels",
-    "sensor_fab_proximity": "Proximity Sensors",
-    "sensor_fab_camera": "Camera Sensors",
-    "sensor_fab_lidar": "LIDAR Sensors",
     "battery_assembly_standard": "Standard Batteries",
     "battery_assembly_high": "High-Cap Batteries",
     "chassis_stamper_light": "Light Chassis",
@@ -190,13 +173,10 @@
     "circuit_printer_advanced": "Advanced Circuits",
     "assemble_drivetrain_basic": "Basic Drivetrain",
     "assemble_drivetrain_advanced": "Advanced Drivetrain",
-    "assemble_sensor_array_basic": "Basic Sensor Array",
-    "assemble_sensor_array_advanced": "Advanced Sensor Array",
     "assemble_power_unit_standard": "Standard Power Unit",
     "assemble_power_unit_high": "High Power Unit",
     "assemble_robot_explorer": "Explorer Robot",
-    "assemble_robot_worker": "Worker Robot",
-    "assemble_robot_guardian": "Guardian Robot"
+    "assemble_robot_worker": "Worker Robot"
   },
   "levels": {
     "level_1": {
@@ -221,7 +201,7 @@
     },
     "level_6": {
       "name": "Custom Robots",
-      "description": "Define functions to build three different robot models."
+      "description": "Define functions to build two different robot models."
     },
     "level_7": {
       "name": "Rush Order!",
@@ -237,7 +217,7 @@
     },
     "level_10": {
       "name": "Factory Tycoon",
-      "description": "Run a multi-line production facility for all robot types."
+      "description": "Run a multi-line production facility for both robot types."
     }
   },
   "scoring": {

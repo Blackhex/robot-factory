@@ -107,9 +107,6 @@ export type ItemType =
   | 'wheel_small'
   | 'wheel_medium'
   | 'wheel_large'
-  | 'sensor_proximity'
-  | 'sensor_camera'
-  | 'sensor_lidar'
   | 'battery_standard'
   | 'battery_high_capacity'
   | 'chassis_light'
@@ -118,14 +115,10 @@ export type ItemType =
   | 'circuit_advanced'
   | 'drivetrain_basic'
   | 'drivetrain_advanced'
-  | 'sensor_array_basic'
-  | 'sensor_array_advanced'
   | 'power_unit_standard'
   | 'power_unit_high'
   | 'robot_explorer'
   | 'robot_worker'
-  | 'robot_guardian'
-  | 'raw_material'
 
 /**
  * Single source of truth for all `ItemType` values. Pinned to the union
@@ -137,9 +130,6 @@ export const ALL_ITEM_TYPES = [
   'wheel_small',
   'wheel_medium',
   'wheel_large',
-  'sensor_proximity',
-  'sensor_camera',
-  'sensor_lidar',
   'battery_standard',
   'battery_high_capacity',
   'chassis_light',
@@ -148,14 +138,10 @@ export const ALL_ITEM_TYPES = [
   'circuit_advanced',
   'drivetrain_basic',
   'drivetrain_advanced',
-  'sensor_array_basic',
-  'sensor_array_advanced',
   'power_unit_standard',
   'power_unit_high',
   'robot_explorer',
   'robot_worker',
-  'robot_guardian',
-  'raw_material',
 ] as const satisfies readonly ItemType[]
 
 type _ItemTypeExhaustive =
@@ -173,7 +159,6 @@ void _itemTypeExhaustive
 export const ROBOT_ITEM_TYPES = [
   'robot_explorer',
   'robot_worker',
-  'robot_guardian',
 ] as const satisfies readonly ItemType[]
 
 type _RobotItemTypeExhaustive =
@@ -185,35 +170,29 @@ void _robotItemTypeExhaustive
 
 /**
  * Single source of truth for the subset of ItemTypes that represent
- * raw parts (wheels, sensors, batteries, chassis, circuits, raw_material).
- * Used by `getItemCategory()` and HUD breakdown counters.
+ * raw parts (wheels, batteries, chassis, circuits). Used by
+ * `getItemCategory()` and HUD breakdown counters.
  */
 export const PART_ITEM_TYPES = [
   'wheel_small',
   'wheel_medium',
   'wheel_large',
-  'sensor_proximity',
-  'sensor_camera',
-  'sensor_lidar',
   'battery_standard',
   'battery_high_capacity',
   'chassis_light',
   'chassis_heavy',
   'circuit_basic',
   'circuit_advanced',
-  'raw_material',
 ] as const satisfies readonly ItemType[]
 
 /**
  * Single source of truth for the subset of ItemTypes that represent
- * sub-assemblies (drivetrains, sensor arrays, power units). Used by
+ * sub-assemblies (drivetrains, power units). Used by
  * `getItemCategory()` and HUD breakdown counters.
  */
 export const ASSEMBLY_ITEM_TYPES = [
   'drivetrain_basic',
   'drivetrain_advanced',
-  'sensor_array_basic',
-  'sensor_array_advanced',
   'power_unit_standard',
   'power_unit_high',
 ] as const satisfies readonly ItemType[]

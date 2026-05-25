@@ -3,7 +3,7 @@ import type { SimulationCommand } from '../game/types'
 import type { Item } from '../game/Item'
 import { BlockInterpreter } from './BlockInterpreter'
 import { getToolboxForLevel } from './FactoryToolbox'
-import { buildDropdownOptions, resolveDropdownText, type DropdownItem } from './dropdownOptions'
+import { buildDropdownOptions, patchFieldDropdownClassValidation, resolveDropdownText, type DropdownItem } from './dropdownOptions'
 import { PxtFallbackEditor } from './PxtFallbackEditor'
 import { applyHatBlockShape, installSetEnabledTrap } from './hatBlockShape'
 import { PLUGGABLE_CONSUMER_BLOCK_TYPES } from './pluggableConsumerBlockTypes'
@@ -392,7 +392,6 @@ export class PxtEditor {
     iframeWindow[labelStorageKey] = labelMap
     iframeWindow[itemsStorageKey] = items
     iframeWindow[membersStorageKey] = enumMembers
-
     // Patch FieldDropdown.prototype.getOptions ONCE
     if (!this.prototypePatched) {
       this.prototypePatched = true
@@ -420,6 +419,7 @@ export class PxtEditor {
 
         return origGetOptions.call(this, opt_useCache)
       }
+      patchFieldDropdownClassValidation(blockly, iframeWindow, machineBlockTypes, beltBlockTypes)
     }
 
     // Patch FieldDropdown.prototype.getText ONCE so block face text is dynamic

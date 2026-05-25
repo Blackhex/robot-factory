@@ -50,6 +50,12 @@ export interface Machine {
    * immediately after `produceOutput` completes.
    */
   pendingDefectFromInput: boolean
+  /** Transient: Items removed from `inputSlots` by `consumeInputs`,
+   *  ordered to match `recipe.inputs` (expanded by quantity). Read by
+   *  `produceOutput` to populate the assembly's `components`. */
+  pendingComponents: Item[]
+  /** Recycler-only: queued items waiting to be parked into the primary output, one per tick. */
+  readonly recyclerOutputQueue: Item[]
 }
 
 /**
@@ -170,12 +176,40 @@ function tickSplitter(m: Machine, _rng: () => number, env: MachineTickEnv): void
 }
 
 // --- Recycler tick ---
+//
+// Per-cycle pipeline: idle (consume one input → start processing) →
+// processing (count down `scaledTicks(3, speed)`) → on completion build
+// emission queue from input, then drain the queue one item per tick.
+//
+// Emission rule (always non-defective; `createItem` sets isDefective=false):
+//   - Basic part (no `components`): one item of same type (repair / pass-through).
+//   - Valid assembly (components, !isDefective): all N components.
+//   - Defective assembly (components, isDefective): N-1 components, one
+//     chosen uniformly via `Math.floor(rng() * N)` and removed before
+//     mapping. Determinism convention: rng is consumed exactly once at
+//     queue-build time.
 
-function tickRecycler(m: Machine, _rng: () => number): void {
+function drainOneRecyclerEmission(m: Machine): void {
+  if (parkInOutput(m, 'primary', () => m.recyclerOutputQueue[0])) {
+    m.recyclerOutputQueue.shift()
+    m.state = m.recyclerOutputQueue.length === 0 && m.inputSlots.length === 0
+      ? 'idle'
+      : 'processing'
+  } else {
+    m.state = 'blocked'
+  }
+}
+
+function tickRecycler(m: Machine, rng: () => number): void {
+  // Drain any pending queue first — one item per tick, regardless of state.
+  if (m.recyclerOutputQueue.length > 0) {
+    drainOneRecyclerEmission(m)
+    return
+  }
+
   switch (m.state) {
     case 'idle':
       if (m.inputSlots.length > 0) {
-        m.inputSlots.shift() // consume the input
         m.processingTimer = scaledTicks(3, m.speed)
         m.state = 'processing'
       }
@@ -183,19 +217,37 @@ function tickRecycler(m: Machine, _rng: () => number): void {
     case 'processing':
       m.processingTimer--
       if (m.processingTimer <= 0) {
-        if (parkInOutput(m, 'primary', () => createItem('raw_material'))) {
+        const input = m.inputSlots.shift()
+        if (input === undefined) {
           m.state = 'idle'
-        } else {
-          m.state = 'blocked'
+          break
         }
+        buildRecyclerEmissionQueue(m, input, rng)
+        drainOneRecyclerEmission(m)
       }
       break
     case 'blocked':
-      if (parkInOutput(m, 'primary', () => createItem('raw_material'))) {
-        m.state = 'idle'
-      }
+      // defensive: only reachable via external state mutation (e.g. clearRuntimeState)
+      m.state = 'idle'
       break
   }
+}
+
+function buildRecyclerEmissionQueue(m: Machine, input: Item, rng: () => number): void {
+  const components = input.components
+  if (components === undefined || components.length === 0) {
+    m.recyclerOutputQueue.push(createItem(input.type))
+    return
+  }
+  if (!input.isDefective) {
+    for (const c of components) m.recyclerOutputQueue.push(createItem(c.type))
+    return
+  }
+  // Defective assembly: drop ONE uniformly chosen component, emit the rest.
+  const remaining = components.slice()
+  const dropIdx = Math.floor(rng() * remaining.length)
+  remaining.splice(dropIdx, 1)
+  for (const c of remaining) m.recyclerOutputQueue.push(createItem(c.type))
 }
 
 // --- Shared helpers ---
@@ -259,17 +311,24 @@ function consumeInputs(m: Machine): void {
   if (!recipe || recipe.inputs.length === 0) return
 
   let anyDefective = false
+  const consumed: Item[] = []
   for (const input of recipe.inputs) {
     let remaining = input.quantity
+    const matched: Item[] = []
     for (let i = m.inputSlots.length - 1; i >= 0 && remaining > 0; i--) {
       if (m.inputSlots[i].type === input.type) {
         if (m.inputSlots[i].isDefective) anyDefective = true
+        matched.push(m.inputSlots[i])
         m.inputSlots.splice(i, 1)
         remaining--
       }
     }
+    // `matched` was collected back-to-front; reverse so consumed items
+    // appear in their original input-queue order within this input group.
+    for (let i = matched.length - 1; i >= 0; i--) consumed.push(matched[i])
   }
   m.pendingDefectFromInput = anyDefective
+  m.pendingComponents = consumed
 }
 
 /**
@@ -297,12 +356,11 @@ function produceOutput(m: Machine, rng: () => number): void {
   const output = recipe.outputs[0]
   const hasInputDefect = m.pendingDefectFromInput
 
-  // part_fabricator (no inputs): roll only.
-  // assembler (inputs > 0, output is assembly): propagate + roll.
-  // painter (inputs > 0, output is single item): propagate + roll.
+  // Only the assembler emits an assembly carrying its consumed components;
+  // fabricator and painter always emit a basic part regardless of input count.
   let item: Item
-  if (recipe.inputs.length > 0) {
-    item = createAssembly(output.type, [])
+  if (m.machineType === 'assembler') {
+    item = createAssembly(output.type, [...m.pendingComponents])
   } else {
     item = createItem(output.type)
   }
@@ -311,6 +369,7 @@ function produceOutput(m: Machine, rng: () => number): void {
   m.outputSlot = item
   m.itemsProduced++
   m.pendingDefectFromInput = false
+  m.pendingComponents = []
 }
 
 // --- canConsume strategies ---
@@ -333,6 +392,19 @@ function canConsumeRecipeDriven(m: Machine, itemType: ItemType): boolean {
   if (recipe === null) return false
   if (recipe.inputs.length === 0) return false
   return recipe.inputs.some((i) => i.type === itemType)
+}
+
+// Fabricator pass-through: matching items queue in inputSlots and are
+// preferred over fresh production so the input queue doesn't stall.
+function canConsumePartFabricator(m: Machine, itemType: ItemType): boolean {
+  const recipe = m.currentRecipe
+  if (recipe === null) return false
+  return recipe.outputs.length > 0 && recipe.outputs[0].type === itemType
+}
+
+function canAcceptItemTypePartFabricator(m: Machine, itemType: ItemType): boolean {
+  if (!canConsumePartFabricator(m, itemType)) return false
+  return m.inputSlots.length < m.maxInputSlots
 }
 
 // --- canAcceptItemType strategies ---
@@ -377,9 +449,29 @@ function scaledTicks(baseTicks: number, speed: number): number {
 // --- Behavior objects ---
 
 const partFabricatorBehavior: MachineBehavior = {
-  tick: (m, rng) => tickDefault(m, rng),
-  canConsume: (m, t) => canConsumeRecipeDriven(m, t),
-  canAcceptItemType: (m, t) => canAcceptItemTypeRecipeDriven(m, t),
+  tick: (m, rng) => {
+    const recipe = m.currentRecipe
+    const wantedType = recipe !== null && recipe.outputs.length > 0
+      ? recipe.outputs[0].type
+      : null
+    // Prefer-consume preempts any state — including an in-progress fresh
+    // production cycle — so a continuously-fed Fabricator never lets its
+    // input queue saturate.
+    if (wantedType !== null && m.outputSlot === null) {
+      const idx = m.inputSlots.findIndex((it) => it.type === wantedType)
+      if (idx !== -1) {
+        const [item] = m.inputSlots.splice(idx, 1)
+        m.outputSlot = item
+        m.state = 'idle'
+        m.processingTimer = 0
+        return
+      }
+    }
+    if (m.state === 'idle' && m.outputSlot !== null) return
+    tickDefault(m, rng)
+  },
+  canConsume: (m, t) => canConsumePartFabricator(m, t),
+  canAcceptItemType: (m, t) => canAcceptItemTypePartFabricator(m, t),
 }
 const assemblerBehavior: MachineBehavior = {
   tick: (m, rng) => tickDefault(m, rng),

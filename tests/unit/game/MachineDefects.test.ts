@@ -431,32 +431,8 @@ describe('painter rolls for defects by speed and propagates input defects', () =
 })
 
 // ---------------------------------------------------------------------------
-// 6. Recycler does NOT produce defective items
+// 6. Recycler defect-cleansing covered by RecyclerNewBehavior.test.ts
 // ---------------------------------------------------------------------------
-
-describe('recycler always produces clean raw_material', () => {
-  beforeEach(() => {
-    resetItemIdCounter()
-  })
-
-  it('defective input, rng=0 → recycler output (raw_material) is clean', () => {
-    // GIVEN
-    const m = new Machine('rec', 'recycler')
-    m.speed = 1
-    m.start()
-    const dirty = createItem('wheel_small')
-    dirty.isDefective = true
-    m.addInput(dirty)
-
-    // WHEN: rng=0 would force a defect if recycler rolled. It must not.
-    tickUntilOutput(m, constRng(0))
-
-    // THEN
-    expect(m.outputSlot).not.toBeNull()
-    expect(m.outputSlot!.type).toBe('raw_material')
-    expect(m.outputSlot!.isDefective).toBe(false)
-  })
-})
 
 // ---------------------------------------------------------------------------
 // 7. Splitter passes items through unchanged

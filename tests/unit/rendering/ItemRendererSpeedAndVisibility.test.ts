@@ -255,7 +255,7 @@ describe('ItemRenderer — InstancedMesh stays visible regardless of camera frus
         to: { x: 7, z: 5 },
         prevSegmentFrom: { x: 5, z: 5 },
         speed: SPEED,
-        items: [{ id: 'b', type: 'sensor_proximity', position: 0.7 }],
+        items: [{ id: 'b', type: 'wheel_small', position: 0.7 }],
       },
     ]
     renderer.update(belts, GRID_W, GRID_H, 0)
