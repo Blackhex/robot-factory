@@ -1,5 +1,5 @@
 import './style.css'
-import { initI18n, i18next } from './i18n/i18n'
+import { initI18n, i18next, i18nMachineNameGenerator } from './i18n/i18n'
 import { GameManager } from './game/GameManager'
 import { getAllLevels, type LevelDefinition } from './game/Level'
 import { ConveyorBelt } from './game/ConveyorBelt'
@@ -76,6 +76,22 @@ async function main(): Promise<void> {
     ;(window as any).__getFactoryRenderer = () => factoryRenderer
     ;(window as any).__sceneManager = sceneManager
   }
+
+  // Re-localize auto-generated machine names on language change. Registered
+  // BEFORE any UI component that listens to `languageChanged` (e.g.
+  // MachinePanel) so the rename completes before downstream listeners
+  // re-render machine labels. Listeners fire in registration order.
+  i18next.on('languageChanged', () => {
+    const f = gameManager.factory
+    if (!f) return
+    f.relocalizeAutoNames(i18nMachineNameGenerator)
+    // PXT block-editor dynamic dropdowns cache machine display names;
+    // rebuild them so newly-emitted code uses the new strings.
+    // (Pre-existing block code that referenced a machine by its OLD
+    // localized name keeps the old string and will fail to resolve — known
+    // follow-up; not auto-rewritten in this pass.)
+    syncFactoryToEditor()
+  })
 
   // Load saved progress from localStorage
   const saved = localStorage.getItem(PROGRESS_KEY)
@@ -339,6 +355,10 @@ async function main(): Promise<void> {
     machinePanel.setAvailableMachineTypes([...config.availableMachines])
 
     autoRestoreFactory()
+    // Install the i18n-backed default name generator on the freshly-built
+    // Factory and re-localize any names that were restored from save in
+    // another language (or in the legacy `<Humanized> <N>` format).
+    factory.relocalizeAutoNames(i18nMachineNameGenerator)
     populateSimulation()
     factoryRenderer.syncMeshes()
     syncFactoryToEditor()
@@ -503,6 +523,7 @@ async function main(): Promise<void> {
     getFactoryRenderer: () => factoryRenderer,
     getItemRenderer: () => itemRenderer,
     getGridInteraction: () => gridInteraction,
+    onFactoryLoaded: (f) => f.relocalizeAutoNames(i18nMachineNameGenerator),
   })
 
   // --- Projects panel resize drag ---

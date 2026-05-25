@@ -89,6 +89,13 @@ export interface WireProjectsPanelOptions {
   getFactoryRenderer: () => FactoryRendererLike | null
   getItemRenderer: () => ItemRendererLike | null
   getGridInteraction: () => GridInteractionLike | null
+  /**
+   * Optional hook fired after every destructive factory replace (load /
+   * new project). Used by main.ts to re-install the i18n-backed default
+   * machine name generator and re-localize any names that came from a
+   * save authored under a different language.
+   */
+  onFactoryLoaded?: (factory: Factory) => void
 }
 
 export interface WiredProjectsPanel {
@@ -119,6 +126,7 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
     getFactoryRenderer,
     getItemRenderer,
     getGridInteraction,
+    onFactoryLoaded,
   } = options
 
   const refreshSlots = (): void => {
@@ -143,6 +151,7 @@ export function wireProjectsPanel(options: WireProjectsPanelOptions): WiredProje
     f.clear()
     getItemRenderer()?.clear()
     await mutate(f)
+    onFactoryLoaded?.(f)
     // syncFactoryToEditor() MUST run before populateSimulation(): the latter
     // calls pxtEditor.getProgram(), and the BlockInterpreter resolves
     // `Machine.A`/etc. via its cached machine list. Without a fresh sync,

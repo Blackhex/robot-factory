@@ -9,9 +9,9 @@
   },
   "machines": {
     "part_fabricator": "Vyráběč",
-    "assembler": "Montážní stroj",
+    "assembler": "Montovač",
     "painter": "Lakovač",
-    "recycler": "Recyklátor",
+    "recycler": "Recyklovač",
     "splitter": "Rozdělovač",
     "factory_output": "Odesílač"
   },
@@ -193,7 +193,7 @@
     },
     "level_4": {
       "name": "Na kvalitě záleží",
-      "description": "Pomocí Rozdělovače a Recyklátoru zabraň vadným dílům dostat se do Odesílače."
+      "description": "Pomocí Rozdělovače a Recyklovače zabraň vadným dílům dostat se do Odesílače."
     },
     "level_5": {
       "name": "Chytré směrování",
@@ -297,15 +297,16 @@
     "level1_step3": "Propoj je pásem — přetáhni z výstupního slotu Vyráběče na vstupní slot Odesílače.",
     "level1_step4": "Otevři Editor a napiš svůj program. Klikni na ikonu kódu nebo stiskni E.",
     "level1_step5": "Použij blok 'nastavit recept' k nastavení výroby stroje. Přetáhni ho z kategorie Stroje.",
-    "level1_step6": "Stiskni Spustit a potom spusť Vyráběč i Odesílač, aby díly mohly jet po pásu.",
-    "level2_step1": "Tentokrát potřebuješ více strojů. Dvojklikem umísti Vyráběč a Montážní stroj.",
+    "level1_step6": "Teď přidej blok 'spusť <stroj>' pro Vyráběč i Odesílač. Přetáhni je z kategorie Stroje — bez nich žádný stroj nepoběží.",
+    "level1_step7": "Zavři Editor a stiskni Spustit. Vyráběč i Odesílač se rozběhnou a díly pojedou po pásu.",
+    "level2_step1": "Tentokrát potřebuješ více strojů. Dvojklikem umísti Vyráběč a Montovač.",
   "level2_step2": "Propoj stroje pásy a směřuj díly do Odesílače. Než čekáš dodávky, spusť ho.",
     "level2_step3": "Otevři Editor a použij bloky 'nastavit recept', aby každý stroj věděl, co má vyrábět.",
     "level3_step1": "Otevři Editor — máš nové bloky Smyčky! Použij 'opakuj' k efektivní výrobě mnoha dílů.",
     "level3_step2": "Smyčky opakují tvé instrukce automaticky, takže nemusíš psát stejné bloky znovu a znovu.",
-    "level4_step1": "Vadné díly kazí tvé skóre Kvality! Použij Rozdělovač a Recyklátor, abys zachytil vadné díly dříve, než se dostanou do Odesílače.",
-    "level4_step2": "Umísti Rozdělovač na cestu mezi Montážní stroj a Odesílač. Pak umísti Recyklátor stranou a spoj pás z Rozdělovače do Recyklátoru.",
+    "level4_step1": "Vadné díly kazí tvé skóre Kvality! Použij Rozdělovač a Recyklovač, abys zachytil vadné díly dříve, než se dostanou do Odesílače.",
+    "level4_step2": "Umísti Rozdělovač na cestu mezi Montovač a Odesílač. Pak umísti Recyklovač stranou a spoj pás z Rozdělovače do Recyklovače.",
     "level4_step3": "Otevři Editor — od 4. úrovně se v kategorii Stroje objeví nová akce 'směruj položky z rozdělovače' a v Událostech 'když dorazí položka'. Spoj je dohromady, abys reagoval pokaždé, když díl vstoupí do Rozdělovače.",
-    "level4_step4": "Uvnitř obsluhy zkontroluj 'aktuální položka je vadná' (v kategorii Podmínky). Pokud ano, použij 'směruj položky z <rozdělovače> doleva' a pošli další díl do Recyklátoru; jinak 'směruj položky z <rozdělovače> rovně' a pošli ho do Odesílače. Směr musíš nastavit u každé položky — Rozdělovač si pamatuje poslední nastavení."
+    "level4_step4": "Uvnitř obsluhy zkontroluj 'aktuální položka je vadná' (v kategorii Podmínky). Pokud ano, použij 'směruj položky z <rozdělovače> doleva' a pošli další díl do Recyklovače; jinak 'směruj položky z <rozdělovače> rovně' a pošli ho do Odesílače. Směr musíš nastavit u každé položky — Rozdělovač si pamatuje poslední nastavení."
   }
 }

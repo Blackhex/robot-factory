@@ -88,6 +88,7 @@ describe('Locales — Level 4 tutorial parity (Task D)', () => {
     const existing = [
       'tutorial.level1_step1', 'tutorial.level1_step2', 'tutorial.level1_step3',
       'tutorial.level1_step4', 'tutorial.level1_step5', 'tutorial.level1_step6',
+      'tutorial.level1_step7',
       'tutorial.level2_step1', 'tutorial.level2_step2', 'tutorial.level2_step3',
       'tutorial.level3_step1', 'tutorial.level3_step2',
     ]

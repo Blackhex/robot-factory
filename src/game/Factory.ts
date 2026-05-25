@@ -14,10 +14,12 @@ import { FactoryMachineRegistry } from './FactoryMachineRegistry'
 import type { FactorySimulationLike } from './FactorySimulationSync'
 import type { FactoryGridCell } from './FactoryQueries'
 import type { ComputeBeltFromSlotPathOptions, PlaceBeltChainOptions } from './FactoryBeltPlacement'
+import type { MachineNameGenerator } from './FactoryMachineRegistry'
 
 export type { SlotPositions, MachineInfo, BeltInfo } from './types'
 export type { GridReader } from './GridReader'
 export type { ComputeBeltFromSlotPathOptions, PlaceBeltChainOptions } from './FactoryBeltPlacement'
+export type { MachineNameGenerator } from './FactoryMachineRegistry'
 export { getSlotPositions, slotPositionToOffset, pickBestSlotOffset, directionToDegrees, degreesToDirection, rotateDirectionCW } from './SlotUtils'
 export { hasLShapeAtEndpoints } from './BeltRouter'
 
@@ -38,7 +40,7 @@ export class Factory implements GridReader {
   private readonly simulationSync = new FactorySimulationSync()
   private _slotBlockingEnabled = true
 
-  constructor(width = 20, height = 20) {
+  constructor(width = 20, height = 20, options?: { nameGenerator?: MachineNameGenerator }) {
     this.width = width
     this.height = height
     this.grid = []
@@ -56,6 +58,7 @@ export class Factory implements GridReader {
         isSlotBlockingEnabled: () => this._slotBlockingEnabled,
       },
       this.queries,
+      { nameGenerator: options?.nameGenerator },
     )
     this.router = new BeltRouter(this)
     this.planner = new PlacementPlanner(this, this.router)
@@ -189,6 +192,10 @@ export class Factory implements GridReader {
 
   renameMachine(x: number, z: number, name: string): boolean {
     return this.machineRegistry.renameMachine(x, z, name)
+  }
+
+  relocalizeAutoNames(generator: MachineNameGenerator): void {
+    this.machineRegistry.relocalizeAutoNames(generator)
   }
 
   renameBelt(beltId: string, name: string): boolean {

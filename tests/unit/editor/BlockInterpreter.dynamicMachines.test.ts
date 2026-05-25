@@ -10,6 +10,14 @@ import { BlockInterpreter } from '../../../src/editor/BlockInterpreter'
  *
  * All tests are expected to FAIL until setMachineList(), setBeltList(),
  * and getMachineList() are implemented on BlockInterpreter.
+ *
+ * NOTE on machine `name` literals (e.g. `'Fabricator 1'`):
+ * These are mock-data string keys used to verify that the interpreter
+ * resolves a machine reference by exact-string match. They are NOT
+ * assertions about Factory's auto-generated default name format. The
+ * interpreter must continue to resolve whatever literal string the user
+ * (or saved program) supplies — including legacy space-separated names —
+ * so these literals are intentionally kept verbatim.
  */
 
 describe('BlockInterpreter — dynamic machine/belt lists', () => {

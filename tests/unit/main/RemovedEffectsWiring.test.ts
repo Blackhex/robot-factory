@@ -200,6 +200,9 @@ describe('extracted removed audio and celebration wiring', () => {
       on: vi.fn((event: 'game_over' | 'machine_state_changed' | 'machine_cycle_completed', listener: (event: { data: unknown }) => void) => {
         listeners.set(event, listener)
       }),
+      // `name: 'Assembler 1'` is mock stub data for the simulation's getMachine()
+      // lookup, not an assertion about Factory's auto-generated default name
+      // format. Kept verbatim — the wireUp under test does not inspect this string.
       getMachine: vi.fn(() => ({ machineType: 'assembler' as const, name: 'Assembler 1' })),
       enqueueCommands: vi.fn(),
       setItemArrivalBridge: vi.fn(),
