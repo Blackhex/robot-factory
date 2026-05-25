@@ -10,10 +10,10 @@
   "tasks": [
     {
       "dependsOn": [
-        "Install"
+        "Dev/Install dependencies"
       ],
       "isBackground": true,
-      "label": "Dev Server",
+      "label": "Dev/Run/App",
       "presentation": {
         "panel": "dedicated",
         "reveal": "silent"
@@ -39,9 +39,9 @@
     {
       "command": "${input:openSimpleBrowser}",
       "dependsOn": [
-        "Dev Server"
+        "Dev/Run/App"
       ],
-      "label": "Open in Browser",
+      "label": "Dev/Open in browser",
       "problemMatcher": [],
       "runOptions": {
         "instanceLimit": 1,
@@ -51,22 +51,88 @@
     },
     {
       "command": "npm install",
-      "label": "Install",
+      "label": "Dev/Install dependencies",
       "type": "shell"
     },
     {
       "command": "npm update",
-      "label": "Update",
+      "label": "Dev/Update dependencies",
       "type": "shell"
     },
     {
       "command": "npm audit --fix",
-      "label": "Fix Audit",
+      "label": "Dev/Fix dependencies audit",
       "type": "shell"
     },
     {
-      "label": "Build PXT",
+      "label": "Dev/Build/PXT",
       "script": "build:pxt",
+      "type": "npm"
+    },
+    {
+      "command": "npm install --no-audit --no-fund",
+      "label": "CI/Install dependencies",
+      "options": {
+        "env": {
+          "VITE_BASE": "/robot-factory/"
+        }
+      },
+      "type": "shell"
+    },
+    {
+      "label": "CI/Build/PXT",
+      "options": {
+        "env": {
+          "VITE_BASE": "/robot-factory/"
+        }
+      },
+      "script": "build:pxt",
+      "type": "npm"
+    },
+    {
+      "command": "$base = '/robot-factory/'.TrimEnd('/'); Get-ChildItem -Path public/pxt-editor -Recurse -File | Where-Object { (Get-Content -Raw -LiteralPath $_.FullName) -match '/pxt-editor/' } | ForEach-Object { (Get-Content -Raw -LiteralPath $_.FullName) -replace '/pxt-editor/', \"$base/pxt-editor/\" | Set-Content -NoNewline -LiteralPath $_.FullName }; Write-Host \"Rebased /pxt-editor/ -> $base/pxt-editor/\"",
+      "label": "CI/Rebase PXT URLs",
+      "type": "shell"
+    },
+    {
+      "command": "npx vitest run",
+      "label": "CI/Unit tests",
+      "options": {
+        "env": {
+          "VITE_BASE": "/robot-factory/"
+        }
+      },
+      "problemMatcher": [],
+      "type": "shell"
+    },
+    {
+      "label": "CI/Build/App",
+      "options": {
+        "env": {
+          "VITE_BASE": "/robot-factory/"
+        }
+      },
+      "script": "build",
+      "type": "npm"
+    },
+    {
+      "group": {
+        "isDefault": true,
+        "kind": "test"
+      },
+      "label": "Dev/Run/Unit tests",
+      "problemMatcher": [],
+      "script": "test:unit",
+      "type": "npm"
+    },
+    {
+      "dependsOn": [
+        "Dev/Run/App"
+      ],
+      "group": "test",
+      "label": "Dev/Run/E2E tests",
+      "problemMatcher": [],
+      "script": "test:e2e",
       "type": "npm"
     },
   ],

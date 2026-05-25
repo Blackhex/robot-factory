@@ -59,17 +59,18 @@ describe('FactoryMachineRegistry — injected name generator', () => {
     const gen: MachineNameGenerator = (type, n) => `${type}:${n}`
     const factory = makeFactory({ nameGenerator: gen })
 
-    // WHEN
+    // WHEN — spread along x=1 with z-spacing ≥2 so side-slot machines
+    // (assembler) do not have their slot cells overlap a neighbor's body.
     factory.placeMachine(1, 1, 'part_fabricator', 'south')
-    factory.placeMachine(2, 1, 'assembler', 'south')
-    factory.placeMachine(3, 1, 'part_fabricator', 'south')
-    factory.placeMachine(4, 1, 'assembler', 'south')
+    factory.placeMachine(1, 3, 'assembler', 'south')
+    factory.placeMachine(1, 5, 'part_fabricator', 'south')
+    factory.placeMachine(1, 7, 'assembler', 'south')
 
     // THEN — each type counts from 1 independently.
     expect(factory.getMachineAt(1, 1)!.name).toBe('part_fabricator:1')
-    expect(factory.getMachineAt(2, 1)!.name).toBe('assembler:1')
-    expect(factory.getMachineAt(3, 1)!.name).toBe('part_fabricator:2')
-    expect(factory.getMachineAt(4, 1)!.name).toBe('assembler:2')
+    expect(factory.getMachineAt(1, 3)!.name).toBe('assembler:1')
+    expect(factory.getMachineAt(1, 5)!.name).toBe('part_fabricator:2')
+    expect(factory.getMachineAt(1, 7)!.name).toBe('assembler:2')
   })
 
   it('produces a localized-style no-space label when generator uses a label map', () => {
@@ -85,17 +86,18 @@ describe('FactoryMachineRegistry — injected name generator', () => {
     const gen: MachineNameGenerator = (type, n) => `${labels[type]}${n}`
     const factory = makeFactory({ nameGenerator: gen })
 
-    // WHEN
+    // WHEN — spread along x=1 with z-spacing ≥2 so side-slot machines
+    // (assembler, factory_output) do not block one another.
     factory.placeMachine(1, 1, 'part_fabricator', 'south')
-    factory.placeMachine(2, 1, 'part_fabricator', 'south')
-    factory.placeMachine(3, 1, 'assembler', 'south')
-    factory.placeMachine(4, 1, 'factory_output', 'south')
+    factory.placeMachine(1, 3, 'part_fabricator', 'south')
+    factory.placeMachine(1, 5, 'assembler', 'south')
+    factory.placeMachine(1, 7, 'factory_output', 'south')
 
     // THEN — no space between label and counter.
     expect(factory.getMachineAt(1, 1)!.name).toBe('Fabricator1')
-    expect(factory.getMachineAt(2, 1)!.name).toBe('Fabricator2')
-    expect(factory.getMachineAt(3, 1)!.name).toBe('Assembler1')
-    expect(factory.getMachineAt(4, 1)!.name).toBe('Shipper1')
+    expect(factory.getMachineAt(1, 3)!.name).toBe('Fabricator2')
+    expect(factory.getMachineAt(1, 5)!.name).toBe('Assembler1')
+    expect(factory.getMachineAt(1, 7)!.name).toBe('Shipper1')
   })
 })
 
@@ -111,17 +113,18 @@ describe('FactoryMachineRegistry — default (no generator) fallback', () => {
     // GIVEN
     const factory = makeFactory()
 
-    // WHEN
+    // WHEN — spread along x=1 with z-spacing ≥2 so side-slot machines
+    // (assembler, factory_output, splitter) do not block one another.
     factory.placeMachine(1, 1, 'part_fabricator', 'south')
-    factory.placeMachine(2, 1, 'assembler', 'south')
-    factory.placeMachine(3, 1, 'factory_output', 'south')
-    factory.placeMachine(4, 1, 'splitter', 'south')
+    factory.placeMachine(1, 3, 'assembler', 'south')
+    factory.placeMachine(1, 5, 'factory_output', 'south')
+    factory.placeMachine(1, 7, 'splitter', 'south')
 
     // THEN
     expect(factory.getMachineAt(1, 1)!.name).toBe('PartFabricator1')
-    expect(factory.getMachineAt(2, 1)!.name).toBe('Assembler1')
-    expect(factory.getMachineAt(3, 1)!.name).toBe('FactoryOutput1')
-    expect(factory.getMachineAt(4, 1)!.name).toBe('Splitter1')
+    expect(factory.getMachineAt(1, 3)!.name).toBe('Assembler1')
+    expect(factory.getMachineAt(1, 5)!.name).toBe('FactoryOutput1')
+    expect(factory.getMachineAt(1, 7)!.name).toBe('Splitter1')
   })
 
   it('does NOT emit the legacy space-separated format', () => {

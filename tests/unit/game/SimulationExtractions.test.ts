@@ -135,7 +135,8 @@ describe('B-10 god-file split: ItemDeliveryEngine + SimulationCommandDispatcher'
 
     beforeEach(() => {
       resetItemIdCounter()
-      sim = new Simulation() // tickRate=10, dt=0.1
+      // Inject deterministic RNG to disable defect roll (0.99 > defectProbability)
+      sim = new Simulation(undefined, () => 0.99)
     })
 
     it('should deliver at least one item end-to-end through fab → belt → splitter → belt → factory_output within 30 ticks', () => {

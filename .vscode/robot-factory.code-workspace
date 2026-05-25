@@ -1,39 +1,69 @@
 {
-	"folders": [
-		{
-			"path": ".."
-		}
-	],
-	"settings": {
-		"workspaceTasks.enabledTaskTypes": {
-			"ant": false,
-			"ruby": false,
-			"cake": false,
-			"cmake": false,
-			"composer": false,
-			"cargo": false,
-			"cargo-make": false,
-			"deno": false,
-			"docker": false,
-			"eslint": false,
-			"go": false,
-			"gradle": false,
-			"grunt": false,
-			"gulp": false,
-			"jupyter": false,
-			"just": false,
-			"webpack": false,
-			"venv": false,
-			"typescript": false,
-			"shell": false,
-			"rake": false,
-			"poetry": false,
-			"pipenv": false,
-			"poe": false,
-			"mise": false,
-			"msbuild": false,
-			"maven": false,
-			"make": false
-		}
-	}
+  "extensions": {
+    "recommendations": [
+      "ms-playwright.playwright",
+      "orta.vscode-jest",
+      "vitest.explorer"
+    ]
+  },
+  "folders": [
+    {
+      "path": ".."
+    }
+  ],
+  "settings": {
+    "workspaceTasks.codeLens.actionBar": {
+      "runWithArgs": false
+    },
+    "workspaceTasks.enabledTaskTypes": {
+      "ant": false,
+      "bitbucket": false,
+      "cake": false,
+      "cargo": false,
+      "cargo-make": false,
+      "cmake": false,
+      "composer": false,
+      "deno": false,
+      "docker": false,
+      "eslint": false,
+      "gitlab-ci": false,
+      "go": false,
+      "gradle": false,
+      "grunt": false,
+      "gulp": false,
+      "jupyter": false,
+      "just": false,
+      "make": false,
+      "maven": false,
+      "mise": false,
+      "msbuild": false,
+      "npm": false,
+      "pipenv": false,
+      "poe": false,
+      "poetry": false,
+      "rake": false,
+      "ruby": false,
+      "shell": false,
+      "taskfile": false,
+      "typescript": false,
+      "venv": false,
+      "webpack": false
+    },
+    "workspaceTasks.groups.taskSeparator": "/",
+    "workspaceTasks.shellEnabledTaskTypes": {
+      "bash": false,
+      "batch": false,
+      "extensionless": false,
+      "fish": false,
+      "nodejs": false,
+      "nushell": false,
+      "other": false,
+      "perl": false,
+      "pwsh": false,
+      "python": false,
+      "ruby": false,
+      "sh": false,
+      "zsh": false
+    }
+  }
 }

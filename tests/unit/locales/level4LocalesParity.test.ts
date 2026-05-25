@@ -109,10 +109,10 @@ describe('Locales — Level 4 tutorial parity (Task D)', () => {
     expect(desc as string).toMatch(/Recycler/i)
   })
 
-  it('T23: cs.json levels.level_4.description mentions both Rozdělovač and Recyklátor', () => {
+  it('T23: cs.json levels.level_4.description mentions both Rozdělovač and Recyklovač', () => {
     const desc = getNested(cs, 'levels.level_4.description')
     expect(typeof desc, 'cs levels.level_4.description must be a string').toBe('string')
     expect(desc as string).toMatch(/Rozdělovač/i)
-    expect(desc as string).toMatch(/Recyklátor/i)
+    expect(desc as string).toMatch(/Recyklovač/i)
   })
 })
