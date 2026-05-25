@@ -47,7 +47,7 @@ describe('MachinePanel runtime info', () => {
     })
 
     const runtimeRows = parent.querySelectorAll<HTMLElement>('.ui-machine-panel-runtime')
-    expect(runtimeRows.length).toBe(4)
+    expect(runtimeRows.length).toBe(6)
     const text = Array.from(runtimeRows)
       .map((r) => r.textContent ?? '')
       .join(' | ')
@@ -78,7 +78,7 @@ describe('MachinePanel runtime info', () => {
     })
 
     const runtimeRows = parent.querySelectorAll<HTMLElement>('.ui-machine-panel-runtime')
-    expect(runtimeRows.length).toBe(4)
+    expect(runtimeRows.length).toBe(6)
     const text = Array.from(runtimeRows)
       .map((r) => r.textContent ?? '')
       .join(' | ')
@@ -128,7 +128,7 @@ describe('MachinePanel runtime info', () => {
     setRuntimeInfo({ state: 'blocked', recipeName: 'C', itemsProduced: 9 })
 
     const rows = parent.querySelectorAll('.ui-machine-panel-runtime')
-    expect(rows.length).toBe(4)
+    expect(rows.length).toBe(6)
 
     const text = Array.from(rows)
       .map((r) => r.textContent ?? '')

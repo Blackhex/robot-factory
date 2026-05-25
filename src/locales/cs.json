@@ -54,7 +54,9 @@
     "no_recipe": "(bez receptu)",
     "produced": "Vyrobeno",
     "inputs": "Vstupy",
-    "inputs_empty": "(prázdné)"
+    "inputs_empty": "(prázdné)",
+    "recipe_inputs": "Potřebuje",
+    "recipe_outputs": "Vyrobí"
   },
   "language": "Jazyk",
   "main_menu": {

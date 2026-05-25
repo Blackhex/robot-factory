@@ -128,7 +128,7 @@ describe('MachinePanel inputs row', () => {
     expect(getInputsValue(parent)).toBe('1× Basic Circuits, 2× Small Wheels')
   })
 
-  it('exposes a 4th runtime row (recipe + state + produced + inputs) when runtime info is set', () => {
+  it('exposes a 6th runtime row (recipe + needs + makes + state + produced + inputs) when runtime info is set', () => {
     panel.setRuntimeInfo({
       state: 'idle',
       recipeName: null,
@@ -137,7 +137,7 @@ describe('MachinePanel inputs row', () => {
     })
 
     const rows = getRuntimeRows(parent)
-    expect(rows.length).toBe(4)
+    expect(rows.length).toBe(6)
   })
 
   it('hides the inputs row when setRuntimeInfo(null) is called', () => {
@@ -205,7 +205,7 @@ describe('MachinePanel inputs row', () => {
     panel.setRuntimeInfo({ ...base, inputs: [{ type: 'wheel_small', quantity: 2 }] })
     panel.setRuntimeInfo({ ...base, inputs: [{ type: 'wheel_small', quantity: 3 }] })
 
-    expect(getRuntimeRows(parent).length).toBe(4)
+    expect(getRuntimeRows(parent).length).toBe(6)
   })
 })
 

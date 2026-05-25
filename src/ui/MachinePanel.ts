@@ -8,6 +8,8 @@ export interface MachineRuntimeInfo {
   recipeName: string | null
   itemsProduced: number
   inputs: ReadonlyArray<{ type: ItemType; quantity: number }>
+  recipeInputs?: ReadonlyArray<{ type: ItemType; quantity: number }>
+  recipeOutputs?: ReadonlyArray<{ type: ItemType; quantity: number }>
 }
 
 /**
@@ -20,14 +22,20 @@ export class MachinePanel {
   private infoEl: HTMLSpanElement
   private typeSelect: HTMLSelectElement
   private runtimeRecipeRow: HTMLDivElement
+  private runtimeRecipeInputsRow: HTMLDivElement
+  private runtimeRecipeOutputsRow: HTMLDivElement
   private runtimeStateRow: HTMLDivElement
   private runtimeProducedRow: HTMLDivElement
   private runtimeInputsRow: HTMLDivElement
   private runtimeRecipeLabel: HTMLSpanElement
+  private runtimeRecipeInputsLabel: HTMLSpanElement
+  private runtimeRecipeOutputsLabel: HTMLSpanElement
   private runtimeStateLabel: HTMLSpanElement
   private runtimeProducedLabel: HTMLSpanElement
   private runtimeInputsLabel: HTMLSpanElement
   private runtimeRecipeValue: HTMLSpanElement
+  private runtimeRecipeInputsValue: HTMLSpanElement
+  private runtimeRecipeOutputsValue: HTMLSpanElement
   private runtimeStateValue: HTMLSpanElement
   private runtimeProducedValue: HTMLSpanElement
   private runtimeInputsValue: HTMLSpanElement
@@ -111,6 +119,18 @@ export class MachinePanel {
     this.runtimeRecipeLabel = recipeRow.label
     this.runtimeRecipeValue = recipeRow.value
     props.appendChild(this.runtimeRecipeRow)
+
+    const recipeInputsRow = this.createRuntimeRow('machine_panel.recipe_inputs')
+    this.runtimeRecipeInputsRow = recipeInputsRow.row
+    this.runtimeRecipeInputsLabel = recipeInputsRow.label
+    this.runtimeRecipeInputsValue = recipeInputsRow.value
+    props.appendChild(this.runtimeRecipeInputsRow)
+
+    const recipeOutputsRow = this.createRuntimeRow('machine_panel.recipe_outputs')
+    this.runtimeRecipeOutputsRow = recipeOutputsRow.row
+    this.runtimeRecipeOutputsLabel = recipeOutputsRow.label
+    this.runtimeRecipeOutputsValue = recipeOutputsRow.value
+    props.appendChild(this.runtimeRecipeOutputsRow)
 
     const stateRow = this.createRuntimeRow('machine_panel.state')
     this.runtimeStateRow = stateRow.row
@@ -204,17 +224,23 @@ export class MachinePanel {
       info.state === prev.state &&
       info.recipeName === prev.recipeName &&
       info.itemsProduced === prev.itemsProduced &&
-      inputsEqual(info.inputs, prev.inputs)
+      inputsEqual(info.inputs, prev.inputs) &&
+      inputsEqual(info.recipeInputs, prev.recipeInputs) &&
+      inputsEqual(info.recipeOutputs, prev.recipeOutputs)
     ) {
       return
     }
     this.currentRuntime = info
     if (!info) {
       this.runtimeRecipeRow.style.display = 'none'
+      this.runtimeRecipeInputsRow.style.display = 'none'
+      this.runtimeRecipeOutputsRow.style.display = 'none'
       this.runtimeStateRow.style.display = 'none'
       this.runtimeProducedRow.style.display = 'none'
       this.runtimeInputsRow.style.display = 'none'
       this.runtimeRecipeValue.textContent = ''
+      this.runtimeRecipeInputsValue.textContent = ''
+      this.runtimeRecipeOutputsValue.textContent = ''
       this.runtimeStateValue.textContent = ''
       this.runtimeProducedValue.textContent = ''
       this.runtimeInputsValue.textContent = ''
@@ -224,16 +250,27 @@ export class MachinePanel {
     this.runtimeStateRow.style.display = ''
     this.runtimeProducedRow.style.display = ''
     this.runtimeInputsRow.style.display = ''
+    const showRecipeDetails = info.recipeName !== null
+    const recipeInputs = info.recipeInputs ?? []
+    const recipeOutputs = info.recipeOutputs ?? []
+    this.runtimeRecipeInputsRow.style.display =
+      showRecipeDetails && recipeInputs.length > 0 ? '' : 'none'
+    this.runtimeRecipeOutputsRow.style.display =
+      showRecipeDetails && recipeOutputs.length > 0 ? '' : 'none'
     this.renderRuntime(info)
   }
 
   private renderRuntime(info: MachineRuntimeInfo): void {
     this.runtimeRecipeLabel.textContent = i18next.t('machine_panel.recipe')
+    this.runtimeRecipeInputsLabel.textContent = i18next.t('machine_panel.recipe_inputs')
+    this.runtimeRecipeOutputsLabel.textContent = i18next.t('machine_panel.recipe_outputs')
     this.runtimeStateLabel.textContent = i18next.t('machine_panel.state')
     this.runtimeProducedLabel.textContent = i18next.t('machine_panel.produced')
     this.runtimeInputsLabel.textContent = i18next.t('machine_panel.inputs')
     this.runtimeRecipeValue.textContent =
       info.recipeName ?? i18next.t('machine_panel.no_recipe')
+    this.runtimeRecipeInputsValue.textContent = formatRecipeItems(info.recipeInputs ?? [])
+    this.runtimeRecipeOutputsValue.textContent = formatRecipeItems(info.recipeOutputs ?? [])
     this.runtimeStateValue.textContent = i18next.t(`machine_panel.state_${info.state}`)
     this.runtimeProducedValue.textContent = String(info.itemsProduced)
     this.runtimeInputsValue.textContent = formatInputs(info.inputs)
@@ -308,5 +345,13 @@ function formatInputs(
   if (!inputs || inputs.length === 0) return i18next.t('machine_panel.inputs_empty')
   return inputs
     .map((g) => `${g.quantity}× ${i18next.t(`parts.${g.type}`)}`)
+    .join(', ')
+}
+
+function formatRecipeItems(
+  items: ReadonlyArray<{ type: ItemType; quantity: number }>,
+): string {
+  return items
+    .map((g) => `${g.quantity}× ${i18next.t(`items.${g.type}`)}`)
     .join(', ')
 }

@@ -54,7 +54,9 @@
     "no_recipe": "(no recipe)",
     "produced": "Produced",
     "inputs": "Inputs",
-    "inputs_empty": "(empty)"
+    "inputs_empty": "(empty)",
+    "recipe_inputs": "Needs",
+    "recipe_outputs": "Makes"
   },
   "language": "Language",
   "main_menu": {

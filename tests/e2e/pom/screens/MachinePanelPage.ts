@@ -15,6 +15,12 @@ export class MachinePanelPage {
   private readonly closeBtn: Locator
   private readonly deleteBtn: Locator
   private readonly typeOptions: Locator
+  private readonly recipeRow: Locator
+  private readonly recipeValue: Locator
+  private readonly recipeInputsRow: Locator
+  private readonly recipeInputsValue: Locator
+  private readonly recipeOutputsRow: Locator
+  private readonly recipeOutputsValue: Locator
 
   private readonly page: Page
   constructor(page: Page) {
@@ -26,6 +32,18 @@ export class MachinePanelPage {
     this.closeBtn = this.panel.locator('.ui-machine-panel-close')
     this.deleteBtn = this.panel.locator('.ui-machine-panel-delete')
     this.typeOptions = this.typeSelect.locator('option')
+    this.recipeRow = this.panel.locator(
+      '.ui-machine-panel-row:has([data-i18n-key="machine_panel.recipe"])',
+    )
+    this.recipeValue = this.recipeRow.locator('.ui-machine-panel-value')
+    this.recipeInputsRow = this.panel.locator(
+      '.ui-machine-panel-row:has([data-i18n-key="machine_panel.recipe_inputs"])',
+    )
+    this.recipeInputsValue = this.recipeInputsRow.locator('.ui-machine-panel-value')
+    this.recipeOutputsRow = this.panel.locator(
+      '.ui-machine-panel-row:has([data-i18n-key="machine_panel.recipe_outputs"])',
+    )
+    this.recipeOutputsValue = this.recipeOutputsRow.locator('.ui-machine-panel-value')
   }
 
   async expectVisible(timeout = 5000): Promise<void> {
@@ -109,5 +127,45 @@ export class MachinePanelPage {
    */
   async expectStaysOnTopAtCenter(): Promise<void> {
     await expectPanelStaysOnTopAtCenter(this.panel, '.ui-machine-panel')
+  }
+
+  /**
+   * Assert the runtime "Recipe" row is visible and shows the given value text.
+   */
+  async expectRecipeValue(text: string | RegExp): Promise<void> {
+    await expect(this.recipeRow).toBeVisible()
+    await expect(this.recipeValue).toHaveText(text)
+  }
+
+  /**
+   * Assert the runtime "Recipe" row is hidden (machine has no recipe set).
+   * Passes whether the row is absent from the DOM or present with `display: none`.
+   */
+  async expectRecipeRowHidden(): Promise<void> {
+    await expect(this.recipeRow).toBeHidden()
+  }
+
+  /**
+   * Assert the runtime "Needs" / recipe-inputs row is visible and shows the given text.
+   */
+  async expectRecipeInputsValue(text: string | RegExp): Promise<void> {
+    await expect(this.recipeInputsRow).toBeVisible()
+    await expect(this.recipeInputsValue).toHaveText(text)
+  }
+
+  async expectRecipeInputsRowHidden(): Promise<void> {
+    await expect(this.recipeInputsRow).toBeHidden()
+  }
+
+  /**
+   * Assert the runtime "Makes" / recipe-outputs row is visible and shows the given text.
+   */
+  async expectRecipeOutputsValue(text: string | RegExp): Promise<void> {
+    await expect(this.recipeOutputsRow).toBeVisible()
+    await expect(this.recipeOutputsValue).toHaveText(text)
+  }
+
+  async expectRecipeOutputsRowHidden(): Promise<void> {
+    await expect(this.recipeOutputsRow).toBeHidden()
   }
 }

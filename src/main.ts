@@ -639,6 +639,8 @@ async function main(): Promise<void> {
           recipeName,
           itemsProduced: m.itemsProduced,
           inputs,
+          recipeInputs: m.currentRecipe?.inputs ?? [],
+          recipeOutputs: m.currentRecipe?.outputs ?? [],
         })
       } else {
         machinePanel.setRuntimeInfo(null)
