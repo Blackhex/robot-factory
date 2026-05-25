@@ -67,7 +67,7 @@ export class PxtEditor {
     // --- PXT iframe (hidden until PXT responds) ---
     this.iframe = document.createElement('iframe')
     this.iframe.className = 'pxt-editor-iframe'
-    this.iframe.src = '/pxt-editor/index.html#controller=1'
+    this.iframe.src = `${import.meta.env.BASE_URL}pxt-editor/index.html#controller=1`
     this.iframe.style.width = '100%'
     this.iframe.style.height = '100%'
     this.iframe.style.border = 'none'

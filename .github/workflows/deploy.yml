@@ -38,6 +38,20 @@ jobs:
       - name: Build PXT editor
         run: npm run build:pxt
 
+      - name: Rebase PXT absolute URLs for non-root base
+        if: env.VITE_BASE != '/' && env.VITE_BASE != ''
+        run: |
+          set -euo pipefail
+          # PXT's `staticpkg --route /pxt-editor` bakes absolute `/pxt-editor/`
+          # URLs into every HTML/JS/CSS/JSON/manifest file. When deployed under
+          # a non-root base (e.g. GitHub Pages `/robot-factory/`), those URLs
+          # 404. Rewrite them to `${VITE_BASE%/}/pxt-editor/`. Every match is
+          # an intended URL prefix, so a blanket replace is safe.
+          BASE_NO_SLASH="${VITE_BASE%/}"
+          grep -rl '/pxt-editor/' public/pxt-editor \
+            | xargs sed -i "s|/pxt-editor/|${BASE_NO_SLASH}/pxt-editor/|g"
+          echo "Rebased /pxt-editor/ -> ${BASE_NO_SLASH}/pxt-editor/"
+
       - name: Unit tests
         run: npx vitest run
 
