@@ -350,6 +350,8 @@ export class MachineMeshRenderer {
         inputs: this.createMeshes(inputCount, this.slotGeometry, this.inputSlotMaterial),
         outputs: this.createMeshes(outputCount, this.slotGeometry, this.outputSlotMaterial),
       }
+      for (const mesh of slots.inputs) mesh.castShadow = true
+      for (const mesh of slots.outputs) mesh.castShadow = true
       this.slotMeshes.set(id, slots)
     }
     return slots

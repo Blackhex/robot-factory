@@ -285,10 +285,7 @@ export class BeltMeshRenderer {
           mesh.userData.beltLogicalId = beltLogicalId
           mesh.scale.set(isHorizontal ? 1.0 : BELT_WIDTH, 1, isHorizontal ? BELT_WIDTH : 1.0)
           mesh.position.set(worldPos.x, 0.025, worldPos.z)
-          mesh.receiveShadow = true
-          this.scene.add(mesh)
-          this.beltMeshes.set(`cell_${x}_${z}`, mesh)
-          this.cellBeltIds.set(mesh, info.beltIds)
+          this.registerBeltMesh(mesh, `cell_${x}_${z}`, info.beltIds)
         } else {
           const horiz = d1.dx !== 0 ? d1 : d2
           const vert = d1.dz !== 0 ? d1 : d2
@@ -326,10 +323,7 @@ export class BeltMeshRenderer {
           mesh.userData.beltLogicalId = beltLogicalId
           mesh.position.set(worldPos.x + offset.x, 0, worldPos.z + offset.z)
           mesh.rotation.y = rotationY
-          mesh.receiveShadow = true
-          this.scene.add(mesh)
-          this.beltMeshes.set(`corner_${x}_${z}`, mesh)
-          this.cellBeltIds.set(mesh, info.beltIds)
+          this.registerBeltMesh(mesh, `corner_${x}_${z}`, info.beltIds)
         }
       } else if (dirs.length === 1) {
         const d = dirs[0]
@@ -344,12 +338,17 @@ export class BeltMeshRenderer {
         mesh.userData.beltLogicalId = beltLogicalId
         mesh.scale.set(isHorizontal ? 0.5 : BELT_WIDTH, 1, isHorizontal ? BELT_WIDTH : 0.5)
         mesh.position.set(worldPos.x + d.dx * 0.25, 0.025, worldPos.z + d.dz * 0.25)
-        mesh.receiveShadow = true
-        this.scene.add(mesh)
-        this.beltMeshes.set(`cell_${x}_${z}`, mesh)
-        this.cellBeltIds.set(mesh, info.beltIds)
+        this.registerBeltMesh(mesh, `cell_${x}_${z}`, info.beltIds)
       }
     }
+  }
+
+  private registerBeltMesh(mesh: THREE.Mesh, key: string, beltIds: string[]): void {
+    mesh.receiveShadow = true
+    mesh.castShadow = true
+    this.scene.add(mesh)
+    this.beltMeshes.set(key, mesh)
+    this.cellBeltIds.set(mesh, beltIds)
   }
 
   private getCellFlowDirection(x: number, z: number, info: { flowBelt: BeltInfo | null }): BeltDirection {
