@@ -1,0 +1,69 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: 'Run Playwright E2E tests before deploy'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VITE_BASE: /robot-factory/
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # `postinstall` runs `npm run build:pxt:install` automatically.
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build PXT editor
+        run: npm run build:pxt
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Build app
+        run: npm run build
+
+      - name: Install Playwright browsers
+        if: github.event.inputs.run_e2e == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        if: github.event.inputs.run_e2e == 'true'
+        run: npx playwright test
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

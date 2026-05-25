@@ -215,7 +215,8 @@ function pxtWatchPlugin(): Plugin {
   }
 }
 
-export default defineConfig({
+export default defineConfig(() => ({
+  base: process.env.VITE_BASE ?? '/',
   plugins: [pxtWatchPlugin()],
   server: {
     // Listen on all network interfaces so the dev server is reachable from
@@ -227,4 +228,4 @@ export default defineConfig({
       ignored: ['**/public/pxt-editor/**', '**/pxt-target/built/**'],
     },
   },
-})
+}))
