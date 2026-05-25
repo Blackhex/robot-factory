@@ -103,5 +103,90 @@ svg.blocklyFlyout path.blocklyFlyoutBackground { fill: #0f1117 !important; fill-
 .blocklyEditableText > .blocklyText,
 .blocklyHtmlInput { fill: #1a1d27 !important; color: #1a1d27 !important; }
 
+/* PXT's Blockly leaves the SVG text visible during edit; combined with the dark fill above it doubles the HTML input overlay. Use visibility (not display) to preserve the group's bbox. */
+.blocklyEditableText.editing > .blocklyText { visibility: hidden !important; }
+
+/* `.blocklyWidgetDiv` is `display: block` with `line-height: normal` inherited from a 10.8pt font, so its line box is ~17 px tall. The default `inline-block` `.blocklyHtmlInput` (~11.7 px tall) gets baseline-aligned inside that line box and renders ~6 px below the widget's top — visually offset down inside the field's white background patch. Force `display: block` to take the input out of the parent's inline-formatting context and top-align it with the widget (which Blockly already pins to the field bg top via inline `top`). */
+.blocklyHtmlInput { display: block !important; }
+
 /* Make the main workspace div use full space */
 .injectionDiv { background: transparent !important; }
+
+/* === Function-editor modal (Edit Function) — dark theme === */
+
+/* Dimmer overlay — translucent app background. Higher specificity than
+   Semantic's `.ui.dimmer { background-color: rgba(0,0,0,0.85) }`. */
+.ReactModal__Overlay.ui.page.modals.dimmer,
+.ui.page.dimmer.ReactModal__Overlay { background-color: rgba(15, 17, 23, 0.85) !important; }
+
+/* Modal box */
+.ReactModal__Content.ui.modal,
+.ReactModal__Content.ui.modal.createfunction { background: #1a1d27 !important; color: #e0e0e6 !important; border: 1px solid #2e3140 !important; border-radius: 12px !important; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6) !important; font-family: 'Segoe UI', system-ui, Roboto, sans-serif; }
+
+/* Header bar */
+.ui.modal > .header,
+.ReactModal__Content.ui.modal > .header { background: #1a1d27 !important; color: #e0e0e6 !important; border-bottom: 1px solid #2e3140 !important; font-family: 'Segoe UI', system-ui, Roboto, sans-serif; }
+.ui.modal > .header h3.header-title,
+.ui.modal > .header .header-title { color: #e0e0e6 !important; }
+
+/* Content area */
+.ui.modal > .content,
+.ReactModal__Content.ui.modal > .content { background: #1a1d27 !important; color: #e0e0e6 !important; }
+
+/* Inline parameter labels */
+.ui.modal .content .paramlabel { color: #e0e0e6 !important; }
+
+/* Actions footer */
+.ui.modal > .actions,
+.ReactModal__Content.ui.modal > .actions { background: #1a1d27 !important; border-top: 1px solid #2e3140 !important; }
+
+/* Done / approve button — accent fill, dark text */
+.ui.modal .actions button.ui.button.approve.positive,
+.ui.modal .actions button.ui.approve.positive,
+.ui.modal .actions button.ui.button.approve { background: #4fc3f7 !important; background-color: #4fc3f7 !important; color: #0f1117 !important; border: 1px solid #4fc3f7 !important; border-radius: 8px !important; font-family: 'Segoe UI', system-ui, Roboto, sans-serif; }
+.ui.modal .actions button.ui.button.approve.positive:hover,
+.ui.modal .actions button.ui.approve.positive:hover,
+.ui.modal .actions button.ui.button.approve:hover { background: #29b6f6 !important; background-color: #29b6f6 !important; border-color: #29b6f6 !important; color: #0f1117 !important; }
+
+/* Parameter-add buttons (Text / Boolean / Number / Array) */
+.ui.modal .content button.ui.button.icon.icon-and-text,
+.ui.modal .content .horizontal.list button.ui.button { background: #1a1d27 !important; background-color: #1a1d27 !important; color: #e0e0e6 !important; border: 1px solid #2e3140 !important; border-radius: 8px !important; font-family: 'Segoe UI', system-ui, Roboto, sans-serif; box-shadow: none !important; }
+.ui.modal .content button.ui.button.icon.icon-and-text:hover,
+.ui.modal .content .horizontal.list button.ui.button:hover { background: #252836 !important; background-color: #252836 !important; color: #e0e0e6 !important; border-color: #2e3140 !important; }
+
+/* Guard: ensure Semantic's icon glyph font is preserved on every `i.icon`
+   inside the modal, regardless of any font-family declared on ancestor
+   containers/buttons by the dark-theme rules above. Without this, button
+   icons (text-width, random, calculator, list, close X) render blank
+   because the parent's text-font cascades into the glyph element. */
+.ui.modal i.icon,
+.ui.modal i.icon.icon-and-text,
+.ui.modal button.ui.button i.icon { font-family: Icons !important; }
+
+/* Glyph mappings for the four parameter-type icons used by PXT's
+   CreateFunctionDialog (`pxt.blocks.defaultIconForArgType`) and the
+   modal's close-X. The bundled `public/pxt-editor/semantic.css` only
+   ships `.fa-*` prefixed mappings, so the Semantic-style class names
+   (`text width`, `random`, `calculator`, `list`, `close`) that the
+   React `<Button icon="...">` component emits have no `::before`
+   content and render as blank squares. Codepoints come from the
+   FontAwesome 5 entries in semantic.css. */
+.ui.modal i.icon.text.width::before { content: "\f035"; }
+.ui.modal i.icon.random::before { content: "\f074"; }
+.ui.modal i.icon.calculator::before { content: "\f1ec"; }
+.ui.modal i.icon.list::before { content: "\f03a"; }
+.ui.modal i.close.icon::before,
+.ui.modal .closeIcon i.close.icon::before { content: "\f00d"; }
+
+/* Close icon */
+.ui.modal .closeIcon,
+.ui.modal .closeIcon i.icon,
+.ui.modal .close.icon { color: #e0e0e6 !important; }
+.ui.modal .closeIcon:hover,
+.ui.modal .closeIcon:hover i.icon,
+.ui.modal .close.icon:hover { color: #4fc3f7 !important; }
+
+/* Inner Blockly workspace inside the function editor */
+#functionEditorWorkspace { background: #0f1117 !important; }
+#functionEditorWorkspace svg.blocklySvg,
+#functionEditorWorkspace .blocklyMainBackground { background: #0f1117 !important; fill: #0f1117 !important; }

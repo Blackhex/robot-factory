@@ -1928,4 +1928,106 @@ export class PxtEditorPage {
       { el: iframeEl!, id: blockId },
     )
   }
+
+  /**
+   * Click the editable `function_name` field on a `function_definition`
+   * block at the workspace (the visible `<text>` inside a
+   * `g.blocklyEditableText` group whose text equals `name`). This puts
+   * the field into edit mode and mounts Blockly's HTML `<input>`
+   * overlay (`.blocklyHtmlInput` inside `.blocklyWidgetDiv`). Waits
+   * for the input to be visible before returning.
+   */
+  async clickFunctionNameField(name: string): Promise<void> {
+    const target = this.pxtFrame()
+      .locator('g.blocklyEditableText')
+      .filter({ hasText: name })
+      .first()
+    await expect(target).toBeVisible({ timeout: 10_000 })
+    await target.click()
+    await expect(
+      this.pxtFrame().locator('.blocklyHtmlInput'),
+    ).toBeVisible({ timeout: 5_000 })
+  }
+
+  /**
+   * Create a `function_definition` block on the main workspace by
+   * appending an XML fragment via `Blockly.Xml.appendDomToWorkspace`
+   * (the same call Blockly uses when a flyout block is dropped on the
+   * workspace). Does NOT clear the workspace, so it leaves the
+   * existing pinned viewport untouched — the spec that pins the
+   * "stale toolbox-width pin" bug relies on the canvas remaining in
+   * the buggy pre-shift state until the subsequent field-edit click.
+   */
+  async createFunctionDefinitionBlock(name: string): Promise<string> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    const id: string = await this.page.evaluate(
+      ({ el, fnName }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) throw new Error('Blockly not available')
+        const ws = win.Blockly.mainWorkspace
+        if (!ws) throw new Error('main workspace not available')
+        const fid = 'rftest-fn-' + Math.random().toString(36).slice(2, 10)
+        const xml =
+          '<xml xmlns="https://developers.google.com/blockly/xml">' +
+          `<block type="function_definition" x="80" y="80">` +
+          `<mutation name="${fnName}" functionid="${fid}"></mutation>` +
+          `<field name="function_name">${fnName}</field>` +
+          `<field name="function_id">${fid}</field>` +
+          '</block></xml>'
+        const textToDom =
+          win.Blockly.utils?.xml?.textToDom ?? win.Blockly.Xml.textToDom
+        const dom = textToDom(xml)
+        const append =
+          win.Blockly.Xml.appendDomToWorkspace ?? win.Blockly.Xml.domToWorkspace
+        append(dom, ws)
+        const all: any[] = ws.getAllBlocks?.(false) ?? []
+        const match = all.find((b: any) => b.type === 'function_definition')
+        return match ? String(match.id) : ''
+      },
+      { el: iframeEl!, fnName: name },
+    )
+    expect(id, 'function_definition block was not created').toBeTruthy()
+    return id
+  }
+
+  /**
+   * After `clickFunctionNameField` has put a `g.blocklyEditableText`
+   * group into edit mode, capture the iframe-relative bounding rects
+   * of both the SVG group and the mounted HTML `<input>` overlay. Used
+   * to assert that Blockly's input overlay actually paints on top of
+   * the SVG field (the "stale toolbox-width pin" bug in
+   * `PxtEditor.pinInitialViewport()` causes a ~150 px horizontal
+   * mismatch).
+   */
+  async readEditingFieldOverlayRects(): Promise<{
+    svgCount: number
+    inputCount: number
+    svg: { x: number; y: number; width: number; height: number } | null
+    input: { x: number; y: number; width: number; height: number } | null
+  }> {
+    const el = await this.iframeLocator.elementHandle()
+    expect(el, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((frame) => {
+      const doc = (frame as HTMLIFrameElement).contentDocument
+      if (!doc) throw new Error('PXT iframe document not available')
+      const svgGroups = Array.from(
+        doc.querySelectorAll('g.blocklyEditableText.editing'),
+      ) as SVGGElement[]
+      const inputs = Array.from(
+        doc.querySelectorAll('.blocklyWidgetDiv .blocklyHtmlInput'),
+      ) as HTMLInputElement[]
+      const r = (e: Element | undefined) => {
+        if (!e) return null
+        const b = e.getBoundingClientRect()
+        return { x: b.x, y: b.y, width: b.width, height: b.height }
+      }
+      return {
+        svgCount: svgGroups.length,
+        inputCount: inputs.length,
+        svg: r(svgGroups[0]),
+        input: r(inputs[0]),
+      }
+    }, el!)
+  }
 }

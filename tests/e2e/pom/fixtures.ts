@@ -15,6 +15,7 @@ import { BeltObject } from './canvas/BeltObject'
 import { SimulationProbe } from './canvas/SimulationProbe'
 import { RecipeIconProbe } from './canvas/probes/RecipeIconProbe'
 import { PxtEditorPage } from './editor/PxtEditorPage'
+import { PxtFunctionEditorModalPage } from './editor/PxtFunctionEditorModalPage'
 import { GameOverModalPage } from './screens/GameOverModalPage'
 import { ProjectsPanelPage } from './screens/ProjectsPanelPage'
 import { SaveManager } from './data/saves'
@@ -36,6 +37,7 @@ type Pages = {
   belt: BeltObject
   probe: SimulationProbe
   pxt: PxtEditorPage
+  pxtFunctionModal: PxtFunctionEditorModalPage
   recipeIcon: RecipeIconProbe
   gameOverModal: GameOverModalPage
   projectsPanel: ProjectsPanelPage
@@ -59,6 +61,7 @@ export const test = base.extend<Pages>({
   grid: async ({ page, probe }, use) => { await use(new FactoryGridPage(page, probe)) },
   belt: async ({ page, probe }, use) => { await use(new BeltObject(page, probe)) },
   pxt: async ({ page }, use) => { await use(new PxtEditorPage(page)) },
+  pxtFunctionModal: async ({ page }, use) => { await use(new PxtFunctionEditorModalPage(page)) },
   recipeIcon: async ({ page }, use) => { await use(new RecipeIconProbe(page)) },
   projectsPanel: async ({ page }, use) => { await use(new ProjectsPanelPage(page)) },
   gameOverModal: async ({ page }, use) => { await use(new GameOverModalPage(page)) },
