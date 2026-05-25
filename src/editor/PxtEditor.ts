@@ -4,6 +4,10 @@ import type { Item } from '../game/Item'
 import { BlockInterpreter } from './BlockInterpreter'
 import { getToolboxForLevel } from './FactoryToolbox'
 import { buildDropdownOptions, patchFieldDropdownClassValidation, resolveDropdownText, type DropdownItem } from './dropdownOptions'
+import { buildRecipeDropdownEntries, resolveRecipeOptionsForBlock } from './recipeDropdownFilter'
+import { installRecipeAutoResetListener } from './recipeAutoReset'
+import { assignStableSlots, type SlottedItem } from './stableSlotAssigner'
+import { autoResetEnumFieldsForWorkspace } from './slotEnumAutoReset'
 import { PxtFallbackEditor } from './PxtFallbackEditor'
 import { applyHatBlockShape, installSetEnabledTrap } from './hatBlockShape'
 import { PLUGGABLE_CONSUMER_BLOCK_TYPES } from './pluggableConsumerBlockTypes'
@@ -41,8 +45,8 @@ export class PxtEditor {
   private messageHandler: ((ev: MessageEvent) => void) | null = null
   private pendingMachineUpdate: Array<{id: string, name: string, type: string}> | null = null
   private pendingBeltUpdate: Array<{id: string, name: string, sourceName: string, destName: string}> | null = null
-  private prototypePatched = false
-  private textPatched = false
+  private prevMachineSlots: Array<SlottedItem & { name: string; type: string }> | null = null; private prevBeltSlots: Array<SlottedItem & { name: string }> | null = null
+  private prototypePatched = false; private textPatched = false; private recipeAutoResetInstalled = false
   private stylesInjected = false
   private toolboxObserver: MutationObserver | null = null
   private nextRequestId = 1
@@ -308,6 +312,7 @@ export class PxtEditor {
     'factory_set_belt_speed',
     'factory_pick_belt',
   ]
+  private static readonly RECIPE_BLOCK_TYPES = ['factory_set_recipe']
 
   /** Maximum number of machine/belt slots exposed in the dropdown enum. */
   private static readonly MAX_SLOTS = 64
@@ -318,11 +323,7 @@ export class PxtEditor {
    */
   updateMachineList(machines: Array<{id: string, name: string, type: string}>): void {
     this.pendingMachineUpdate = machines
-    const slotted = machines.slice(0, PxtEditor.MAX_SLOTS).map((m, i) => ({
-      slotIndex: i,
-      id: m.id,
-      name: m.name,
-    }))
+    const slotted = this.assignAndPersistSlots(machines, this.prevMachineSlots, (n) => { this.prevMachineSlots = n })
     this.interpreter.setMachineList(slotted)
     this.patchBlocklyDropdowns('machine', slotted)
   }
@@ -333,21 +334,13 @@ export class PxtEditor {
    */
   updateBeltList(belts: Array<{id: string, name: string, sourceName: string, destName: string}>): void {
     this.pendingBeltUpdate = belts
-    const slotted = belts.slice(0, PxtEditor.MAX_SLOTS).map((b, i) => ({
-      slotIndex: i,
-      id: b.id,
-      name: b.name,
-    }))
-    this.interpreter.setBeltList(slotted)
-
-    const labeled = belts.slice(0, PxtEditor.MAX_SLOTS).map((b, i) => ({
-      slotIndex: i,
-      id: b.id,
-      name: b.name,
-      label: `${b.sourceName} → ${b.destName}`,
-    }))
+    const slotted = this.assignAndPersistSlots(belts, this.prevBeltSlots, (n) => { this.prevBeltSlots = n.map((s) => ({ slotIndex: s.slotIndex, id: s.id, name: s.name })) })
+    this.interpreter.setBeltList(this.prevBeltSlots!)
+    const labeled = slotted.map((s) => ({ slotIndex: s.slotIndex, id: s.id, name: s.name, label: `${s.sourceName} → ${s.destName}` }))
     this.patchBlocklyDropdowns('belt', labeled)
   }
+
+  private assignAndPersistSlots<T extends { id: string }>(items: ReadonlyArray<T>, prev: ReadonlyArray<SlottedItem> | null, setPrev: (next: Array<T & { slotIndex: number }>) => void): Array<T & { slotIndex: number }> { const slotted = assignStableSlots(prev, items, PxtEditor.MAX_SLOTS); setPrev(slotted); return slotted }
 
   /**
    * Patch Blockly FieldDropdown menuGenerator_ for machine or belt blocks
@@ -355,7 +348,7 @@ export class PxtEditor {
    */
   private patchBlocklyDropdowns(
     kind: 'machine' | 'belt',
-    items: Array<{slotIndex: number, id: string, name?: string, label?: string}>,
+    items: Array<{slotIndex: number, id: string, name?: string, label?: string, type?: string}>,
   ): void {
     if (!this.pxtReady || !this.iframe) return
 
@@ -392,6 +385,7 @@ export class PxtEditor {
     iframeWindow[labelStorageKey] = labelMap
     iframeWindow[itemsStorageKey] = items
     iframeWindow[membersStorageKey] = enumMembers
+    if (!iframeWindow.__rf_recipeEntries) iframeWindow.__rf_recipeEntries = buildRecipeDropdownEntries()
     // Patch FieldDropdown.prototype.getOptions ONCE
     if (!this.prototypePatched) {
       this.prototypePatched = true
@@ -402,7 +396,7 @@ export class PxtEditor {
       blockly.FieldDropdown.prototype.getOptions = function(this: any, opt_useCache?: boolean) {
         const block = this.sourceBlock_
         const fieldName = this.name
-
+        if (block && fieldName === 'recipe' && block.type === 'factory_set_recipe') return resolveRecipeOptionsForBlock(block, iframeWindow, origGetOptions.call(this, opt_useCache) as [string, string][])
         if (block && fieldName === 'machine' && machineBlockTypes.includes(block.type)) {
           const items: DropdownItem[] = iframeWindow.__rf_machineItems || []
           const members: string[] = iframeWindow.__rf_machineMembers || []
@@ -419,7 +413,7 @@ export class PxtEditor {
 
         return origGetOptions.call(this, opt_useCache)
       }
-      patchFieldDropdownClassValidation(blockly, iframeWindow, machineBlockTypes, beltBlockTypes)
+      patchFieldDropdownClassValidation(blockly, iframeWindow, machineBlockTypes, beltBlockTypes, PxtEditor.RECIPE_BLOCK_TYPES)
     }
 
     // Patch FieldDropdown.prototype.getText ONCE so block face text is dynamic
@@ -453,6 +447,7 @@ export class PxtEditor {
       }
     }
 
+    if (!this.recipeAutoResetInstalled) { this.recipeAutoResetInstalled = true; installRecipeAutoResetListener(blockly, blockly.mainWorkspace, iframeWindow) }
     // Force re-render of all blocks with machine/belt fields so getText() updates
     // take effect. Blockly caches the field's rendered SVG text, so calling
     // block.render() alone is not enough; we must invalidate the field display
@@ -472,10 +467,15 @@ export class PxtEditor {
       }
     }
 
-    refreshBlocks(workspace.getAllBlocks?.(false) ?? [])
-
     const flyout = workspace.getFlyout?.()
     const flyoutWs = flyout?.getWorkspace?.()
+    const blockTypesForKind = kind === 'machine' ? PxtEditor.MACHINE_BLOCK_TYPES : PxtEditor.BELT_BLOCK_TYPES
+    const presence = items.map((it) => ({ slotIndex: it.slotIndex, id: it.id }))
+    const refreshField = (field: any): void => this.refreshFieldDisplay(field)
+    autoResetEnumFieldsForWorkspace(workspace, kind, blockTypesForKind, presence, enumMembers, refreshField)
+    if (flyoutWs) autoResetEnumFieldsForWorkspace(flyoutWs, kind, blockTypesForKind, presence, enumMembers, refreshField)
+
+    refreshBlocks(workspace.getAllBlocks?.(false) ?? [])
     refreshBlocks(flyoutWs?.getAllBlocks?.(false) ?? [])
 
     // Most robust fix: ask the toolbox to rebuild the open category's flyout,

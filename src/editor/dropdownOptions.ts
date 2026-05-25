@@ -3,7 +3,7 @@
  * display text for machine/belt fields used by Robot Factory blocks.
  */
 
-export type DropdownKind = 'machine' | 'belt'
+export type DropdownKind = 'machine' | 'belt' | 'recipe'
 
 export interface DropdownItem {
   slotIndex: number
@@ -13,7 +13,19 @@ export interface DropdownItem {
 }
 
 function enumNameFor(kind: DropdownKind): string {
-  return kind === 'machine' ? 'Machine' : 'Belt'
+  if (kind === 'machine') return 'Machine'
+  if (kind === 'belt') return 'Belt'
+  return 'Recipe'
+}
+
+/**
+ * True if `value` is a well-formed `Recipe.<member>` enum string. Unlike
+ * machine/belt enums, recipes are not slot-indexed: any `Recipe.X`
+ * literal is accepted regardless of which member `X` names. This is
+ * intentional — recipe membership is validated at simulation time.
+ */
+export function isRecipeEnumValue(value: unknown): boolean {
+  return typeof value === 'string' && value.startsWith('Recipe.')
 }
 
 /**
@@ -76,6 +88,7 @@ export function patchFieldDropdownClassValidation(
   iframeWindow: any,
   machineBlockTypes: readonly string[],
   beltBlockTypes: readonly string[],
+  recipeBlockTypes: readonly string[],
 ): void {
   const orig = blockly.FieldDropdown.prototype.doClassValidation_
   blockly.FieldDropdown.prototype.doClassValidation_ = function(this: any, v: any) {
@@ -84,6 +97,8 @@ export function patchFieldDropdownClassValidation(
         && isValidEnumValue('machine', v, iframeWindow.__rf_machineMembers || [])) return v
     if (b && f === 'belt' && beltBlockTypes.includes(b.type)
         && isValidEnumValue('belt', v, iframeWindow.__rf_beltMembers || [])) return v
+    if (b && f === 'recipe' && recipeBlockTypes.includes(b.type)
+        && isRecipeEnumValue(v)) return v
     return orig.call(this, v)
   }
 }

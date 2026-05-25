@@ -1,6 +1,7 @@
 import type { SimulationCommand } from '../game/types'
 import { SPLITTER_SIDE_BIT } from '../game/types'
 import type { Item } from '../game/Item'
+import { RECIPE_TABLE } from './enumTables'
 
 const MAX_OPERATIONS = 10_000
 
@@ -26,24 +27,6 @@ const MACHINE_TABLE = [
   { name: 'F', id: 'machine_6' },
   { name: 'G', id: 'machine_7' },
   { name: 'H', id: 'machine_8' },
-] as const
-
-const RECIPE_TABLE = [
-  { name: 'WheelPressSmall', id: 'wheel_press_small' },
-  { name: 'WheelPressMedium', id: 'wheel_press_medium' },
-  { name: 'WheelPressLarge', id: 'wheel_press_large' },
-  { name: 'BatteryAssemblyStandard', id: 'battery_assembly_standard' },
-  { name: 'BatteryAssemblyHigh', id: 'battery_assembly_high' },
-  { name: 'ChassisStamperLight', id: 'chassis_stamper_light' },
-  { name: 'ChassisStamperHeavy', id: 'chassis_stamper_heavy' },
-  { name: 'CircuitPrinterBasic', id: 'circuit_printer_basic' },
-  { name: 'CircuitPrinterAdvanced', id: 'circuit_printer_advanced' },
-  { name: 'AssembleDrivetrainBasic', id: 'assemble_drivetrain_basic' },
-  { name: 'AssembleDrivetrainAdvanced', id: 'assemble_drivetrain_advanced' },
-  { name: 'AssemblePowerUnitStandard', id: 'assemble_power_unit_standard' },
-  { name: 'AssemblePowerUnitHigh', id: 'assemble_power_unit_high' },
-  { name: 'AssembleRobotExplorer', id: 'assemble_robot_explorer' },
-  { name: 'AssembleRobotWorker', id: 'assemble_robot_worker' },
 ] as const
 
 const BELT_TABLE = [
@@ -88,7 +71,7 @@ const MACHINE_NAME_MAP: Record<string, number> = Object.fromEntries(
   MACHINE_TABLE.map((e, i) => [e.name, i]),
 )
 const RECIPE_NAME_MAP: Record<string, number> = Object.fromEntries(
-  RECIPE_TABLE.map((e, i) => [e.name, i]),
+  RECIPE_TABLE.map((e, i) => [e.enumName, i]),
 )
 const BELT_NAME_MAP: Record<string, number> = Object.fromEntries(
   BELT_TABLE.map((e, i) => [e.name, i]),
