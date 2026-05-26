@@ -160,17 +160,6 @@ test.describe('Group D — Sandbox autoload restores badges before Start', () =>
         `Got 0x${state.colorHex.toString(16)}.`,
     ).toBe(RED)
   })
-
-  // D3 (level autoload): exercising the per-level autosave path
-  // (`rf_factory_<levelId>`) from a spec requires either seeding the
-  // level slot (no POM seam for that today — `SaveManager` only exposes
-  // sandbox slot seeding) or completing a level once to populate the
-  // save. The bug is in the SAME `setupLevelRendering` function that
-  // backs both sandbox and build_phase, so D1+D2 already pin it. Skipped
-  // until a level-save POM seam exists.
-  test.skip('D3: build_phase autoload — entering a level with a saved factory+program restores the badge before Start', () => {
-    /* intentionally empty — see comment above */
-  })
 })
 
 /**

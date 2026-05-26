@@ -169,18 +169,18 @@ test.describe('Level 1 — First Part', () => {
     await tutorial.expectVisible(5000)
     await tutorial.expectTooltipVisible()
 
-    await tutorial.expectCounter('1 / 6')
+    await tutorial.expectCounter('1 / 7')
 
 
     await tutorial.clickNext()
-    await tutorial.expectCounter('2 / 6')
+    await tutorial.expectCounter('2 / 7')
 
     // ===================== STEP 3: Place Fabricator at (3, 5) ===============
     await grid.dblClickCell({ x: 3, z: 5 })
 
     // ===================== STEP 4: Advance tutorial to step 3 ===============
     await tutorial.clickNext()
-    await tutorial.expectCounter('3 / 6')
+    await tutorial.expectCounter('3 / 7')
 
     // ===================== STEP 5: Place second machine at (5, 5) ===========
     await grid.dblClickCell({ x: 5, z: 5 })
@@ -197,7 +197,7 @@ test.describe('Level 1 — First Part', () => {
 
     // ===================== STEP 7: Advance tutorial to step 4 ===============
     await tutorial.clickNext()
-    await tutorial.expectCounter('4 / 6')
+    await tutorial.expectCounter('4 / 7')
 
     // ===================== STEP 8: Connect belt =====
     // Level 1 starts with a pre-placed factory_output (the Shipper) declared
@@ -215,7 +215,7 @@ test.describe('Level 1 — First Part', () => {
 
     // ===================== STEP 9: Advance tutorial to step 5 ===============
     await tutorial.clickNext()
-    await tutorial.expectCounter('5 / 6')
+    await tutorial.expectCounter('5 / 7')
 
     // ===================== STEP 10: Open editor =============================
     await toolbar.clickEditor()
@@ -223,7 +223,11 @@ test.describe('Level 1 — First Part', () => {
 
     // ===================== STEP 11: Advance tutorial to step 6 ==============
     await tutorial.clickNext()
-    await tutorial.expectCounter('6 / 6')
+    await tutorial.expectCounter('6 / 7')
+
+    // ===================== STEP 11b: Advance tutorial to step 7 =============
+    await tutorial.clickNext()
+    await tutorial.expectCounter('7 / 7')
 
     // ===================== STEP 12: Write program in fallback textarea ======
     await setProgramInEditor(editorPanel, pxt, PROGRAM_BASIC_LEVEL_1)

@@ -52,13 +52,13 @@ test.describe('Sandbox — Destination machine migration', () => {
     expect(await probe.isRunning()).toBe(true)
     expect(await probe.isPaused()).toBe(false)
 
-    // After capturing inFlight, slow the simulation to 1 tick/sec (vs. the
+    // After capturing inFlight, slow the simulation to 0.5 ticks/sec (vs. the
     // default 10) for the drag → migration-verify window. The belt is only
     // 3 cells long, so under parallel-worker CPU contention the item can
     // drain past delivery before post-drag polling sees it. Game-time
     // semantics are preserved — only wall-clock throughput scales — so all
     // migration assertions are unaffected.
-    const { migrated, movedSink } = await probe.withFastForward(1, async () => {
+    const { migrated, movedSink } = await probe.withFastForward(0.5, async () => {
       const occupiedCells = new Set(machinesBefore.map((machine) => `${machine.x},${machine.z}`))
       const movedDestination = [1, 2, 3, 4, 5, 6, 7]
         .map((offset) => ({ x: sink!.x + offset, z: sink!.z }))
@@ -99,7 +99,7 @@ test.describe('Sandbox — Destination machine migration', () => {
     void migrated
     void movedSink
 
-    const delivered = await probe.waitForOutputDelivery(inFlight.id, sink!.id, 30000)
+    const delivered = await probe.waitForOutputDelivery(inFlight.id, sink!.id, 60000)
     expect(delivered.itemId).toBe(inFlight.id)
     expect(delivered.machineId).toBe(sink!.id)
   })

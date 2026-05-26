@@ -4,8 +4,8 @@ import { test, expect } from './pom'
  * RED-step regression spec for UX Minor #1 — "Tutorial arrow does not anchor
  * to per-step target".
  *
- * The Level 1 tutorial has six steps. Step 4 highlights
- * `.ui-toolbar-btn--editor` and step 6 highlights `.ui-toolbar-btn--start`.
+ * The Level 1 tutorial has seven steps. Step 4 highlights
+ * `.ui-toolbar-btn--editor` and step 7 highlights `.ui-toolbar-btn--start`.
  * Both buttons live inside the top-mounted `.ui-toolbar` which lays its
  * children out left-to-right starting from `padding: 0.5rem`, so at a
  * 1280×800 viewport their centers are well to the LEFT of the viewport
@@ -43,13 +43,13 @@ test.describe('Tutorial arrow — per-step target anchoring (Level 1)', () => {
 
     await tutorial.expectVisible(5000)
     await tutorial.expectTooltipVisible()
-    await tutorial.expectCounter('1 / 6')
+    await tutorial.expectCounter('1 / 7')
 
     // Advance to step 4 — highlight target is `.ui-toolbar-btn--editor`.
-    await tutorial.clickNext() // 2 / 6
-    await tutorial.clickNext() // 3 / 6
-    await tutorial.clickNext() // 4 / 6
-    await tutorial.expectCounter('4 / 6')
+    await tutorial.clickNext() // 2 / 7
+    await tutorial.clickNext() // 3 / 7
+    await tutorial.clickNext() // 4 / 7
+    await tutorial.expectCounter('4 / 7')
 
     const editorTargetX = await tutorial.getStepTargetCenterX('.ui-toolbar-btn--editor')
     const arrowAtStep4 = await tutorial.getArrowCenterX()
@@ -64,20 +64,21 @@ test.describe('Tutorial arrow — per-step target anchoring (Level 1)', () => {
         `with target center X (${editorTargetX}) within ±${ALIGN_TOLERANCE_PX}px`,
     ).toBeLessThanOrEqual(ALIGN_TOLERANCE_PX)
 
-    // Advance to step 6 — highlight target is `.ui-toolbar-btn--start`.
-    await tutorial.clickNext() // 5 / 6
-    await tutorial.clickNext() // 6 / 6
-    await tutorial.expectCounter('6 / 6')
+    // Advance to step 7 — highlight target is `.ui-toolbar-btn--start`.
+    await tutorial.clickNext() // 5 / 7
+    await tutorial.clickNext() // 6 / 7
+    await tutorial.clickNext() // 7 / 7
+    await tutorial.expectCounter('7 / 7')
 
     const startTargetX = await tutorial.getStepTargetCenterX('.ui-toolbar-btn--start')
-    const arrowAtStep6 = await tutorial.getArrowCenterX()
+    const arrowAtStep7 = await tutorial.getArrowCenterX()
 
-    expect(startTargetX, 'start button must be in the DOM at step 6').not.toBeNull()
-    expect(arrowAtStep6, 'tutorial arrow must have a bounding box at step 6').not.toBeNull()
+    expect(startTargetX, 'start button must be in the DOM at step 7').not.toBeNull()
+    expect(arrowAtStep7, 'tutorial arrow must have a bounding box at step 7').not.toBeNull()
 
     expect(
-      Math.abs(arrowAtStep6! - startTargetX!),
-      `Step 6 (.ui-toolbar-btn--start): arrow center X (${arrowAtStep6}) must align ` +
+      Math.abs(arrowAtStep7! - startTargetX!),
+      `Step 7 (.ui-toolbar-btn--start): arrow center X (${arrowAtStep7}) must align ` +
         `with target center X (${startTargetX}) within ±${ALIGN_TOLERANCE_PX}px`,
     ).toBeLessThanOrEqual(ALIGN_TOLERANCE_PX)
 
@@ -90,9 +91,9 @@ test.describe('Tutorial arrow — per-step target anchoring (Level 1)', () => {
     ).toBeGreaterThan(STEP_DELTA_THRESHOLD_PX)
 
     expect(
-      Math.abs(arrowAtStep6! - arrowAtStep4!),
+      Math.abs(arrowAtStep7! - arrowAtStep4!),
       `Tutorial arrow X did not move between step 4 (${arrowAtStep4}) and ` +
-        `step 6 (${arrowAtStep6}), even though their highlight targets are ` +
+        `step 7 (${arrowAtStep7}), even though their highlight targets are ` +
         `${Math.abs(editorTargetX! - startTargetX!)}px apart. The arrow is ` +
         `pinned to viewport center instead of anchoring to the per-step target.`,
     ).toBeGreaterThan(STEP_DELTA_THRESHOLD_PX)
