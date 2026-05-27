@@ -73,6 +73,23 @@ function readStoredLang(): string | null {
   }
 }
 
+function detectBrowserLang(): string | null {
+  if (typeof navigator === 'undefined') return null
+  const nav = navigator as Navigator & { languages?: readonly string[] }
+  const candidates: string[] =
+    nav.languages && nav.languages.length > 0
+      ? [...nav.languages]
+      : nav.language
+        ? [nav.language]
+        : []
+  for (const raw of candidates) {
+    if (typeof raw !== 'string' || raw.length === 0) continue
+    const primary = raw.split(/[-_]/)[0]!.toLowerCase()
+    if ((SUPPORTED_LANGS as readonly string[]).includes(primary)) return primary
+  }
+  return null
+}
+
 function persistLang(lang: string): void {
   try {
     if (typeof localStorage !== 'undefined') {
@@ -85,7 +102,7 @@ function persistLang(lang: string): void {
 
 export async function initI18n(): Promise<void> {
   await i18next.init({
-    lng: readStoredLang() ?? 'en',
+    lng: readStoredLang() ?? detectBrowserLang() ?? 'en',
     fallbackLng: 'en',
     resources: {
       en: { translation: en },

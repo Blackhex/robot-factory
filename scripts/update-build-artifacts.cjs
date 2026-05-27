@@ -477,3 +477,36 @@ function patchExposeBlocksEditor() {
 patchBuiltinFunctions();
 patchBuiltinCategoryWeights();
 patchExposeBlocksEditor();
+
+// Write Czech locale file to the PXT editor locale directory.
+// This file is gitignored (in public/pxt-editor/) so it must be
+// regenerated during each build. The source is the committed file at
+// pxt-target/libs/core/_locales/cs/core-strings.json.
+// If the PXT staticpkg step already generated a cs/strings.json, we
+// merge our custom translations on top (ours win on any key conflict).
+function writeCsLocaleFile() {
+  const destPath = 'public/pxt-editor/locales/cs/strings.json';
+  const srcPath = 'pxt-target/libs/core/_locales/cs/core-strings.json';
+
+  // Ensure destination directory exists
+  const destDir = path.dirname(destPath);
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
+
+  // Load committed Czech translations
+  const csStrings = JSON.parse(fs.readFileSync(srcPath, 'utf8'));
+
+  // Load any existing file from pxt staticpkg (optional base)
+  let existing = {};
+  if (fs.existsSync(destPath)) {
+    try { existing = JSON.parse(fs.readFileSync(destPath, 'utf8')); } catch { /* ignore */ }
+  }
+
+  // Our translations win over PXT defaults
+  const merged = { ...existing, ...csStrings };
+  fs.writeFileSync(destPath, JSON.stringify(merged, null, 2) + '\n', 'utf8');
+  console.log(`Wrote ${destPath} (${Object.keys(merged).length} keys)`);
+}
+
+writeCsLocaleFile();

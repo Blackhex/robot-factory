@@ -1,4 +1,61 @@
-import { test, expect } from './pom'
+import { test, expect, type Page } from './pom'
+
+interface ToolboxRowColor {
+  ariaLabel: string
+  label: string
+  catColor: string
+  inlineBg: string
+}
+
+async function readToolboxRowColors(page: Page): Promise<ToolboxRowColor[]> {
+  const iframeLocator = page.locator('#editor-container .pxt-editor-iframe')
+  const iframeEl = await iframeLocator.elementHandle()
+  expect(iframeEl, 'PXT editor iframe element handle must be present').not.toBeNull()
+  const rows = await page.evaluate((el) => {
+    const doc = (el as HTMLIFrameElement).contentDocument
+    if (!doc) return [] as ToolboxRowColor[]
+    return Array.from(doc.querySelectorAll('.blocklyTreeRow')).map((row) => ({
+      ariaLabel: (row as HTMLElement).getAttribute('aria-label') ?? '',
+      label: (row.querySelector('.blocklyTreeLabel') as HTMLElement | null)?.textContent?.trim() ?? '',
+      catColor: (row as HTMLElement).style.getPropertyValue('--cat-color') ?? '',
+      inlineBg: (row as HTMLElement).style.backgroundColor ?? '',
+    })) as ToolboxRowColor[]
+  }, iframeEl!)
+  return rows
+}
+
+function expectCatColorMatchesInlineBg(rows: ToolboxRowColor[], context: string): void {
+  const rowDump = JSON.stringify(rows, null, 2)
+  const rowsWithInlineBg = rows.filter((r) => r.inlineBg.trim() !== '')
+  expect(
+    rowsWithInlineBg.length,
+    `Expected PXT to set inline background-color on toolbox rows (${context}). Rows: ${rowDump}`,
+  ).toBeGreaterThan(0)
+  for (const row of rowsWithInlineBg) {
+    expect(
+      normalizeColor(row.catColor),
+      `Row "${row.label}" (aria="${row.ariaLabel}") --cat-color must match PXT's inline backgroundColor "${row.inlineBg}" (${context}). Rows: ${rowDump}`,
+    ).toBe(normalizeColor(row.inlineBg))
+  }
+}
+
+function normalizeColor(value: string): string {
+  const trimmed = value.trim().toLowerCase()
+  if (!trimmed) return ''
+  const hex = trimmed.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/)
+  if (hex) {
+    const v = hex[1]
+    const r = parseInt(v.length === 3 ? v[0] + v[0] : v.slice(0, 2), 16)
+    const g = parseInt(v.length === 3 ? v[1] + v[1] : v.slice(2, 4), 16)
+    const b = parseInt(v.length === 3 ? v[2] + v[2] : v.slice(4, 6), 16)
+    return `rgb(${r}, ${g}, ${b})`
+  }
+  const rgb = trimmed.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/)
+  if (rgb) return `rgb(${parseInt(rgb[1])}, ${parseInt(rgb[2])}, ${parseInt(rgb[3])})`
+  return trimmed
+}
+
+const DEFAULT_CAT_COLORS = new Set(['', normalizeColor('#2e3140'), normalizeColor('#e0e0e6')])
 
 async function enterBuildPhase(
   mainMenu: import('./pom/screens/MainMenuPage').MainMenuPage,
@@ -130,6 +187,94 @@ test.describe('toolbox order', () => {
     const order = await pxt.getToolboxCategoryOrder()
     expect(order).toEqual(['Machines', 'Belts', 'Loops', 'Logic', 'Events', 'Variables', 'Functions'])
     expect(order).not.toContain('Advanced')
+  })
+
+  test('each toolbox category row has a category-specific --cat-color CSS variable', async ({
+    mainMenu,
+    levelSelect,
+    toolbar,
+    tutorial,
+    editorPanel,
+    pxt,
+    page,
+  }) => {
+    await mainMenu.open()
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickFirstUnlocked()
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent()
+
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
+    await editorPanel.expectIframeVisible()
+
+    await pxt.expectToolboxTreeRootAttached()
+    await pxt.expectFirstToolboxLabelVisible()
+
+    // PXT's `coloredToolbox` writes a per-row inline desaturated bg matching
+    // the flyout block headers; --cat-color must equal that bg (after
+    // normalization) for every row that has one.
+    const rows = await readToolboxRowColors(page)
+    expectCatColorMatchesInlineBg(rows, 'EN locale')
+
+    // At least 3 of the 7 categories must have a non-default, non-empty
+    // --cat-color (regression guard against the "all gray" failure mode).
+    const nonDefaultCount = rows.filter(
+      ({ catColor }) => !DEFAULT_CAT_COLORS.has(normalizeColor(catColor)),
+    ).length
+    expect(
+      nonDefaultCount,
+      `Expected at least 3 toolbox rows with a non-default --cat-color, got ${nonDefaultCount}. ` +
+        `Row data: ${JSON.stringify(rows, null, 2)}`,
+    ).toBeGreaterThanOrEqual(3)
+  })
+
+  test('toolbox category rows keep --cat-color when editor loads in Czech', async ({
+    mainMenu,
+    levelSelect,
+    toolbar,
+    tutorial,
+    editorPanel,
+    pxt,
+    page,
+  }) => {
+    // Seed Czech as the active app language BEFORE the app boots so the
+    // PXT iframe mounts with lang=cs from the start (no mid-session toggle).
+    await page.addInitScript(() => {
+      try {
+        localStorage.setItem('robot-factory.lang', 'cs')
+      } catch {
+        /* ignore */
+      }
+    })
+
+    await mainMenu.open()
+    await mainMenu.clickStartGame()
+    await levelSelect.expectVisible()
+    await levelSelect.clickFirstUnlocked()
+    await toolbar.expectVisible()
+    await tutorial.dismissIfPresent()
+
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
+    await editorPanel.expectIframeVisible()
+
+    await pxt.expectToolboxTreeRootAttached()
+    await pxt.expectFirstToolboxLabelVisible()
+
+    const rows = await readToolboxRowColors(page)
+    expectCatColorMatchesInlineBg(rows, 'Czech locale')
+
+    // Every category row must have a non-default, non-empty --cat-color
+    // (regression guard against the "all gray" failure mode in Czech).
+    const rowsWithDefaultColor = rows.filter(({ catColor }) =>
+      DEFAULT_CAT_COLORS.has(normalizeColor(catColor)),
+    )
+    expect(
+      rowsWithDefaultColor,
+      `Every category row must have a non-default --cat-color, but some fell back to the default. Rows: ${JSON.stringify(rows, null, 2)}`,
+    ).toEqual([])
   })
 })
 
@@ -366,7 +511,7 @@ test.describe('machine dropdown — empty state', () => {
   ) {
     expect(
       snap.optionLabels,
-      `${ctx}: dropdown should contain exactly one option (the empty-state placeholder). ` +
+      `${ctx}: dropdown should contain exactly one localized empty-state option. ` +
         `Got: ${JSON.stringify(snap.optionLabels)}`,
     ).toEqual([EMPTY_LABEL])
     for (const forbidden of FORBIDDEN_PLACEHOLDERS) {
@@ -378,7 +523,7 @@ test.describe('machine dropdown — empty state', () => {
     }
     expect(
       snap.faceText,
-      `${ctx}: closed block face should display the empty-state placeholder. Got: "${snap.faceText}"`,
+      `${ctx}: closed block face should show the localized empty placeholder. Got: "${snap.faceText}"`,
     ).toBe(EMPTY_LABEL)
   }
 
@@ -401,6 +546,7 @@ test.describe('machine dropdown — empty state', () => {
 
       // 2. Open the PXT editor and wait for Blockly.
       await pxt.openAndWaitForBlockly()
+      await pxt.waitForPxtReady()
       // Without this wait, under 8-worker parallel load `pxtReady`
       // may still be false when the test reads the dropdown — the
       // production `patchBlocklyDropdowns` gate then early-returns,
@@ -440,6 +586,7 @@ test.describe('machine dropdown — empty state', () => {
       expect(placedName, 'placed machine should expose a non-empty display name').toBeTruthy()
 
       await pxt.openAndWaitForBlockly()
+      await pxt.waitForPxtReady()
       await pxt.waitForMachineDropdownReady()
 
       // 8 + 9. Re-open dropdown.
@@ -476,6 +623,7 @@ test.describe('machine dropdown — empty state', () => {
         .toBe(0)
 
       await pxt.openAndWaitForBlockly()
+      await pxt.waitForPxtReady()
       await pxt.waitForMachineDropdownReady()
 
       // 12 + 13.
@@ -534,12 +682,16 @@ test.describe('flyout updates on machine placement', () => {
       for (const snap of initial) {
         expect(
           snap.apiText,
-          `[empty state] flyout block "${snap.type}".getField('machine').getText() should equal "${EMPTY_LABEL}". Got: "${snap.apiText}"`,
+          `[empty state] flyout block "${snap.type}".getField('machine').getText() should render the localized empty placeholder. Got: "${snap.apiText}"`,
         ).toBe(EMPTY_LABEL)
         expect(
-          snap.svgTexts,
-          `[empty state] flyout block "${snap.type}" SVG should contain the empty-state label. Got: ${JSON.stringify(snap.svgTexts)}`,
+          snap.svgTexts.join(' '),
+          `[empty state] flyout block "${snap.type}" SVG should render the localized empty placeholder. Got: ${JSON.stringify(snap.svgTexts)}`,
         ).toContain(EMPTY_LABEL)
+        expect(
+          snap.svgTexts.join(' '),
+          `[empty state] flyout block "${snap.type}" SVG must not carry the Czech reporter noun. Got: ${JSON.stringify(snap.svgTexts)}`,
+        ).not.toContain('stroj')
         for (const forbidden of FORBIDDEN_PLACEHOLDERS) {
           expect(
             snap.svgTexts,
@@ -591,6 +743,10 @@ test.describe('flyout updates on machine placement', () => {
           snap.svgTexts,
           `[after place] flyout block "${snap.type}" SVG must not still show the empty placeholder. Got: ${JSON.stringify(snap.svgTexts)}`,
         ).not.toContain(EMPTY_LABEL)
+        expect(
+          snap.svgTexts.join(' '),
+          `[after place] flyout block "${snap.type}" SVG must not carry the Czech reporter noun. Got: ${JSON.stringify(snap.svgTexts)}`,
+        ).not.toContain('stroj')
         expect(
           snap.apiText,
           `[after place] flyout block "${snap.type}".getField('machine').getText() should equal "${placedName}". Got: "${snap.apiText}"`,

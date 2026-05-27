@@ -12,6 +12,7 @@ export class TutorialOverlayPage {
   private readonly nextBtn: Locator
   private readonly skipBtn: Locator
   private readonly arrow: Locator
+  private readonly backdrop: Locator
 
   constructor(_page: Page) {
     this.page = _page
@@ -21,6 +22,25 @@ export class TutorialOverlayPage {
     this.nextBtn = _page.locator('.ui-tutorial-btn--next')
     this.skipBtn = _page.locator('.ui-tutorial-btn--skip')
     this.arrow = _page.locator('.ui-tutorial-arrow')
+    this.backdrop = _page.locator('.ui-tutorial-backdrop')
+  }
+
+  /**
+   * Bounding rect (CSS pixels, viewport-relative) of the tutorial scrim
+   * (`.ui-tutorial-backdrop`). Returns `null` when the backdrop has no
+   * box (hidden / detached).
+   */
+  async getBackdropRect(): Promise<{ left: number; right: number; top: number; bottom: number; width: number; height: number } | null> {
+    const box = await this.backdrop.boundingBox().catch(() => null)
+    if (!box) return null
+    return {
+      left: box.x,
+      right: box.x + box.width,
+      top: box.y,
+      bottom: box.y + box.height,
+      width: box.width,
+      height: box.height,
+    }
   }
 
   async expectVisible(timeout = 5000): Promise<void> {

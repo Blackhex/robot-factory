@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   buildDropdownOptions,
   resolveDropdownText,
+  resolveLocalizedReporterText,
   type DropdownItem,
 } from '../../../src/editor/dropdownOptions'
 
@@ -125,5 +126,39 @@ describe('resolveDropdownText()', () => {
 
     // WHEN / THEN
     expect(resolveDropdownText('', labelMap, EMPTY_MACHINE_LABEL)).toBeNull()
+  })
+})
+
+describe('resolveLocalizedReporterText()', () => {
+  it('substitutes localized reporter templates into mapped labels', () => {
+    const labelMap = { 'Machine.A': 'Odesílač1' }
+
+    expect(
+      resolveLocalizedReporterText('Machine.A', labelMap, EMPTY_MACHINE_LABEL, 'stroj %machine'),
+    ).toBe('stroj Odesílač1')
+  })
+
+  it('skips the localized prefix when the machine name already includes it', () => {
+    const labelMap = { 'Machine.A': 'stroj1' }
+
+    expect(
+      resolveLocalizedReporterText('Machine.A', labelMap, EMPTY_MACHINE_LABEL, 'stroj %machine'),
+    ).toBe('stroj1')
+  })
+
+  it('suppresses the empty-state placeholder instead of manufacturing a localized prefix', () => {
+    expect(
+      resolveLocalizedReporterText('Machine.A', {}, EMPTY_MACHINE_LABEL, 'stroj %machine'),
+    ).toBe('')
+  })
+
+  it('falls back to raw label resolution when no localized template is available', () => {
+    const labelMap = { 'Machine.A': 'Odesílač1' }
+
+    expect(resolveLocalizedReporterText('Machine.A', labelMap, EMPTY_MACHINE_LABEL, null)).toBe('Odesílač1')
+  })
+
+  it('returns an empty string when no localized template is available and no label can be resolved', () => {
+    expect(resolveLocalizedReporterText('Machine.A', {}, EMPTY_MACHINE_LABEL, null)).toBe('')
   })
 })

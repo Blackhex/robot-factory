@@ -287,6 +287,9 @@
       "placeholder": "// Sem napiš příkazy pro továrnu:\n// factory.startMachine(\"press_1\")\n// factory.setRecipe(\"press_1\", Recipe.WheelPressSmall)"
     }
   },
+  "editor": {
+    "language_reload_notice": "Změna jazyka se v editoru projeví po načtení stránky."
+  },
   "tutorial": {
     "back": "Zpět",
     "skip": "Přeskočit",

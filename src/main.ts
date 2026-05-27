@@ -585,6 +585,16 @@ async function main(): Promise<void> {
       if (document.querySelector('.ui-modal-backdrop')) return true
       // Projects panel owns Esc when open.
       if (projectsPanel.isOpen()) return true
+      // While the PXT language-reload toast exists in the DOM, block all
+      // Esc-driven level exits. Both the notice's keydown handler and the
+      // global exit-to-menu handler are window-capture phase; the exit
+      // handler registers first (at app boot) and would fire first. Its
+      // focus-based gate raced browser timing — Esc could blur the notice
+      // before activeElement was read. The notice is transient (~6 s
+      // auto-dismiss), so a brief blanket block is preferable to an
+      // accidental destructive level exit. The notice's own Esc handler
+      // (registered later) still runs and dismisses the toast.
+      if (document.querySelector('.pxt-editor-language-reload-notice')) return true
       return false
     },
     resizeScene: (width, height) => sceneManager.resize(width, height),

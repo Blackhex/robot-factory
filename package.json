@@ -1,13 +1,13 @@
 {
   "name": "robot-factory",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "postinstall": "npm run build:pxt:install",
-    "build:pxt:install": "cd pxt-target && npm install --no-audit --no-fund",
+    "build:pxt:install": "cd pxt-target && npm install --no-audit --no-fund --loglevel=error",
     "build:pxt:staticpkg": "cd pxt-target && node ./node_modules/pxt-core/built/pxt.js staticpkg --no-appcache --route /pxt-editor --output ../public",
     "build:pxt:patch": "node scripts/update-build-artifacts.cjs",
     "build:pxt:dev": "npm run build:pxt:install && npm run build:pxt:staticpkg && npm run build:pxt:patch",
@@ -25,13 +25,13 @@
     "@playwright/test": "^1.59.1",
     "@types/node": "^25.5.0",
     "jsdom": "^29.0.2",
-    "typescript": "~5.9.3",
+    "typescript": "^6.0.3",
     "vite": "^8.0.1"
   },
   "dependencies": {
-    "@types/three": "^0.183.1",
+    "@types/three": "^0.184.1",
     "i18next": "^26.0.3",
-    "three": "^0.183.2",
+    "three": "^0.184.0",
     "vitest": "^4.1.2"
   }
 }

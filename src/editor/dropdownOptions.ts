@@ -124,3 +124,33 @@ export function resolveDropdownText(
   }
   return null
 }
+
+export function resolveLocalizedReporterText(
+  value: string,
+  labelMap: Readonly<Record<string, string>>,
+  emptyLabel: string,
+  localizedTemplate: string | null | undefined,
+): string | null {
+  const rawText = resolveDropdownText(value, labelMap, emptyLabel)
+  if (rawText === null) return null
+
+  const resolvedText = rawText === emptyLabel ? '' : rawText
+  if (resolvedText.length === 0) return ''
+  if (typeof localizedTemplate !== 'string' || localizedTemplate.length === 0) return resolvedText
+
+  const placeholder = localizedTemplate.includes('%machine') ? '%machine' : localizedTemplate.includes('%belt') ? '%belt' : null
+  if (!placeholder) return resolvedText
+
+  const prefix = localizedTemplate.replace(placeholder, '').trim()
+  const prefixLower = prefix.toLowerCase()
+  const rawTextLower = resolvedText.toLowerCase()
+  const alreadyLocalized = prefixLower.length > 0
+    && rawTextLower.startsWith(prefixLower)
+    && (
+      resolvedText.length === prefix.length
+      || /[\d\s\-_/]/u.test(resolvedText[prefix.length] ?? '')
+    )
+  if (alreadyLocalized) return resolvedText
+
+  return localizedTemplate.replace(placeholder, resolvedText).replace(/\s{2,}/gu, ' ').trim()
+}

@@ -75,7 +75,8 @@
       "events": "#ffa726"
     },
     "simAnimationEnter": "fly right in",
-    "simAnimationExit": "fly right out"
+    "simAnimationExit": "fly right out",
+    "availableLocales": ["cs"]
   },
   "tsprj": {
     "files": {

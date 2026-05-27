@@ -19,6 +19,7 @@
   --rf-font: 'Segoe UI', system-ui, Roboto, sans-serif;
   --rf-radius: 8px;
   --rf-radius-lg: 12px;
+  --rf-shadow-panel: 0 4px 16px rgba(0, 0, 0, 0.4);
   --rf-transition: 150ms ease;
   --rf-toolbar-h: calc(3.5rem + 1px);
   --rf-btn-h: 2.5rem;
@@ -574,7 +575,7 @@ canvas {
   min-width: 240px;
   max-width: 320px;
   pointer-events: auto;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--rf-shadow-panel);
 }
 
 .ui-machine-panel-header {
@@ -720,7 +721,7 @@ canvas {
   min-width: 240px;
   max-width: 320px;
   pointer-events: auto;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--rf-shadow-panel);
 }
 
 .ui-belt-panel-header {
@@ -1006,20 +1007,19 @@ canvas {
 
 .ui-level-brief {
   position: absolute;
-  top: 64px;
-  left: 50%;
-  transform: translateX(-50%);
+  top: calc(var(--rf-toolbar-h) + 16px);
+  left: calc(var(--rf-canvas-left, 0px) + 16px);
   z-index: 14;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 16px;
-  max-width: 360px;
+  gap: 8px;
+  padding: 12px;
   min-width: 240px;
-  background: rgba(26, 29, 39, 0.9);
+  max-width: 320px;
+  background: var(--rf-surface);
   border: 1px solid var(--rf-border);
   border-radius: var(--rf-radius-lg);
-  backdrop-filter: blur(6px);
+  box-shadow: var(--rf-shadow-panel);
   pointer-events: none;
 }
 
@@ -1027,14 +1027,14 @@ canvas {
   font-size: 16px;
   font-weight: 700;
   color: var(--rf-accent);
-  text-align: center;
+  text-align: left;
 }
 
 .ui-level-brief-description {
   font-size: 13px;
   color: var(--rf-text);
   line-height: 1.35;
-  text-align: center;
+  text-align: left;
 }
 
 .ui-level-brief-goals {
@@ -1391,7 +1391,10 @@ canvas {
 
 .ui-tutorial-backdrop {
   position: absolute;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: var(--rf-canvas-left, 0px);
+  right: var(--rf-canvas-right, 0px);
   background: rgba(0, 0, 0, 0.6);
   pointer-events: auto;
 }
@@ -1947,26 +1950,6 @@ canvas {
   outline-offset: 2px;
   border-radius: var(--rf-radius);
 }
-
-/* ─── Responsive reflow with editor open (UX blocker B3) ─────────────────
- * At narrow viewports (≤1280px) the editor panel takes up ~500px on the
- * right. Dock the level brief to the LEFT half so it stays in the visible
- * canvas region instead of sliding under the editor. Wide viewports keep
- * the original centred layout.
- */
-
-@media (max-width: 1280px) {
-  body.editor-open .ui-level-brief {
-    left: 0.75rem;
-    right: auto;
-    transform: none;
-    /* Cap to the canvas region the editor leaves uncovered (editor width
-     * = max(500px, 40vw)). Subtract a small gutter so the brief never
-     * touches the editor's left edge. */
-    max-width: calc(100vw - max(500px, 40%) - 1.5rem);
-  }
-}
-
 
 /* ─── Modal Dialog ─── */
 

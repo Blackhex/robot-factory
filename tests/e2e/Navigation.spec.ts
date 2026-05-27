@@ -1,5 +1,13 @@
 import { test, expect } from './pom'
 
+test.describe('Navigation — Bootstrap', () => {
+  test('root bootstrap renders app UI without Vite import-analysis overlay', async ({ mainMenu }) => {
+    await mainMenu.navigate({ waitForCanvasReady: false })
+    await mainMenu.expectNoViteImportAnalysisOverlay()
+    await mainMenu.expectVisible()
+  })
+})
+
 test.describe('Navigation — Smoke Tests', () => {
   test.beforeEach(async ({ mainMenu }) => {
     await mainMenu.open()

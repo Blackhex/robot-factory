@@ -56,7 +56,7 @@ export class PxtEditorPage {
     const pxt = this.pxtFrame()
     await expect(pxt.locator('.blocklySvg')).toBeAttached({ timeout: 15_000 })
     await expect(
-      pxt.locator('.blocklyToolboxDiv .blocklyTreeRoot [role="treeitem"] .blocklyTreeLabel').first(),
+      pxt.locator('.blocklyTreeRoot [role="treeitem"] .blocklyTreeLabel').first(),
     ).toBeVisible({ timeout: 15_000 })
   }
 
@@ -70,6 +70,67 @@ export class PxtEditorPage {
       )
       expect(vis).toBe('visible')
     }).toPass({ timeout: timeoutMs, intervals: [500] })
+  }
+
+  // ---- Localization helpers -----------------------------------------------
+
+  /**
+   * Read the live `src` attribute of the PXT iframe. The iframe must be
+   * attached. Use to assert the URL carries the expected `lang=` hash
+   * param at iframe mount time (PXT does not live-update locale).
+   */
+  async getIframeSrc(): Promise<string> {
+    await expect(this.iframeLocator).toBeAttached({ timeout: 15_000 })
+    const src = await this.iframeLocator.getAttribute('src')
+    expect(src, 'PXT iframe must have a src attribute').not.toBeNull()
+    return src!
+  }
+
+  /**
+   * Assert a Blockly toolbox category label is visible in the PXT iframe.
+   * `name` is the literal text rendered in `.blocklyTreeLabel` (already
+   * localized, e.g. "Stroje" for cs, "Machines" for en).
+   */
+  async expectToolboxCategory(name: string, timeoutMs = 15_000): Promise<void> {
+    const frame = this.pxtFrame()
+    await expect(
+      frame.locator('.blocklyTreeLabel', { hasText: name }).first(),
+    ).toBeVisible({ timeout: timeoutMs })
+  }
+
+  /**
+   * Assert no toolbox category with the given literal label exists in
+   * the PXT iframe. Use to assert the OTHER language's labels do NOT
+   * leak through (e.g. when cs is active, "Machines" must not appear).
+   */
+  async expectNoToolboxCategory(name: string): Promise<void> {
+    const frame = this.pxtFrame()
+    await expect(
+      frame.locator('.blocklyTreeLabel', { hasText: name }),
+    ).toHaveCount(0)
+  }
+
+  /**
+   * Assert the pre-seeded `on start` hat block renders with the given
+   * localized text (e.g. "on start" for en, "po spuštění" for cs).
+   */
+  async expectOnStartLabel(text: string, timeoutMs = 15_000): Promise<void> {
+    const frame = this.pxtFrame()
+    await expect(
+      frame.locator('.blocklyText', { hasText: text }).first(),
+    ).toBeVisible({ timeout: timeoutMs })
+  }
+
+  /**
+   * Assert NO Blockly text label with the given literal is present in
+   * the iframe. Use to assert the other language's `on start` literal
+   * does not leak through.
+   */
+  async expectNoBlocklyText(text: string): Promise<void> {
+    const frame = this.pxtFrame()
+    await expect(
+      frame.locator('.blocklyText', { hasText: text }),
+    ).toHaveCount(0)
   }
 
   /** Wait for the toolbox categories to become visible and interactive. */
@@ -359,7 +420,7 @@ export class PxtEditorPage {
   /** Click a toolbox category by visible label (e.g. "Machines", "Events"). */
   async clickToolboxCategory(name: string): Promise<void> {
     await this.pxtFrame()
-      .locator('.blocklyToolboxDiv .blocklyTreeRoot [role="treeitem"]', { hasText: name })
+      .locator('.blocklyTreeRoot [role="treeitem"]', { hasText: name })
       .first()
       .click()
   }
@@ -386,7 +447,7 @@ export class PxtEditorPage {
    */
   async openCategoryFlyout(name: string): Promise<void> {
     const cat = this.pxtFrame()
-      .locator('.blocklyToolboxDiv .blocklyTreeRoot [role="treeitem"]', { hasText: name })
+      .locator('.blocklyTreeRoot [role="treeitem"]', { hasText: name })
       .first()
     await expect(cat).toBeVisible({ timeout: 15_000 })
     await cat.click()
@@ -398,7 +459,7 @@ export class PxtEditorPage {
 
   async clickToolboxCategoryByIndex(index: number): Promise<void> {
     const categories = this.pxtFrame().locator(
-      '.blocklyToolboxCategory, .blocklyTreeRow',
+      '.blocklyTreeRoot [role="treeitem"]',
     )
     await categories.nth(index).click()
     await expect(
@@ -406,10 +467,20 @@ export class PxtEditorPage {
     ).toBeAttached({ timeout: 10_000 })
   }
 
+  /** Read visible text labels from the currently open flyout blocks. */
+  async getOpenFlyoutTextLabels(timeoutMs = 10_000): Promise<string[]> {
+    const labels = this.pxtFrame().locator('.blocklyFlyout text')
+    await expect(labels.first()).toBeAttached({ timeout: timeoutMs })
+    const all = (await labels.allTextContents())
+      .map((s) => s.replace(/\u00A0/g, ' ').trim())
+      .filter((s) => s.length > 0)
+    return Array.from(new Set(all))
+  }
+
   /** Read the visible labels of the top-level toolbox categories, in order. */
   async getToolboxCategoryOrder(timeoutMs = 10_000): Promise<string[]> {
     const labels = this.pxtFrame().locator(
-      '.blocklyToolboxDiv .blocklyTreeRoot [role="treeitem"] .blocklyTreeLabel',
+      '.blocklyTreeRoot [role="treeitem"] .blocklyTreeLabel',
     )
     let order: string[] = []
     await expect
@@ -428,14 +499,14 @@ export class PxtEditorPage {
 
   async expectToolboxTreeRootAttached(timeout = 15_000): Promise<void> {
     await expect(
-      this.pxtFrame().locator('.blocklyToolboxDiv .blocklyTreeRoot'),
+      this.pxtFrame().locator('.blocklyTreeRoot [role="treeitem"]').first(),
     ).toBeAttached({ timeout })
   }
 
   async expectFirstToolboxLabelVisible(timeout = 15_000): Promise<void> {
     await expect(
       this.pxtFrame()
-        .locator('.blocklyToolboxDiv .blocklyTreeRoot [role="treeitem"] .blocklyTreeLabel')
+        .locator('.blocklyTreeRoot [role="treeitem"] .blocklyTreeLabel')
         .first(),
     ).toBeVisible({ timeout })
   }
@@ -455,7 +526,7 @@ export class PxtEditorPage {
     timeoutMs = 10_000,
   ): Promise<Array<{ name: string; colour: string }>> {
     const labels = this.pxtFrame().locator(
-      '.blocklyToolboxDiv .blocklyTreeRoot [role="treeitem"] .blocklyTreeLabel',
+      '.blocklyTreeRoot [role="treeitem"] .blocklyTreeLabel',
     )
     let names: string[] = []
     await expect
@@ -526,6 +597,90 @@ export class PxtEditorPage {
     }, iframeEl!)
   }
 
+  /**
+   * Snapshot every top-level flyout block's rendered SVG text segments. One
+   * entry per block in flyout order; `texts` is the list of `text.blocklyText`
+   * label contents inside that block's SVG root, with NBSPs normalized and
+   * trimmed. Use to assert which literal labels are visible inside blocks
+   * (e.g. to detect English parameter-name leaks like a bare `belt` label
+   * when the dropdown items list is empty).
+   */
+  async snapshotOpenFlyoutBlockTexts(): Promise<Array<{ type: string; texts: string[] }>> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      if (!win || !win.Blockly) return []
+      const ws = win.Blockly.mainWorkspace
+      const flyout = ws?.getFlyout?.()
+      const flyoutWs = flyout?.getWorkspace?.()
+      if (!flyoutWs) return []
+      const blocks: any[] = flyoutWs.getTopBlocks?.(false) ?? []
+      return blocks.map((block: any) => {
+        const svgRoot = block.getSvgRoot?.() as SVGGraphicsElement | undefined
+        const texts: string[] = []
+        if (svgRoot) {
+          const nodes = Array.from(
+            svgRoot.querySelectorAll('text.blocklyText'),
+          ) as SVGGraphicsElement[]
+          for (const t of nodes) {
+            const s = (t.textContent ?? '').replace(/\u00A0/g, ' ').trim()
+            if (s.length > 0) texts.push(s)
+          }
+        }
+        return { type: String(block.type ?? ''), texts }
+      })
+    }, iframeEl!)
+  }
+
+  /**
+   * Measure each flyout block's rendered SVG width against the right edge of
+   * every text label rendered inside it. Used to detect layout overflow when
+   * Blockly measures blocks using English source strings but later paints
+   * Czech text into them (or vice-versa). Returns one entry per block in
+   * flyout order; `overflow` is the number of CSS px the text right edge
+   * extends past the block right edge (0 means no overflow).
+   */
+  async measureOpenFlyoutBlockTextOverflow(): Promise<
+    Array<{ type: string; text: string; blockRight: number; textRight: number; overflow: number }>
+  > {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    return this.page.evaluate((el) => {
+      const win = (el as HTMLIFrameElement).contentWindow as any
+      if (!win || !win.Blockly) return []
+      const ws = win.Blockly.mainWorkspace
+      const flyout = ws?.getFlyout?.()
+      const flyoutWs = flyout?.getWorkspace?.()
+      if (!flyoutWs) return []
+      const out: Array<{
+        type: string; text: string; blockRight: number; textRight: number; overflow: number
+      }> = []
+      const blocks: any[] = flyoutWs.getTopBlocks?.(false) ?? []
+      for (const block of blocks) {
+        const svgRoot: SVGGraphicsElement | undefined = block.getSvgRoot?.()
+        if (!svgRoot || typeof svgRoot.getBoundingClientRect !== 'function') continue
+        const blockRect = svgRoot.getBoundingClientRect()
+        const texts = Array.from(
+          svgRoot.querySelectorAll('text.blocklyText'),
+        ) as SVGGraphicsElement[]
+        for (const t of texts) {
+          const r = t.getBoundingClientRect()
+          if (r.width === 0) continue
+          const overflow = Math.max(0, r.right - blockRect.right)
+          out.push({
+            type: String(block.type ?? ''),
+            text: (t.textContent ?? '').replace(/\u00A0/g, ' ').trim(),
+            blockRight: blockRect.right,
+            textRight: r.right,
+            overflow,
+          })
+        }
+      }
+      return out
+    }, iframeEl!)
+  }
+
   // ---- Block creation / inspection on the main workspace -------------------
 
   async createStartMachineBlock(): Promise<string> {
@@ -553,6 +708,29 @@ export class PxtEditorPage {
       return block.id as string
     }, iframeEl!)
     expect(id).toBeTruthy()
+    return id
+  }
+
+  /** Deterministically create a top-level block on the main workspace by Blockly type. */
+  async createWorkspaceBlockByType(type: string, x = 220, y = 180): Promise<string> {
+    const iframeEl = await this.iframeLocator.elementHandle()
+    expect(iframeEl, 'PXT editor iframe must be present').not.toBeNull()
+    const id = await this.page.evaluate(
+      ({ el, type, x, y }) => {
+        const win = (el as HTMLIFrameElement).contentWindow as any
+        if (!win || !win.Blockly) throw new Error('Blockly not available on PXT iframe window')
+        const ws = win.Blockly.mainWorkspace
+        if (!ws) throw new Error('Blockly main workspace not available')
+        const block = ws.newBlock(type)
+        if (!block) throw new Error(`Failed to create block of type "${type}"`)
+        block.initSvg?.()
+        block.render?.()
+        block.moveBy?.(x, y)
+        return String(block.id ?? '')
+      },
+      { el: iframeEl!, type, x, y },
+    )
+    expect(id, `Expected workspace block id for type "${type}"`).toBeTruthy()
     return id
   }
 
@@ -704,16 +882,21 @@ export class PxtEditorPage {
             const win = frame.contentWindow as any
             if (!win || !win.Blockly) return ''
             const ws = win.Blockly.mainWorkspace
+
+            // Try Blockly flyout workspace first (classic Blockly mode).
             const flyout = ws?.getFlyout?.()
             const flyoutWs = flyout?.getWorkspace?.()
             const blocks: any[] = flyoutWs?.getAllBlocks?.(false) ?? []
             const pick = blocks.find((b) => b.type === 'factory_pick_machine')
-            if (!pick) return ''
-            try {
-              return pick.toString?.() ?? ''
-            } catch {
-              return ''
+            if (pick) {
+              try {
+                return pick.toString?.() ?? ''
+              } catch {
+                return ''
+              }
             }
+
+            return ''
           }, iframeEl)
           return text
         },

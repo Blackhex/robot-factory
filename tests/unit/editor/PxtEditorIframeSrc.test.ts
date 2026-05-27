@@ -8,6 +8,13 @@
  * BASE_URL always ends with `/`, so `${BASE_URL}pxt-editor/index.html...`
  * yields `/pxt-editor/...` in dev and `/robot-factory/pxt-editor/...` when
  * the build was run with `VITE_BASE=/robot-factory/`.
+ *
+ * Iframe URL contract: `?lang=<locale>` is ALWAYS emitted (including for
+ * the `en` default). PXT honours URL lang over its persisted `PXT_LANG`
+ * cookie; omitting `?lang=en` lets a cookie left over from an earlier CS
+ * session pollute later EN sessions (the editor permanently renders Czech
+ * until the cookie is manually cleared). See `src/editor/PxtEditor.ts`
+ * `mount()` for the matching cookie-overwrite.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
@@ -34,7 +41,7 @@ describe('PxtEditor iframe src — uses Vite BASE_URL', () => {
     vi.unstubAllEnvs()
   })
 
-  it('iframe.src ends with `${BASE_URL}pxt-editor/index.html#controller=1`', () => {
+  it('iframe.src matches `${BASE_URL}pxt-editor/index.html?lang=<locale>#controller=1`', () => {
     // GIVEN
     const base = import.meta.env.BASE_URL // `/` in the vitest environment
 
@@ -44,13 +51,11 @@ describe('PxtEditor iframe src — uses Vite BASE_URL', () => {
 
     // THEN
     expect(iframe).not.toBeNull()
-    const expectedSuffix = `${base}pxt-editor/index.html#controller=1`
-    // JSDOM resolves relative srcs against the document base URL, so compare
-    // on suffix rather than full string.
-    expect(iframe!.src.endsWith(expectedSuffix)).toBe(true)
+    const expectedRe = new RegExp(`${base.replace(/\//g, '\\/')}pxt-editor\\/index\\.html\\?lang=[a-z]{2}#controller=1$`)
+    expect(iframe!.src).toMatch(expectedRe)
   })
 
-  it('iframe.src pathname starts with BASE_URL', () => {
+  it('iframe.src URL has pathname under BASE_URL and emits `?lang=en` by default', () => {
     // GIVEN
     const base = import.meta.env.BASE_URL
 
@@ -63,9 +68,10 @@ describe('PxtEditor iframe src — uses Vite BASE_URL', () => {
     expect(url.pathname.startsWith(base)).toBe(true)
     expect(url.pathname).toBe(`${base}pxt-editor/index.html`)
     expect(url.hash).toBe('#controller=1')
+    expect(url.searchParams.get('lang')).toBe('en')
   })
 
-  it('respects a non-root BASE_URL (e.g. `/robot-factory/`)', () => {
+  it('respects a non-root BASE_URL (e.g. `/robot-factory/`) and still emits `?lang=`', () => {
     // GIVEN
     vi.stubEnv('BASE_URL', '/robot-factory/')
 
@@ -77,5 +83,6 @@ describe('PxtEditor iframe src — uses Vite BASE_URL', () => {
     // THEN
     expect(url.pathname).toBe('/robot-factory/pxt-editor/index.html')
     expect(url.hash).toBe('#controller=1')
+    expect(url.searchParams.get('lang')).toBe('en')
   })
 })

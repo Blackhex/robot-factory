@@ -43,6 +43,13 @@ export class ToolbarPage {
     await expect(this.root).toBeHidden()
   }
 
+  async getBoundingBox(): Promise<{ x: number; y: number; width: number; height: number }> {
+    await expect(this.root).toBeVisible()
+    const box = await this.root.boundingBox()
+    expect(box, 'toolbar has a bounding box').not.toBeNull()
+    return box!
+  }
+
   async expectEditorButtonVisible(): Promise<void> {
     await expect(this.editorBtn).toBeVisible()
   }

@@ -10,6 +10,7 @@ import type { TutorialOverlayPage } from './TutorialOverlayPage'
 export class MainMenuPage extends BasePage {
   private readonly root: Locator
   private readonly title: Locator
+  private readonly viteErrorOverlay: Locator
   private readonly startBtn: Locator
   private readonly sandboxBtn: Locator
   private readonly anyMenuBtn: Locator
@@ -19,6 +20,7 @@ export class MainMenuPage extends BasePage {
     super(page)
     this.root = page.locator('.ui-main-menu')
     this.title = page.locator('.ui-main-menu-title')
+    this.viteErrorOverlay = page.locator('vite-error-overlay')
     this.startBtn = page.locator('.ui-main-menu-btn--primary')
     this.anyMenuBtn = page.locator('.ui-main-menu-btn')
     // Sandbox is the last main-menu button by convention.
@@ -69,14 +71,28 @@ export class MainMenuPage extends BasePage {
     await this.goto()
   }
 
-  /** Navigate to `/` (without canvas wait) — used by tests that re-navigate. */
-  async navigate(): Promise<void> {
+  /**
+   * Navigate to `/`.
+   * Defaults to strong synchronization (canvas ready) to keep existing
+   * navigation/error assertions deterministic.
+   */
+  async navigate(options?: { waitForCanvasReady?: boolean }): Promise<void> {
+    const waitForCanvasReady = options?.waitForCanvasReady ?? true
+    if (waitForCanvasReady) {
+      await this.goto()
+      return
+    }
+
     await this.page.goto('/')
-    await this.page.waitForSelector('canvas')
   }
 
   async expectVisible(): Promise<void> {
     await expect(this.root).toBeVisible()
+  }
+
+  /** Assert Vite's dev import-analysis overlay is not shown on bootstrap. */
+  async expectNoViteImportAnalysisOverlay(): Promise<void> {
+    await expect(this.viteErrorOverlay).toHaveCount(0)
   }
 
   async expectHidden(): Promise<void> {
