@@ -588,7 +588,7 @@ canvas {
 
 .ui-machine-panel-title {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--rf-accent);
 }
 
@@ -642,13 +642,14 @@ canvas {
 }
 
 .ui-machine-panel-label {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--rf-text-muted);
   white-space: nowrap;
 }
 
 .ui-machine-panel-value {
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--rf-text);
   text-align: right;
   overflow-wrap: anywhere;
@@ -734,7 +735,7 @@ canvas {
 
 .ui-belt-panel-title {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 16px;
   color: var(--rf-accent);
 }
 
@@ -788,13 +789,14 @@ canvas {
 }
 
 .ui-belt-panel-label {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--rf-text-muted);
   white-space: nowrap;
 }
 
 .ui-belt-panel-value {
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--rf-text);
   text-align: right;
 }
@@ -955,8 +957,8 @@ canvas {
 
 .ui-hud {
   position: absolute;
-  top: 77px;
-  left: calc(var(--rf-canvas-left, 0px) + 12px);
+  top: calc(var(--rf-toolbar-h) + 16px);
+  left: calc(var(--rf-canvas-left, 0px) + 16px);
   z-index: 15;
   display: flex;
   flex-direction: column;
@@ -973,7 +975,7 @@ canvas {
   font-size: 16px;
   font-weight: 700;
   color: var(--rf-accent);
-  text-align: center;
+  text-align: left;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--rf-border);
 }
@@ -1008,7 +1010,7 @@ canvas {
 .ui-level-brief {
   position: absolute;
   top: calc(var(--rf-toolbar-h) + 16px);
-  left: calc(var(--rf-canvas-left, 0px) + 16px);
+  right: calc(var(--rf-canvas-right, 0px) + 16px);
   z-index: 14;
   display: flex;
   flex-direction: column;
@@ -1028,10 +1030,13 @@ canvas {
   font-weight: 700;
   color: var(--rf-accent);
   text-align: left;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rf-border);
 }
 
 .ui-level-brief-description {
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--rf-text);
   line-height: 1.35;
   text-align: left;
@@ -1100,6 +1105,30 @@ canvas {
   min-height: 0;
   width: 100%;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 32px,
+    #000 calc(100% - 32px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 32px,
+    #000 calc(100% - 32px),
+    transparent 100%
+  );
+  padding: 16px 8px;
+}
+
+.ui-level-select-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .ui-level-select-grid {

@@ -1,41 +1,26 @@
 import { test, expect } from './pom'
 
 /**
- * Top-Left dock contract for the in-level objective panel (`.ui-level-brief`).
+ * Top-Right dock contract for the in-level objective panel (`.ui-level-brief`).
  *
  * The brief must:
- *   (a) anchor to the top-LEFT corner of the visible game area, just below
+ *   (a) anchor to the top-RIGHT corner of the visible game area, just below
  *       the toolbar, NOT be horizontally centered;
- *   (b) honor `--rf-canvas-left` so any left-side overlay (e.g. the sandbox
- *       Projects panel) never covers it;
+ *   (b) honor `--rf-canvas-right` so any right-side overlay (e.g. the PXT
+ *       editor panel) never covers it;
  *   (c) wear the same surface look as `.ui-machine-panel` (solid
  *       `var(--rf-surface)` background, `var(--rf-border)` 1px border,
- *       `var(--rf-radius-lg)` corners, `box-shadow 0 4px 16px rgba(0,0,0,0.4)`,
+ *       `var(--rf-radius-lg)` corners, `var(--rf-shadow-panel)` shadow,
  *       no `backdrop-filter`, no `transform`).
- *
- * These tests are EXPECTED TO FAIL on the current `main`:
- *   - rect.left ≈ 460 (centered at 50% in the default 1280px viewport),
- *     not within [8, 24];
- *   - transform serializes to a non-identity matrix (translateX(-50%)),
- *     not 'none';
- *   - box-shadow is 'none' (no shadow declared);
- *   - backdrop-filter is 'blur(6px)' instead of 'none';
- *   - background-color is `rgba(26, 29, 39, 0.9)` instead of the opaque
- *     `var(--rf-surface)` reference;
- *   - the brief's `left` does not change when `--rf-canvas-left` is set.
- *
- * They will pass once `.ui-level-brief` in `src/style.css` is rewritten to
- * dock at `left: calc(var(--rf-canvas-left, 0px) + 16px)` with the
- * machine-panel surface styling and the `body.editor-open` override is
- * removed.
  */
-test.describe('Level Brief — top-left dock @ 1280×720', () => {
-  test('docks to the top-left of the game area with machine-panel styling', async ({
+test.describe('Level Brief — top-right dock @ 1280×720', () => {
+  test('docks to the top-right of the game area with machine-panel styling', async ({
     mainMenu,
     levelSelect,
     toolbar,
     tutorial,
     levelBrief,
+    page,
   }) => {
     await mainMenu.open()
     await mainMenu.clickStartGame()
@@ -48,16 +33,18 @@ test.describe('Level Brief — top-left dock @ 1280×720', () => {
 
     const briefBox = await levelBrief.getBoundingBox()
     const toolbarBox = await toolbar.getBoundingBox()
+    const viewportWidth = page.viewportSize()!.width
+    const rightGap = viewportWidth - (briefBox.x + briefBox.width)
 
-    // (a) Anchored to the left, not centered. Soft assertions so every
+    // (a) Anchored to the right, not centered. Soft assertions so every
     // independent contract clause reports its actual-vs-expected in one run.
     expect.soft(
-      briefBox.x,
-      `brief left=${briefBox.x} must be within [8, 24] (anchored to the viewport's left edge, not centered)`,
+      rightGap,
+      `brief right gap=${rightGap} (viewport ${viewportWidth} − (x ${briefBox.x} + w ${briefBox.width})) must be ≥ 8 (anchored to the viewport's right edge, not centered)`,
     ).toBeGreaterThanOrEqual(8)
     expect.soft(
-      briefBox.x,
-      `brief left=${briefBox.x} must be within [8, 24] (anchored to the viewport's left edge, not centered)`,
+      rightGap,
+      `brief right gap=${rightGap} must be ≤ 24 (anchored to the viewport's right edge, not centered)`,
     ).toBeLessThanOrEqual(24)
 
     // (a) Just below the toolbar.
@@ -89,7 +76,7 @@ test.describe('Level Brief — top-left dock @ 1280×720', () => {
 
     expect.soft(
       css.boxShadow,
-      `brief boxShadow=${css.boxShadow} must be non-empty (machine-panel uses '0 4px 16px rgba(0,0,0,0.4)')`,
+      `brief boxShadow=${css.boxShadow} must be non-empty (machine-panel uses var(--rf-shadow-panel))`,
     ).not.toBe('none')
     expect.soft(
       css.boxShadow,
@@ -110,12 +97,13 @@ test.describe('Level Brief — top-left dock @ 1280×720', () => {
     ).toBe(borderColor)
   })
 
-  test('respects --rf-canvas-left so a left-side panel never covers it', async ({
+  test('respects --rf-canvas-right so a right-side panel never covers it', async ({
     mainMenu,
     levelSelect,
     toolbar,
     tutorial,
     levelBrief,
+    page,
   }) => {
     await mainMenu.open()
     await mainMenu.clickStartGame()
@@ -126,37 +114,39 @@ test.describe('Level Brief — top-left dock @ 1280×720', () => {
     await toolbar.waitForCameraSettle()
     await levelBrief.expectVisible()
 
-    // Baseline: no left-side overlay open.
-    await levelBrief.clearLeftPanelInset()
-    const before = await levelBrief.getBoundingBox()
+    const viewportWidth = page.viewportSize()!.width
 
-    // Simulate a 280px-wide left-side panel (sandbox Projects panel does
-    // exactly this via `setCanvasInset('left', container.clientWidth)`).
-    // The brief and the Projects panel never coexist in real UI flow
-    // (Projects = sandbox only, brief = level only), so we exercise the
-    // `--rf-canvas-left` CSS contract directly.
+    // Baseline: no right-side overlay open.
+    await levelBrief.clearRightPanelInset()
+    const before = await levelBrief.getBoundingBox()
+    const beforeRightEdge = before.x + before.width
+
+    // Simulate a 280px-wide right-side overlay by writing --rf-canvas-right.
+    // The brief's CSS rule reads --rf-canvas-right; exercise the contract directly.
     const inset = 280
     try {
-      await levelBrief.simulateLeftPanelInset(inset)
+      await levelBrief.simulateRightPanelInset(inset)
       const after = await levelBrief.getBoundingBox()
+      const afterRightEdge = after.x + after.width
+      const afterRightGap = viewportWidth - afterRightEdge
 
-      // (b) Brief must dock just to the right of the inset, NOT under it.
+      // (b) Brief must dock just to the left of the inset, NOT under it.
       expect(
-        after.x,
-        `brief left=${after.x} must be ≥ ${inset + 8} (inset ${inset}px + 8px gutter) when --rf-canvas-left=${inset}px`,
+        afterRightGap,
+        `brief right gap=${afterRightGap} must be ≥ ${inset + 8} (inset ${inset}px + 8px gutter) when --rf-canvas-right=${inset}px`,
       ).toBeGreaterThanOrEqual(inset + 8)
       expect(
-        after.x,
-        `brief left=${after.x} must be ≤ ${inset + 24} (inset ${inset}px + 24px gutter) when --rf-canvas-left=${inset}px`,
+        afterRightGap,
+        `brief right gap=${afterRightGap} must be ≤ ${inset + 24} (inset ${inset}px + 24px gutter) when --rf-canvas-right=${inset}px`,
       ).toBeLessThanOrEqual(inset + 24)
 
-      // The brief must move RIGHT when the inset opens.
+      // The brief's right edge must move LEFT when the inset opens.
       expect(
-        after.x,
-        `brief left moved from ${before.x} → ${after.x}; it must increase when --rf-canvas-left grows from 0px → ${inset}px`,
-      ).toBeGreaterThan(before.x)
+        afterRightEdge,
+        `brief right edge moved from ${beforeRightEdge} → ${afterRightEdge}; it must decrease when --rf-canvas-right grows from 0px → ${inset}px`,
+      ).toBeLessThan(beforeRightEdge)
     } finally {
-      await levelBrief.clearLeftPanelInset()
+      await levelBrief.clearRightPanelInset()
     }
   })
 })

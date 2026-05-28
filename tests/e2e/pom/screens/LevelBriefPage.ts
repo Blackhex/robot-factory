@@ -3,9 +3,9 @@ import { expect } from '@playwright/test'
 
 /**
  * The build-phase Level Brief panel that displays the current level's name,
- * description and goals. Docked to the top-left of the visible game area
- * (respecting the `--rf-canvas-left` inset reserved for any left-side
- * overlay such as the sandbox Projects panel).
+ * description and goals. Docked to the top-right of the visible game area
+ * (respecting the `--rf-canvas-right` inset reserved for any right-side
+ * overlay such as the PXT editor panel).
  */
 export class LevelBriefPage {
   private readonly page: Page
@@ -89,23 +89,19 @@ export class LevelBriefPage {
   }
 
   /**
-   * Simulate a left-edge UI panel (such as the sandbox Projects panel)
-   * being open by writing the `--rf-canvas-left` CSS variable on `<body>`.
-   *
-   * In real flows the Projects panel only renders in Sandbox mode while
-   * the Level Brief only renders in Level Build/Play phases, so the two
-   * never coexist via UI. The contract under test is that the brief's CSS
-   * rule reads `--rf-canvas-left`, which we exercise directly here.
+   * Simulate a right-edge UI panel (such as the PXT editor panel) being
+   * open by writing the `--rf-canvas-right` CSS variable on `<body>`. The
+   * brief's CSS rule reads `--rf-canvas-right`, which we exercise here.
    */
-  async simulateLeftPanelInset(widthPx: number): Promise<void> {
+  async simulateRightPanelInset(widthPx: number): Promise<void> {
     await this.page.evaluate((px) => {
-      document.body.style.setProperty('--rf-canvas-left', `${px}px`)
+      document.body.style.setProperty('--rf-canvas-right', `${px}px`)
     }, widthPx)
   }
 
-  async clearLeftPanelInset(): Promise<void> {
+  async clearRightPanelInset(): Promise<void> {
     await this.page.evaluate(() => {
-      document.body.style.removeProperty('--rf-canvas-left')
+      document.body.style.removeProperty('--rf-canvas-right')
     })
   }
 }
