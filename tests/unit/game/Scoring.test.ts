@@ -434,4 +434,130 @@ describe('Scoring', () => {
       expect(decimalPlaces).toBeLessThanOrEqual(2)
     })
   })
+
+  describe('parts-only level (B1 regression: goal met without robots)', () => {
+    // CONTRACT: For a level whose only goal is `produce_parts`, a run that
+    // delivers >= the requested parts MUST be scored as a success — at least
+    // 1 star on every axis, totalStars >= 3 — even though `robotsProduced`
+    // stays 0 (parts levels do not assemble robots). The "no work" zero-out
+    // branch must trigger on `outputsDelivered === 0`, not on
+    // `robotsProduced === 0`.
+
+    const partsOnlyLevel: LevelDefinition = {
+      id: 'level_parts_only',
+      nameKey: 'levels.level_parts_only.name',
+      descriptionKey: 'levels.level_parts_only.description',
+      gridSize: { width: 10, height: 10 },
+      availableMachines: ['part_fabricator', 'factory_output'],
+      unlockedBlocks: 1,
+      goals: [{ type: 'produce_parts', target: 3, itemType: 'wheel_small' }],
+      parScores: { speed: 1, cost: 10, quality: 80 },
+    }
+
+    function partsOnlySim(overrides: Partial<{
+      currentTick: number
+      tickRate: number
+      robotsProduced: number
+      itemsProduced: number
+      defects: number
+      totalIdleTicks: number
+      outputsDelivered: number
+      partsDelivered: number
+    }> = {}): Simulation {
+      return {
+        currentTick: 600,
+        tickRate: 10,
+        robotsProduced: 0,
+        itemsProduced: 3,
+        defects: 0,
+        totalIdleTicks: 0,
+        outputsDelivered: 3,
+        partsDelivered: 3,
+        ...overrides,
+      } as unknown as Simulation
+    }
+
+    it('awards >= 1 star on speed when the parts goal is met (no robots)', () => {
+      // GIVEN — 3 parts delivered against a target of 3, 0 robots (parts-only level)
+      const sim = partsOnlySim()
+
+      // WHEN
+      const result = calculateScore(sim, partsOnlyLevel)
+
+      // THEN — successful goal must yield at least the participation floor
+      expect(result.speed.stars).toBeGreaterThanOrEqual(1)
+    })
+
+    it('awards >= 1 star on cost when the parts goal is met (no robots)', () => {
+      // GIVEN
+      const sim = partsOnlySim()
+
+      // WHEN
+      const result = calculateScore(sim, partsOnlyLevel)
+
+      // THEN
+      expect(result.cost.stars).toBeGreaterThanOrEqual(1)
+      expect(Number.isFinite(result.cost.value)).toBe(true)
+    })
+
+    it('awards >= 1 star on quality when the parts goal is met (no defects, no robots)', () => {
+      // GIVEN
+      const sim = partsOnlySim({ defects: 0 })
+
+      // WHEN
+      const result = calculateScore(sim, partsOnlyLevel)
+
+      // THEN
+      expect(result.quality.stars).toBeGreaterThanOrEqual(1)
+    })
+
+    it('totalStars >= 3 when the parts goal is met (no robots)', () => {
+      // GIVEN
+      const sim = partsOnlySim()
+
+      // WHEN
+      const result = calculateScore(sim, partsOnlyLevel)
+
+      // THEN — the Score Screen must not display 0 / 9 for a successful run
+      expect(result.totalStars).toBeGreaterThanOrEqual(3)
+    })
+
+    it('awards stars when outputs exactly equals the goal (boundary, no overshoot)', () => {
+      // GIVEN — outputsDelivered === target exactly (no surplus)
+      const sim = partsOnlySim({ outputsDelivered: 3, partsDelivered: 3, itemsProduced: 3 })
+
+      // WHEN
+      const result = calculateScore(sim, partsOnlyLevel)
+
+      // THEN — boundary case must not be treated as failure
+      expect(result.totalStars).toBeGreaterThanOrEqual(3)
+      expect(result.speed.stars).toBeGreaterThanOrEqual(1)
+      expect(result.cost.stars).toBeGreaterThanOrEqual(1)
+      expect(result.quality.stars).toBeGreaterThanOrEqual(1)
+    })
+
+    it('still returns 0 stars when the parts goal is NOT met (true failure)', () => {
+      // REGRESSION: the zero-out branch must still fire when the player
+      // failed to meet the goal — only the trigger condition changes from
+      // `robotsProduced === 0` to `outputsDelivered === 0` (or, more
+      // precisely, "no outputs at all"). Cost must remain finite.
+      // GIVEN — sim ran but delivered nothing
+      const sim = partsOnlySim({
+        outputsDelivered: 0,
+        partsDelivered: 0,
+        itemsProduced: 0,
+        totalIdleTicks: 600,
+      })
+
+      // WHEN
+      const result = calculateScore(sim, partsOnlyLevel)
+
+      // THEN
+      expect(result.speed.stars).toBe(0)
+      expect(result.cost.stars).toBe(0)
+      expect(result.quality.stars).toBe(0)
+      expect(result.totalStars).toBe(0)
+      expect(Number.isFinite(result.cost.value)).toBe(true)
+    })
+  })
 })

@@ -73,12 +73,10 @@ describe('GameManager', () => {
       expect(gm.getCurrentState()).toBe('play_phase')
     })
 
-    it('should transition from play_phase to score_screen via stopSimulation', () => {
-      // CONTRACT (B1): Only successful campaign runs land on `score_screen`.
-      // A run with zero outputs now transitions to `level_failed` (covered by
-      // the dedicated "level failed flow" describe block). To preserve this
-      // test's intent — verifying the success transition out of play_phase —
-      // we force a successful outcome before stopping the sim.
+    it('should transition from play_phase to score_screen when production target is reached', () => {
+      // CONTRACT: Runs end only via auto-completion when outputsDelivered
+      // reaches the level's required production count. There is no manual
+      // end-of-run path.
       // GIVEN
       gm.startLevel('level_1')
       gm.startSimulation()
@@ -86,7 +84,7 @@ describe('GameManager', () => {
       gm.simulation!.outputsDelivered = 5
 
       // WHEN
-      gm.stopSimulation()
+      gm.simulation!.tick()
 
       // THEN
       expect(gm.getCurrentState()).toBe('score_screen')
@@ -105,15 +103,12 @@ describe('GameManager', () => {
     })
 
     it('should transition back to level_select from score_screen', () => {
-      // CONTRACT (B1): `score_screen` is only reached when the run actually
-      // succeeded (outputsDelivered >= requiredCount). Force a successful
-      // outcome so the precondition (being on `score_screen`) holds.
-      // GIVEN
+      // GIVEN — reach score_screen via auto-completion
       gm.startLevel('level_1')
       gm.startSimulation()
       gm.simulation!.robotsProduced = 5
       gm.simulation!.outputsDelivered = 5
-      gm.stopSimulation()
+      gm.simulation!.tick()
       expect(gm.getCurrentState()).toBe('score_screen')
 
       // WHEN
@@ -226,19 +221,6 @@ describe('GameManager', () => {
     })
   })
 
-  describe('stopSimulation()', () => {
-    it('should not transition if not in play_phase', () => {
-      // GIVEN
-      gm.startLevel('level_1')
-
-      // WHEN — in build_phase, not play_phase
-      gm.stopSimulation()
-
-      // THEN
-      expect(gm.getCurrentState()).toBe('build_phase')
-    })
-  })
-
   describe('event emitter', () => {
     it('should fire stateChanged when transitioning', () => {
       // GIVEN
@@ -276,12 +258,7 @@ describe('GameManager', () => {
       )
     })
 
-    it('should fire scoreReady after stopSimulation', () => {
-      // CONTRACT (B1): `scoreReady` is the success-path event emitted from
-      // `showScore()`. Failed campaign runs route through the `level_failed`
-      // path and do not guarantee a `scoreReady` emission. To keep this test's
-      // intent — verifying the event surface on the success path — we force a
-      // successful outcome before stopping the sim.
+    it('should fire scoreReady after auto-completion', () => {
       // GIVEN
       const handler = vi.fn()
       gm.on('scoreReady', handler)
@@ -291,7 +268,7 @@ describe('GameManager', () => {
       gm.simulation!.outputsDelivered = 5
 
       // WHEN
-      gm.stopSimulation()
+      gm.simulation!.tick()
 
       // THEN
       expect(handler).toHaveBeenCalledTimes(1)
@@ -322,19 +299,14 @@ describe('GameManager', () => {
 
   describe('progress tracking', () => {
     it('should store stars after scoring a successful run', () => {
-      // CONTRACT (B1): Stars are persisted to `progress` only when the run
-      // delivered at least one output. The previous version of this test relied
-      // on the buggy 1★ participation floor (an empty Start→Stop cycle stored
-      // 3★). The new contract requires real output before stars persist.
       // GIVEN — level_2 goal: produce_robots target=3
       gm.startLevel('level_2')
       gm.startSimulation()
-      // Force a successful outcome by bumping the sim's output counters.
       gm.simulation!.robotsProduced = 5
       gm.simulation!.outputsDelivered = 5
 
       // WHEN
-      gm.stopSimulation()
+      gm.simulation!.tick()
 
       // THEN — successful runs land on score_screen and persist stars
       expect(gm.getCurrentState()).toBe('score_screen')
@@ -344,17 +316,12 @@ describe('GameManager', () => {
     })
 
     it('should keep highest star count for a level', () => {
-      // CONTRACT (B1): Stars are only persisted to `progress` for successful
-      // runs (outputsDelivered >= requiredCount). The previous version of this
-      // test relied on the buggy 1★ participation floor for empty Start→Stop
-      // cycles; both attempts must now be real successful runs to populate
-      // `progress.get('level_1')`.
       // GIVEN — first successful attempt
       gm.startLevel('level_1')
       gm.startSimulation()
       gm.simulation!.robotsProduced = 5
       gm.simulation!.outputsDelivered = 5
-      gm.stopSimulation()
+      gm.simulation!.tick()
       const firstStars = gm.getProgress().get('level_1')!
 
       // WHEN — second successful attempt
@@ -362,7 +329,7 @@ describe('GameManager', () => {
       gm.startSimulation()
       gm.simulation!.robotsProduced = 5
       gm.simulation!.outputsDelivered = 5
-      gm.stopSimulation()
+      gm.simulation!.tick()
       const secondStars = gm.getProgress().get('level_1')!
 
       // THEN
@@ -370,111 +337,15 @@ describe('GameManager', () => {
     })
 
     it('should count completed levels', () => {
-      // CONTRACT (B1): A level is only "completed" (counted by
-      // `getCompletedLevelCount()`) when the run was successful and stars were
-      // persisted to `progress`. Force a successful outcome so the level is
-      // recorded.
       // GIVEN + WHEN
       gm.startLevel('level_1')
       gm.startSimulation()
       gm.simulation!.robotsProduced = 5
       gm.simulation!.outputsDelivered = 5
-      gm.stopSimulation()
+      gm.simulation!.tick()
 
       // THEN
       expect(gm.getCompletedLevelCount()).toBe(1)
-    })
-  })
-
-  describe('level failed flow (B1 contract)', () => {
-    // CONTRACT: Campaign runs that deliver zero outputs ("give-up" / restart
-    // path) must transition to a dedicated `level_failed` state — NOT the
-    // `score_screen`. Failed runs must not persist stars and must not unlock
-    // the next level. Sandbox sessions are excluded from this flow.
-
-    it('transitions to level_failed state instead of score_screen when no outputs delivered', () => {
-      // GIVEN — campaign level, no machines placed, no outputs
-      gm.startLevel('level_2')
-      gm.startSimulation()
-
-      // WHEN
-      gm.stopSimulation()
-
-      // THEN
-      expect(gm.getCurrentState()).toBe('level_failed')
-      expect(gm.getCurrentState()).not.toBe('score_screen')
-    })
-
-    it('exposes outcome === "failed" on lastScore for failed campaign runs', () => {
-      // GIVEN
-      gm.startLevel('level_2')
-      gm.startSimulation()
-
-      // WHEN
-      gm.stopSimulation()
-
-      // THEN
-      expect(gm.lastScore).not.toBeNull()
-      expect((gm.lastScore as unknown as { outcome: string }).outcome).toBe('failed')
-    })
-
-    it('exposes outcome === "success" on lastScore for successful campaign runs', () => {
-      // GIVEN — force a successful run
-      gm.startLevel('level_2')
-      gm.startSimulation()
-      gm.simulation!.robotsProduced = 5
-      gm.simulation!.outputsDelivered = 5
-
-      // WHEN
-      gm.stopSimulation()
-
-      // THEN
-      expect(gm.getCurrentState()).toBe('score_screen')
-      expect(gm.lastScore).not.toBeNull()
-      expect((gm.lastScore as unknown as { outcome: string }).outcome).toBe('success')
-    })
-
-    it('does NOT record stars in progress and does NOT unlock next level after failed run', () => {
-      // GIVEN
-      gm.startLevel('level_2')
-      gm.startSimulation()
-
-      // WHEN
-      gm.stopSimulation()
-
-      // THEN — no entry persisted (LevelSelect treats `>= 1` as unlocked, so
-      // `undefined` or `0` both correctly keep level_3 locked).
-      const progress = gm.getProgress()
-      expect(progress.has('level_2')).toBe(false)
-      expect(progress.get('level_2') ?? 0).toBeLessThan(1)
-    })
-
-    it('successful campaign run lands on score_screen, not level_failed', () => {
-      // GIVEN
-      gm.startLevel('level_2')
-      gm.startSimulation()
-      gm.simulation!.robotsProduced = 5
-      gm.simulation!.outputsDelivered = 5
-
-      // WHEN
-      gm.stopSimulation()
-
-      // THEN
-      expect(gm.getCurrentState()).toBe('score_screen')
-      expect(gm.getCurrentState()).not.toBe('level_failed')
-    })
-
-    it('sandbox sessions never transition to level_failed regardless of output count', () => {
-      // GIVEN — sandbox has no campaign goals; the failed flow must not apply
-      gm.enterSandbox()
-
-      // WHEN — invoke the score path directly (sandbox has no stopSimulation
-      // path through play_phase, so we exercise showScore() to prove the guard)
-      gm.showScore()
-
-      // THEN
-      expect(gm.getCurrentState()).toBe('sandbox')
-      expect(gm.getCurrentState()).not.toBe('level_failed')
     })
   })
 
@@ -535,66 +406,6 @@ describe('GameManager', () => {
 
       // THEN — internal state should be unaffected
       expect(gm.getProgress().has('level_99')).toBe(false)
-    })
-  })
-
-  describe('progression with no work done (give-up / restart path)', () => {
-    // CONTRACT: Pressing Start then Stop with zero machines (or otherwise producing
-    // no outputs) must NOT mark the level as completed and must NOT unlock the next
-    // level. LevelSelect treats `progress.get(levelId) >= 1` as "unlocked", so the
-    // entry must be either absent or 0 after a no-work run.
-
-    it('does not unlock next level when objective unmet (no machines placed)', () => {
-      // GIVEN — level_2 has no startingMachines and goal `produce_robots, target: 3`
-      gm.startLevel('level_2')
-      gm.startSimulation()
-
-      // WHEN — stop immediately, no items produced
-      gm.stopSimulation()
-
-      // THEN — progress for level_2 must be insufficient to unlock level_3
-      const stars = gm.getProgress().get('level_2') ?? 0
-      expect(stars).toBe(0)
-    })
-
-    it('does not record stars in progress when objective unmet', () => {
-      // GIVEN
-      gm.startLevel('level_2')
-      gm.startSimulation()
-
-      // WHEN
-      gm.stopSimulation()
-
-      // THEN — either no entry, or entry === 0 (both fail unlock check `>= 1`)
-      const progress = gm.getProgress()
-      const stars = progress.get('level_2') ?? 0
-      expect(stars).toBeLessThan(1)
-    })
-
-    it('restart-with-no-work flow: repeated empty runs never unlock next level', () => {
-      // GIVEN — three give-up cycles in a row
-      for (let i = 0; i < 3; i++) {
-        gm.startLevel('level_2')
-        gm.startSimulation()
-        gm.stopSimulation()
-      }
-
-      // THEN
-      const stars = gm.getProgress().get('level_2') ?? 0
-      expect(stars).toBeLessThan(1)
-    })
-
-    it('lastScore reports totalStars === 0 after a no-work run', () => {
-      // GIVEN
-      gm.startLevel('level_2')
-      gm.startSimulation()
-
-      // WHEN
-      gm.stopSimulation()
-
-      // THEN
-      expect(gm.lastScore).not.toBeNull()
-      expect(gm.lastScore!.totalStars).toBe(0)
     })
   })
 

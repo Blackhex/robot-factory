@@ -213,12 +213,6 @@
     "retry": "Retry",
     "back_to_menu": "Back to Menu"
   },
-  "level_failed": {
-    "title": "Level Failed",
-    "message": "You didn't meet the level objective. Try again!",
-    "retry": "Try Again",
-    "back_to_select": "Back to Level Select"
-  },
   "game_over": {
     "title": "Game Over",
     "machine_fallback": "machine",

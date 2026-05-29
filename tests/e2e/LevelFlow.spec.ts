@@ -251,21 +251,162 @@ test.describe('Level 1 — First Part', () => {
     // ===================== STEP 15: Verify HUD is visible ===================
     await hud.expectVisible()
 
-    // ===================== STEP 16: Wait for items delivered ≥ 3 ============
+    // ===================== STEP 16: Wait for auto-complete → score screen ===
+    // Per bug-fix contract: GameManager auto-transitions to the Score Screen
+    // the moment `outputsDelivered >= requiredCount`. No Restart click.
     await probe.withFastForward(FAST_FORWARD_RATE, async () => {
-      await hud.expectItemsDeliveredAtLeast(3, 30000)
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     })
 
-    await hud.expectTimeAdvancing(10000)
+    // ===================== STEP 17: Verify score screen =====================
+    await scoreScreen.expectTotalVisible()
+    await scoreScreen.expectLevelNameVisible()
+  })
+})
 
-    // ===================== STEP 17: Stop simulation → score screen ==========
+// ---------------------------------------------------------------------------
+// Level 1 — Bug-fix gates (auto-complete to Score, Restart resets sim)
+// ---------------------------------------------------------------------------
+
+// Bug-fix tests use a minimal placement (only the user-placed Fabricator;
+// the Shipper is already pre-placed at (8, 5) by `level_1.startingMachines`).
+// With this two-machine layout the dropdown slot assignment is:
+//   Machine.A = pre-placed factory_output @ (8, 5)
+//   Machine.B = user-placed part_fabricator @ (3, 5)
+const PROGRAM_BUGFIX_LEVEL_1 = buildProgram([
+  'machines.setRecipe(Machine.B, Recipe.WheelPressSmall)',
+  ...buildStartCommands('B', 'A'),
+])
+
+test.describe('Level 1 — bug fixes', () => {
+  /**
+   * Bug #1: When the player's Level 1 program delivers the required 3
+   * `wheel_small` parts, the game must AUTOMATICALLY transition to the
+   * Score Screen without the player pressing any extra button. The Level
+   * Failed screen must NOT appear.
+   */
+  test('auto-completes to Score Screen when goal met without pressing Restart', async ({
+    mainMenu, levelSelect, toolbar, grid, tutorial, editorPanel, pxt,
+    hud, scoreScreen, probe,
+  }) => {
+    test.setTimeout(120_000)
+
+    await navigateToLevel1(mainMenu, levelSelect, toolbar, grid, { width: 10, height: 10 })
+    await grid.expectCanvasVisible()
+
+    // Dismiss tutorial so the toolbar/editor are interactive.
+    await tutorial.dismissIfPresent(5000)
+
+    // Place a Fabricator at (3,5). The Shipper is pre-placed at (8,5)
+    // by `LevelDefinition.startingMachines`.
+    expect(await probe.placeMachineDirect(3, 5, 'part_fabricator')).toBe(true)
+
+    const machines = await probe.getMachines()
+    const fabricator = machines.find((m) => m.type === 'part_fabricator' && m.x === 3 && m.z === 5)
+    const output = machines.find((m) => m.type === 'factory_output')
+    expect(fabricator).toBeTruthy()
+    expect(output).toBeTruthy()
+
+    expect(await probe.placeBeltViaTestApi(
+      fabricator!.x, fabricator!.z, output!.x, output!.z,
+    )).toBe(true)
+
+    // Write a working program via the fallback textarea.
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_BUGFIX_LEVEL_1)
+    await editorPanel.expectFallbackValue(PROGRAM_BUGFIX_LEVEL_1)
+    await toolbar.clickEditor()
+    await editorPanel.expectClosed()
+
+    // Start the simulation.
+    await toolbar.expectStartButtonVisible()
+    await toolbar.clickStart()
+    await hud.expectVisible()
+
+    // Bug-fix assertion: the Score Screen must appear automatically
+    // once 3 `wheel_small` parts are delivered. No Restart click.
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    })
+    await scoreScreen.expectTotalVisible()
+    await scoreScreen.expectLevelNameVisible()
+
+  })
+
+  /**
+   * Bug #2: Clicking the Restart button while a campaign simulation is
+   * running must reset the run back to build_phase — NOT route to Level
+   * Failed and NOT route to Score Screen. The toolbar must return to its
+   * idle state (Start enabled; Pause and Restart disabled) and the HUD
+   * must hide. The player must then be able to press Start again and
+   * complete the level.
+   */
+  test('Restart mid-run resets toolbar (no Level Failed, no Score) and allows re-run to completion', async ({
+    mainMenu, levelSelect, toolbar, grid, tutorial, editorPanel, pxt,
+    hud, scoreScreen, probe,
+  }) => {
+    test.setTimeout(120_000)
+
+    await navigateToLevel1(mainMenu, levelSelect, toolbar, grid, { width: 10, height: 10 })
+    await grid.expectCanvasVisible()
+    await tutorial.dismissIfPresent(5000)
+
+    expect(await probe.placeMachineDirect(3, 5, 'part_fabricator')).toBe(true)
+
+    const machines = await probe.getMachines()
+    const fabricator = machines.find((m) => m.type === 'part_fabricator' && m.x === 3 && m.z === 5)
+    const output = machines.find((m) => m.type === 'factory_output')
+    expect(fabricator).toBeTruthy()
+    expect(output).toBeTruthy()
+
+    expect(await probe.placeBeltViaTestApi(
+      fabricator!.x, fabricator!.z, output!.x, output!.z,
+    )).toBe(true)
+
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_BUGFIX_LEVEL_1)
+    await toolbar.clickEditor()
+    await editorPanel.expectClosed()
+
+    // Start the simulation and let a few ticks run.
+    await toolbar.clickStart()
+    await hud.expectVisible()
+    await hud.expectTimeAdvancing(10_000)
+
+    // Click Restart while still running (before the goal is met).
     await toolbar.expectRestartButtonVisible()
     await toolbar.clickRestart()
 
-    // ===================== STEP 18: Verify score screen =====================
-    await scoreScreen.expectVisible()
-    await scoreScreen.expectTotalVisible()
-    await scoreScreen.expectLevelNameVisible()
+    // Bug-fix assertions: neither outcome screen appears.
+    await scoreScreen.expectHidden()
+
+    // Toolbar returns to pre-Start (idle) state.
+    await toolbar.expectStartButtonVisible()
+    await toolbar.expectStartButtonEnabled()
+    await toolbar.expectPauseButtonDisabled()
+    await toolbar.expectRestartButtonDisabled()
+    await toolbar.expectPauseButtonNoPausedClass()
+
+    // HUD hides while back in build_phase.
+    await hud.expectHidden()
+
+    // Re-run the simulation; it must successfully complete to Score.
+    // Re-apply the program in case the editor's PXT iframe finished
+    // booting between the two Start clicks and now overrides the
+    // fallback textarea with an empty default.
+    await toolbar.clickEditor()
+    await editorPanel.expectOpen()
+    await setProgramInEditor(editorPanel, pxt, PROGRAM_BUGFIX_LEVEL_1)
+    await toolbar.clickEditor()
+    await editorPanel.expectClosed()
+
+    await toolbar.clickStart()
+    await hud.expectVisible()
+    await probe.withFastForward(FAST_FORWARD_RATE, async () => {
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+    })
   })
 })
 
@@ -352,20 +493,13 @@ test.describe('Level 2 — Assembly Line', () => {
 
     await hud.expectVisible()
 
-    // ===================== STEP 10: Wait for items delivered ≥ 3 ===========
-    // Level 2 requires 3 robot_explorer outputs. Restarting before the goal
-    // is met routes to the Level Failed screen (B1 contract), so we wait
-    // for the full target before stopping.
+    // ===================== STEP 10: Wait for auto-complete → score screen ==
+    // Level 2 requires 3 outputs. GameManager auto-transitions to the Score
+    // Screen once `outputsDelivered >= requiredCount`. No Restart click.
     await probe.withFastForward(FAST_FORWARD_RATE, async () => {
-      await hud.expectItemsDeliveredAtLeast(3, 60000)
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     })
 
-    await hud.expectTimeAdvancing(10000)
-
-    // ===================== STEP 11: Stop simulation → score screen =========
-    await toolbar.clickRestart()
-
-    await scoreScreen.expectVisible()
     await scoreScreen.expectTotalVisible()
     await scoreScreen.expectLevelNameVisible()
   })
@@ -447,17 +581,12 @@ test.describe('Level 3 — Mass Production', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    // ===================== STEP 9: Wait for items delivered ≥ 10 ============
+    // ===================== STEP 9: Wait for auto-complete → score screen ===
+    // Level 3 requires 10 outputs. Auto-complete fires once goal is met.
     await probe.withFastForward(FAST_FORWARD_RATE, async () => {
-      await hud.expectItemsDeliveredAtLeast(10, 60000)
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     })
-    await hud.expectTimeAdvancing(10000)
 
-    // ===================== STEP 10: Stop simulation → score screen ==========
-    await toolbar.expectRestartButtonVisible()
-    await toolbar.clickRestart()
-
-    await scoreScreen.expectVisible()
     await scoreScreen.expectTotalVisible()
     await scoreScreen.expectLevelNameVisible()
   })
@@ -533,19 +662,12 @@ test.describe('Level 4 — Quality Matters', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    // ===================== STEP 9: Wait for items delivered ≥ goal ==========
-    // Level 4 requires 5 robot_explorer outputs. Restarting before the goal
-    // is met routes to Level Failed (B1 contract).
+    // ===================== STEP 9: Wait for auto-complete → score screen ===
+    // Level 4 requires 5 outputs. Auto-complete fires once goal is met.
     await probe.withFastForward(FAST_FORWARD_RATE, async () => {
-      await hud.expectItemsDeliveredAtLeast(5, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     })
-    await hud.expectTimeAdvancing(10000)
 
-    // ===================== STEP 10: Stop simulation → score screen ==========
-    await toolbar.expectRestartButtonVisible()
-    await toolbar.clickRestart()
-
-    await scoreScreen.expectVisible()
     await scoreScreen.expectTotalVisible()
     await scoreScreen.expectLevelNameVisible()
   })
@@ -588,19 +710,13 @@ test.describe('Level 5 — Smart Routing', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    // ===================== STEP 10: Wait for items delivered ≥ goal =========
-    // Level 5 requires 6 outputs total (3 explorer + 3 worker robots).
-    // Restarting before the goal is met routes to Level Failed (B1 contract).
+    // ===================== STEP 10: Wait for auto-complete → score screen ==
+    // Level 5 requires 6 outputs (3 explorer + 3 worker). Auto-complete
+    // fires once `outputsDelivered >= 6`.
     await probe.withFastForward(FAST_FORWARD_RATE, async () => {
-      await hud.expectItemsDeliveredAtLeast(6, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     })
-    await hud.expectTimeAdvancing(10000)
 
-    // ===================== STEP 11: Stop simulation → score screen ==========
-    await toolbar.expectRestartButtonVisible()
-    await toolbar.clickRestart()
-
-    await scoreScreen.expectVisible()
     await scoreScreen.expectTotalVisible()
     await scoreScreen.expectLevelNameVisible()
   })
@@ -689,15 +805,11 @@ test.describe('Level 6 — Custom Robots', () => {
     // item to flow past it. A stuck assembler now trips `reason: 'starvation'`
     // instead of silently buffering wheels, so this assertion fails fast if
     // the chain isn't truly producing.
+    // Level 6 requires 6 outputs. Auto-complete fires once goal is met.
     await probe.withFastForward(FAST_FORWARD_RATE, async () => {
-      await hud.expectItemsDeliveredAtLeast(6, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     })
-    await hud.expectTimeAdvancing(10000)
 
-    await toolbar.expectRestartButtonVisible()
-    await toolbar.clickRestart()
-
-    await scoreScreen.expectVisible()
     await scoreScreen.expectTotalVisible()
     await scoreScreen.expectLevelNameVisible()
   })
@@ -744,19 +856,12 @@ test.describe('Level 7 — Rush Order!', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    // Level 7 requires 10 robot_worker outputs. Restarting before the goal
-    // is met routes to Level Failed (B1 contract). PROGRAM_PASS_THROUGH_CHAIN produces
-    // wheel_small but `outputsDelivered` (the GameManager fail check input)
-    // counts every delivered item, so wait for the raw threshold.
+    // Level 7 requires 10 robot_worker outputs. `outputsDelivered` counts
+    // every delivered item, so auto-complete fires once ≥10 items delivered.
     await probe.withFastForward(FAST_FORWARD_RATE, async () => {
-      await hud.expectItemsDeliveredAtLeast(10, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     })
-    await hud.expectTimeAdvancing(10000)
 
-    await toolbar.expectRestartButtonVisible()
-    await toolbar.clickRestart()
-
-    await scoreScreen.expectVisible()
     await scoreScreen.expectTotalVisible()
     await scoreScreen.expectLevelNameVisible()
   })
@@ -796,25 +901,19 @@ test.describe('Level 8 — Optimize Everything', () => {
     await toolbar.clickStart()
     await hud.expectVisible()
 
-    // Level 8 requires 10 robot_explorer outputs. Restarting before the goal
-    // is met routes to Level Failed (B1 contract). `outputsDelivered` counts
-    // every delivered item regardless of recipe.
+    // Level 8 requires 10 robot_explorer outputs. Auto-complete fires once
+    // `outputsDelivered >= 10`.
     await probe.withFastForward(FAST_FORWARD_RATE, async () => {
-      await hud.expectItemsDeliveredAtLeast(10, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     })
-    await hud.expectTimeAdvancing(10000)
 
-    await toolbar.expectRestartButtonVisible()
-    await toolbar.clickRestart()
-
-    await scoreScreen.expectVisible()
     await scoreScreen.expectTotalVisible()
     await scoreScreen.expectLevelNameVisible()
   })
 })
 
 // ---------------------------------------------------------------------------
-// Level 9 — Robot Expo (sandbox, no goals)
+// Level 9 — Robot Expo
 // ---------------------------------------------------------------------------
 
 const ALL_MACHINE_TYPES = [
@@ -827,11 +926,11 @@ const ALL_MACHINE_TYPES = [
 ]
 
 test.describe('Level 9 — Robot Expo', () => {
-  test('full play-through: sandbox — all machines available → place → belt → program → simulate → stop → score', async ({
+  test('full play-through: sandbox — all machines available → place → belt → program → simulate → score', async ({
     saves, mainMenu, levelSelect, toolbar, grid, machinePanel, tutorial, editorPanel, pxt,
     hud, scoreScreen, probe,
   }) => {
-    test.setTimeout(90000)
+    test.setTimeout(LOADED_CHROMIUM_TEST_TIMEOUT_MS)
     const SIZE: GridSize = { width: 20, height: 20 }
 
     await navigateToLevel(saves, mainMenu, levelSelect, toolbar, grid, SIZE, 8)
@@ -894,21 +993,18 @@ test.describe('Level 9 — Robot Expo', () => {
     await toolbar.clickEditor()
     await editorPanel.expectClosed()
 
-    // ===================== STEP 8: Start simulation ========================
+    // ===================== STEP 8: Start simulation → auto-complete =========
     await toolbar.expectStartButtonVisible()
     await toolbar.clickStart()
-
     await hud.expectVisible()
 
+    // Level 9 has production goals; `outputsDelivered` counts every
+    // delivered item, so auto-complete fires once the required total is
+    // reached.
     await probe.withFastForward(FAST_FORWARD_RATE, async () => {
-      await hud.expectItemsDeliveredGreaterThan(0, 20000)
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     })
-    await hud.expectTimeAdvancing(10000)
 
-    await toolbar.expectRestartButtonVisible()
-    await toolbar.clickRestart()
-
-    await scoreScreen.expectVisible()
     await scoreScreen.expectTotalVisible()
     await scoreScreen.expectLevelNameVisible()
   })
@@ -1028,19 +1124,13 @@ test.describe('Level 10 — Factory Tycoon', () => {
 
     await hud.expectVisible()
 
-    // Level 10 requires 15 robot outputs total (5 explorer + 5 worker +
-    // 5 guardian). Restarting before the goal is met routes to Level
-    // Failed (B1 contract). `outputsDelivered` counts every delivered
-    // item regardless of recipe.
+    // Level 10 requires 15 robot outputs total (5 explorer + 10 worker).
+    // `outputsDelivered` counts every delivered item regardless of recipe,
+    // so auto-complete fires the tick `outputsDelivered` reaches 15.
     await probe.withFastForward(FAST_FORWARD_RATE, async () => {
-      await hud.expectItemsDeliveredAtLeast(15, LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
+      await scoreScreen.expectVisible(LOADED_CHROMIUM_DELIVERY_TIMEOUT_MS)
     })
-    await hud.expectTimeAdvancing(10000)
 
-    await toolbar.expectRestartButtonVisible()
-    await toolbar.clickRestart()
-
-    await scoreScreen.expectVisible()
     await scoreScreen.expectTotalVisible()
     await scoreScreen.expectLevelNameVisible()
   })

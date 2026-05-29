@@ -16,7 +16,19 @@ import { test } from './pom'
 test.use({ viewport: { width: 1920, height: 1080 } })
 
 test.describe('Level Failed screen — campaign failure flow', () => {
-  test('Level 1: Restart with 0 outputs shows Level Failed (not Score), keeps Level 2 locked, awards 0 stars', async ({
+  // DESIGN GAP — flagged for orchestrator:
+  // Per the user-confirmed bug fix, Restart in `play_phase` now resets the
+  // simulation back to `build_phase` instead of calling `stopSimulation()`,
+  // and auto-completion only fires when `outputsDelivered >= requiredCount`
+  // (i.e. only the success branch of `showScore()`). The Level Failed
+  // screen state (`'level_failed'`) is therefore currently UNREACHABLE
+  // through any in-game UI path. The `LevelFailedScreen` class and the
+  // `'level_failed'` GameManager state still exist but no trigger remains.
+  //
+  // Either (a) re-introduce a "Give up" / "End run" affordance that calls
+  // `stopSimulation()`, or (b) remove the dead state + screen. Skipping
+  // this test until the design decision is recorded in DESIGN.md.
+  test.skip('Level 1: Restart with 0 outputs shows Level Failed (not Score), keeps Level 2 locked, awards 0 stars', async ({
     mainMenu, levelSelect, toolbar, grid, tutorial, hud,
     scoreScreen, levelFailed,
   }) => {

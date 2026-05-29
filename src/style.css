@@ -1852,101 +1852,6 @@ canvas {
   border-color: var(--rf-accent);
 }
 
-/* ─── Level Failed Screen (UX blocker B1) ────────────────────────────────
- * Mutually exclusive with `.ui-score-screen`: shown for campaign runs
- * that ended without meeting the level objective. Same z-index tier as
- * the score screen so they cover the same surface area when active.
- */
-
-.ui-level-failed-screen {
-  position: absolute;
-  inset: 0;
-  z-index: 110;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(15, 17, 23, 0.9);
-  backdrop-filter: blur(8px);
-}
-
-.ui-level-failed-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-  padding: 36px 44px;
-  min-width: 320px;
-  max-width: 460px;
-  background: var(--rf-surface);
-  border: 1px solid var(--rf-danger);
-  border-radius: var(--rf-radius-lg);
-  box-shadow: 0 0 24px rgba(239, 83, 80, 0.18);
-  text-align: center;
-}
-
-.ui-level-failed-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--rf-danger);
-  letter-spacing: 0.5px;
-}
-
-.ui-level-failed-level-name {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--rf-text-muted);
-}
-
-.ui-level-failed-message {
-  font-size: 15px;
-  line-height: 1.45;
-  color: var(--rf-text);
-}
-
-.ui-level-failed-buttons {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-  margin-top: 6px;
-}
-
-.ui-level-failed-btn {
-  flex: 1;
-  height: var(--rf-btn-h);
-  min-height: var(--rf-btn-h);
-  padding: 0 1rem;
-  border: 1px solid var(--rf-border);
-  border-radius: var(--rf-radius);
-  background: var(--rf-surface);
-  color: var(--rf-text);
-  font-family: var(--rf-font);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background var(--rf-transition),
-    border-color var(--rf-transition),
-    transform var(--rf-transition);
-  user-select: none;
-}
-
-.ui-level-failed-btn:hover {
-  background: var(--rf-surface-hover);
-  border-color: var(--rf-accent);
-  transform: translateY(-1px);
-}
-
-.ui-level-failed-btn--primary {
-  background: var(--rf-danger);
-  color: #fff;
-  border-color: var(--rf-danger);
-}
-
-.ui-level-failed-btn--primary:hover {
-  background: #f06360;
-  border-color: #f06360;
-}
-
 /* ─── Accessible focus ring (UX#8) ───────────────────────────────────────
  * Applied across interactive UI controls so keyboard navigation is
  * visible. Browser default outlines are suppressed by other styles, so
@@ -1959,7 +1864,6 @@ canvas {
 .ui-level-card:focus-visible,
 .ui-level-select-back:focus-visible,
 .ui-score-btn:focus-visible,
-.ui-level-failed-btn:focus-visible,
 .ui-lang-btn:focus-visible,
 .ui-tutorial-btn:focus-visible {
   outline: 2px solid var(--rf-accent);

@@ -119,7 +119,6 @@ describe('wireWindowEvents — Q toggles Projects panel', () => {
       'build_phase',
       'play_phase',
       'level_complete',
-      'level_failed',
     ]
 
     for (const state of nonSandboxStates) {
@@ -333,7 +332,6 @@ const NON_GAME_STATES = [
   'main_menu',
   'level_select',
   'score_screen',
-  'level_failed',
 ] as const
 const ESC_GAME_STATES = [
   'level_select',
@@ -341,7 +339,6 @@ const ESC_GAME_STATES = [
   'play_phase',
   'sandbox',
   'score_screen',
-  'level_failed',
 ] as const
 const MODIFIERS: Array<keyof Pick<PressInit, 'ctrlKey' | 'metaKey' | 'altKey'>> = [
   'ctrlKey',

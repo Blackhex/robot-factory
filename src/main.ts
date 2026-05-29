@@ -16,7 +16,6 @@ import { LevelSelect } from './ui/LevelSelect'
 import { createEditorVisibilityController } from './ui/createEditorVisibilityController'
 import { HUD } from './ui/HUD'
 import { ScoreScreen } from './ui/ScoreScreen'
-import { LevelFailedScreen } from './ui/LevelFailedScreen'
 import { LangButton } from './ui/LangButton'
 import { GameOverModal } from './ui/GameOverModal'
 import { ALL_MACHINE_TYPES, type MachineType } from './game/types'
@@ -105,7 +104,6 @@ async function main(): Promise<void> {
   const levelSelect = new LevelSelect(uiOverlay)
   const hud = new HUD(uiOverlay)
   const scoreScreen = new ScoreScreen(uiOverlay)
-  const levelFailedScreen = new LevelFailedScreen(uiOverlay)
   // Mount on document.body (not #ui-overlay) so the modal escapes the
   // overlay's stacking context and renders above #editor-container when
   // the PXT editor panel is open.
@@ -176,7 +174,7 @@ async function main(): Promise<void> {
 
   function hideAllUI(): void {
     for (const c of [
-      mainMenu, levelSelect, hud, scoreScreen, levelFailedScreen, gameOverModal,
+      mainMenu, levelSelect, hud, scoreScreen, gameOverModal,
       tutorialOverlay, toolbar, machinePanel, beltPanel, levelBrief, projectsPanel,
     ]) c.hide()
   }
@@ -455,7 +453,6 @@ async function main(): Promise<void> {
     hud,
     levelBrief,
     scoreScreen,
-    levelFailedScreen,
     cameraController,
     setupBuildPhase,
     setupSandbox,
@@ -470,7 +467,6 @@ async function main(): Promise<void> {
   wireToolbarAndOutcomeCallbacks({
     toolbar,
     scoreScreen,
-    levelFailedScreen,
     gameOverModal,
     audio,
     gameManager,

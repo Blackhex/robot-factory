@@ -24,14 +24,9 @@ interface ScoreScreenLike extends Hideable {
   setScore(levelName: string, score: unknown): void
 }
 
-interface LevelFailedScreenLike extends Hideable {
-  setLevelName(levelName: string): void
-}
-
 interface AudioLike {
   stopBeltRolling(): void
   playSuccess(): void
-  playError(): void
 }
 
 interface CameraControllerLike {
@@ -63,7 +58,6 @@ interface CreateGameStateChangeHandlerOptions {
   hud: Hideable
   levelBrief: LevelBriefLike
   scoreScreen: ScoreScreenLike
-  levelFailedScreen: LevelFailedScreenLike
   cameraController: CameraControllerLike
   setupBuildPhase: (level: LevelDefinition) => void
   setupSandbox: () => void
@@ -133,17 +127,6 @@ export function createGameStateChangeHandler(
           options.saveProgress()
           options.audio.playSuccess()
         }
-        break
-      }
-
-      case 'level_failed': {
-        options.closeEditor()
-        options.audio.stopBeltRolling()
-        options.toolbar.setSimulationState('stopped')
-        const level = options.gameManager.currentLevel
-        options.levelFailedScreen.setLevelName(level ? i18next.t(level.nameKey) : '')
-        options.levelFailedScreen.show()
-        options.audio.playError()
         break
       }
 

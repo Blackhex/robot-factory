@@ -1,5 +1,6 @@
 import type { Simulation } from './Simulation.ts'
 import type { LevelDefinition } from './Level.ts'
+import { computeRequiredOutputs } from './LevelGoals.ts'
 
 export interface MetricScore {
   readonly value: number
@@ -11,8 +12,6 @@ export interface ScoreResult {
   readonly cost: MetricScore
   readonly quality: MetricScore
   readonly totalStars: number
-  /** Campaign outcome: present on scores produced for a real level run. */
-  readonly outcome?: 'success' | 'failed'
 }
 
 function computeStars(value: number, par: number, lowerIsBetter: boolean): number {
@@ -29,10 +28,17 @@ function computeStars(value: number, par: number, lowerIsBetter: boolean): numbe
 }
 
 export function calculateScore(simulation: Simulation, level: LevelDefinition): ScoreResult {
-  // CONTRACT (B1): A run that produced nothing must NOT receive the legacy 1★
-  // participation floor. Zero outputs → 0 stars per axis, totalStars 0. Cost
-  // value is pinned to the finite sentinel `0` (never Infinity / NaN).
-  if (simulation.robotsProduced === 0) {
+  // CONTRACT (B1): A run that delivered nothing must NOT receive the legacy 1★
+  // participation floor. The "no work" trigger is `successfulOutputs === 0`
+  // when the level has a production goal — this covers both robot-output
+  // levels (Level 5+) and parts-only levels (Level 1) where `robotsProduced`
+  // is always 0 even on a successful run. Cost value is pinned to the finite
+  // sentinel `0` (never Infinity / NaN). Levels with no production goals
+  // (`requiredOutputs === 0`, sandbox-like) bypass the auto-fail and run the
+  // normal formula.
+  const successfulOutputs = simulation.outputsDelivered ?? simulation.robotsProduced
+  const requiredOutputs = computeRequiredOutputs(level)
+  if (requiredOutputs > 0 && successfulOutputs === 0) {
     return {
       speed: { value: 0, stars: 0 },
       cost: { value: 0, stars: 0 },
@@ -44,21 +50,21 @@ export function calculateScore(simulation: Simulation, level: LevelDefinition): 
   const elapsedTicks = simulation.currentTick
   const elapsedMinutes = elapsedTicks / (simulation.tickRate * 60)
 
-  // Speed: robots produced per minute
+  // Speed: successful outputs per minute
   const speedValue = elapsedMinutes > 0
-    ? simulation.robotsProduced / elapsedMinutes
+    ? successfulOutputs / elapsedMinutes
     : 0
   const speedStars = elapsedMinutes > 0
     ? computeStars(speedValue, level.parScores.speed, false)
     : 1
 
   // Cost: raw materials used + idle time energy (idle ticks as proxy)
-  const costValue = (simulation.itemsProduced + simulation.totalIdleTicks * 0.1) / simulation.robotsProduced
+  const costValue = (simulation.itemsProduced + simulation.totalIdleTicks * 0.1) / successfulOutputs
   const costStars = computeStars(costValue, level.parScores.cost, true)
 
   // Quality: % of items passing quality check (non-defective)
-  const totalItems = simulation.robotsProduced + simulation.defects
-  const qualityValue = (simulation.robotsProduced / totalItems) * 100
+  const totalItems = successfulOutputs + simulation.defects
+  const qualityValue = totalItems > 0 ? (successfulOutputs / totalItems) * 100 : 0
   const qualityStars = computeStars(qualityValue, level.parScores.quality, false)
 
   return {

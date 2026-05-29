@@ -8,6 +8,7 @@ import { getLevelById, getAllLevels } from './Level.ts'
 import type { LevelDefinition } from './Level.ts'
 import { calculateScore } from './Scoring.ts'
 import type { ScoreResult } from './Scoring.ts'
+import { computeRequiredOutputs } from './LevelGoals.ts'
 
 export type GameState =
   | 'main_menu'
@@ -15,7 +16,6 @@ export type GameState =
   | 'build_phase'
   | 'play_phase'
   | 'score_screen'
-  | 'level_failed'
   | 'sandbox'
 
 type GameManagerEventType = 'stateChanged' | 'levelStarted' | 'simulationDone' | 'scoreReady'
@@ -100,41 +100,32 @@ export class GameManager {
   startSimulation(): void {
     if (this._state !== 'build_phase' || !this._simulation) return
 
-    this._simulation.on('order_complete', this.onOrderComplete)
+    this._simulation.on('tick', this.onSimulationTick)
     this._simulation.start()
     this.setState('play_phase')
   }
 
-  stopSimulation(): void {
-    if (this._state !== 'play_phase' || !this._simulation) return
+  resetSimulationForRetry(): void {
+    if (this._state !== 'play_phase' || !this._simulation || !this._factory) return
 
-    this._simulation.stop()
-    this._simulation.off('order_complete', this.onOrderComplete)
-    this.emit('simulationDone', {})
-    this.showScore()
+    this.detachSimulation()
+    this._factory.attachSimulation(null)
+    this._simulation = new Simulation()
+    this._lastScore = null
+    this.setState('build_phase')
   }
 
   showScore(): void {
     if (!this._simulation || !this._currentLevel) return
 
-    // CONTRACT (B1): Campaign runs that fail to meet the level's required
-    // output count transition to a dedicated `level_failed` state. Failed
-    // runs do NOT persist stars and do NOT unlock the next level.
-    const baseScore = calculateScore(this._simulation, this._currentLevel)
-    const requiredCount = computeRequiredOutputs(this._currentLevel)
-    const succeeded = this._simulation.outputsDelivered >= requiredCount
-    const outcome: 'success' | 'failed' = succeeded ? 'success' : 'failed'
-    this._lastScore = { ...baseScore, outcome }
-
-    if (succeeded) {
-      const bestStars = this._progress.get(this._currentLevel.id) ?? 0
-      if (this._lastScore.totalStars > bestStars) {
-        this._progress.set(this._currentLevel.id, this._lastScore.totalStars)
-      }
-      this.setState('score_screen')
-    } else {
-      this.setState('level_failed')
+    // Only the auto-completion path calls this — it fires after
+    // `outputsDelivered >= requiredCount > 0`, so success is implicit.
+    this._lastScore = calculateScore(this._simulation, this._currentLevel)
+    const bestStars = this._progress.get(this._currentLevel.id) ?? 0
+    if (this._lastScore.totalStars > bestStars) {
+      this._progress.set(this._currentLevel.id, this._lastScore.totalStars)
     }
+    this.setState('score_screen')
     this.emit('scoreReady', { score: this._lastScore })
   }
 
@@ -279,15 +270,25 @@ export class GameManager {
     }
   }
 
-  private readonly onOrderComplete = (_event: SimulationEvent): void => {
-    // Could auto-stop on goal completion in the future
+  private readonly onSimulationTick = (_event: SimulationEvent): void => {
+    // Re-entry guard: showScore() flips state away from play_phase, so any
+    // pending tick after auto-completion no-ops here.
+    if (this._state !== 'play_phase' || !this._simulation || !this._currentLevel) return
+    const required = computeRequiredOutputs(this._currentLevel)
+    if (required <= 0) return
+    if (this._simulation.outputsDelivered < required) return
+    this.detachSimulation()
+    this.showScore()
+  }
+
+  private detachSimulation(): void {
+    if (!this._simulation) return
+    this._simulation.stop()
+    this._simulation.off('tick', this.onSimulationTick)
   }
 
   private cleanup(): void {
-    if (this._simulation) {
-      this._simulation.stop()
-      this._simulation.off('order_complete', this.onOrderComplete)
-    }
+    this.detachSimulation()
     this._simulation = null
     this._factory = null
     this._currentLevel = null
@@ -295,18 +296,4 @@ export class GameManager {
   }
 }
 
-/**
- * Sum the production targets across a level's `produce_robots` and
- * `produce_parts` goals to derive the minimum `outputsDelivered` required
- * for a successful campaign run. Levels with no production goals return 0
- * (treated as success on any delivery, including zero).
- */
-function computeRequiredOutputs(level: LevelDefinition): number {
-  let required = 0
-  for (const goal of level.goals) {
-    if (goal.type === 'produce_robots' || goal.type === 'produce_parts') {
-      required += goal.target
-    }
-  }
-  return required
-}
+

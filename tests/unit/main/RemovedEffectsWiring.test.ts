@@ -32,10 +32,6 @@ describe('extracted removed audio and celebration wiring', () => {
       ...createHideable(),
       setScore: vi.fn(),
     }
-    const levelFailedScreen = {
-      ...createHideable(),
-      setLevelName: vi.fn(),
-    }
     const saveProgress = vi.fn()
     const handler = createGameStateChangeHandler({
       gameManager: {
@@ -52,7 +48,6 @@ describe('extracted removed audio and celebration wiring', () => {
       hud: createHideable(),
       levelBrief: { ...createHideable(), setLevel: vi.fn() },
       scoreScreen,
-      levelFailedScreen,
       cameraController: { resetView: vi.fn() },
       setupBuildPhase: vi.fn(),
       setupSandbox: vi.fn(),
@@ -67,7 +62,6 @@ describe('extracted removed audio and celebration wiring', () => {
       audio,
       toolbar,
       scoreScreen,
-      levelFailedScreen,
       saveProgress,
       handler,
     }
@@ -106,7 +100,6 @@ describe('extracted removed audio and celebration wiring', () => {
       hud: createHideable(),
       levelBrief,
       scoreScreen: { ...createHideable(), setScore: vi.fn() },
-      levelFailedScreen: { ...createHideable(), setLevelName: vi.fn() },
       cameraController: { resetView: vi.fn() },
       setupBuildPhase: vi.fn(),
       setupSandbox: vi.fn(),
@@ -161,14 +154,13 @@ describe('extracted removed audio and celebration wiring', () => {
     wireToolbarAndOutcomeCallbacks({
       toolbar,
       scoreScreen: { onNextLevel: () => {}, onRetry: () => {}, onBackToMenu: () => {} },
-      levelFailedScreen: { onRetry: () => {}, onBackToLevelSelect: () => {} },
       gameOverModal: { onRetry: () => {}, hide: vi.fn() },
       audio,
       gameManager: {
         simulation,
         getCurrentState: () => 'sandbox',
         startSimulation: vi.fn(),
-        stopSimulation: vi.fn(),
+        resetSimulationForRetry: vi.fn(),
         retryCurrentLevel: vi.fn(),
         enterLevelSelect: vi.fn(),
         enterMainMenu: vi.fn(),
@@ -240,20 +232,6 @@ describe('extracted removed audio and celebration wiring', () => {
     expect(fixture.saveProgress).toHaveBeenCalledTimes(1)
   })
 
-  it('plays error audio on level_failed without requiring any confetti hook', () => {
-    const fixture = createStateChangeFixture()
-    const levelName = i18next.t('levels.1.name')
-
-    fixture.handler({ data: { to: 'level_failed' } })
-
-    expect(fixture.audio.playError).toHaveBeenCalledTimes(1)
-    expect(fixture.audio.playSuccess).not.toHaveBeenCalled()
-    expect(fixture.audio.stopBeltRolling).toHaveBeenCalledTimes(1)
-    expect(fixture.toolbar.setSimulationState).toHaveBeenCalledWith('stopped')
-    expect(fixture.levelFailedScreen.setLevelName).toHaveBeenCalledWith(levelName)
-    expect(fixture.levelFailedScreen.show).toHaveBeenCalledTimes(1)
-  })
-
   it('keeps UI click hooks wired through the extracted toolbar helper', () => {
     const playUIClick = vi.fn()
     const toolbar = {
@@ -273,14 +251,13 @@ describe('extracted removed audio and celebration wiring', () => {
     wireToolbarAndOutcomeCallbacks({
       toolbar,
       scoreScreen: { onNextLevel: () => {}, onRetry: () => {}, onBackToMenu: () => {} },
-      levelFailedScreen: { onRetry: () => {}, onBackToLevelSelect: () => {} },
       gameOverModal: { onRetry: () => {}, hide: vi.fn() },
       audio: { playUIClick, playError: vi.fn() },
       gameManager: {
         simulation: null,
         getCurrentState: () => 'build_phase',
         startSimulation: vi.fn(),
-        stopSimulation: vi.fn(),
+        resetSimulationForRetry: vi.fn(),
         retryCurrentLevel: vi.fn(),
         enterLevelSelect: vi.fn(),
         enterMainMenu: vi.fn(),

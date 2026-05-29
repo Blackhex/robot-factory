@@ -21,10 +21,6 @@ interface ScoreScreenLike extends OutcomeScreenLike {
   onBackToMenu: () => void
 }
 
-interface LevelFailedScreenLike extends OutcomeScreenLike {
-  onBackToLevelSelect: () => void
-}
-
 interface GameOverModalLike {
   onRetry: () => void
   hide(): void
@@ -49,7 +45,7 @@ interface GameManagerLike {
   simulation: SimulationLike | null
   getCurrentState(): GameState
   startSimulation(): void
-  stopSimulation(): void
+  resetSimulationForRetry(): void
   retryCurrentLevel(): void
   enterLevelSelect(): void
   enterMainMenu(): void
@@ -72,7 +68,6 @@ interface ItemRendererLike {
 interface WireToolbarAndOutcomeCallbacksOptions {
   toolbar: ToolbarLike
   scoreScreen: ScoreScreenLike
-  levelFailedScreen: LevelFailedScreenLike
   gameOverModal: GameOverModalLike
   audio: AudioLike
   gameManager: GameManagerLike
@@ -106,7 +101,10 @@ export function wireToolbarAndOutcomeCallbacks(
   const restartCurrentSession = (): void => {
     const state = options.gameManager.getCurrentState()
     if (state === 'play_phase') {
-      options.gameManager.stopSimulation()
+      options.gameManager.resetSimulationForRetry()
+      options.gameManager.simulation?.clearInFlight()
+      options.getItemRenderer()?.clear()
+      options.hud.hide()
     } else if (state === 'sandbox') {
       options.gameManager.simulation?.clearInFlight()
       options.getItemRenderer()?.clear()
@@ -173,8 +171,6 @@ export function wireToolbarAndOutcomeCallbacks(
   })
   options.scoreScreen.onRetry = click(() => options.gameManager.retryCurrentLevel())
   options.scoreScreen.onBackToMenu = click(() => options.gameManager.enterLevelSelect())
-  options.levelFailedScreen.onRetry = click(() => options.gameManager.retryCurrentLevel())
-  options.levelFailedScreen.onBackToLevelSelect = click(() => options.gameManager.enterLevelSelect())
   options.gameOverModal.onRetry = () => {
     options.gameOverModal.hide()
     click(restartCurrentSession)()

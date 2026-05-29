@@ -90,6 +90,22 @@ export class ToolbarPage {
     await expect(this.restartBtn).toBeVisible()
   }
 
+  async expectStartButtonEnabled(): Promise<void> {
+    await expect(this.startBtn).toBeEnabled()
+  }
+
+  async expectStartButtonDisabled(): Promise<void> {
+    await expect(this.startBtn).toBeDisabled()
+  }
+
+  async expectPauseButtonDisabled(): Promise<void> {
+    await expect(this.pauseBtn).toBeDisabled()
+  }
+
+  async expectRestartButtonDisabled(): Promise<void> {
+    await expect(this.restartBtn).toBeDisabled()
+  }
+
   async clickLanguageToggle(): Promise<void> {
     await this.langBtn.click()
   }

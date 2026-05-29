@@ -213,12 +213,6 @@
     "retry": "Znovu",
     "back_to_menu": "Zpět do menu"
   },
-  "level_failed": {
-    "title": "Úroveň nesplněna",
-    "message": "Nesplnil jsi cíl úrovně. Zkus to znovu!",
-    "retry": "Zkusit znovu",
-    "back_to_select": "Zpět na výběr úrovně"
-  },
   "game_over": {
     "title": "Konec hry",
     "machine_fallback": "stroj",

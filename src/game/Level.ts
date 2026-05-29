@@ -138,7 +138,11 @@ const levels: LevelDefinition[] = [
     gridSize: { width: 20, height: 20 },
     availableMachines: ['part_fabricator', 'assembler', 'painter', 'recycler', 'splitter', 'factory_output'],
     unlockedBlocks: 7,
-    goals: [],
+    goals: [
+      { type: 'produce_robots', target: 3, itemType: 'robot_explorer' },
+      { type: 'produce_robots', target: 3, itemType: 'robot_worker' },
+      { type: 'quality_target', target: 50 },
+    ],
     parScores: { speed: 1, cost: 50, quality: 50 },
   },
   {
