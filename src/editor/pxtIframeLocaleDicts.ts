@@ -31,15 +31,23 @@ function pickCategoryStrings(dict: StringMap): StringMap {
   return out
 }
 
+// Vite injects BASE_URL ('/' in dev, '/robot-factory/' on GitHub Pages). The
+// PXT iframe shares the host origin, so `/pxt-editor/...` would 404 on Pages.
+function publicBase(): string {
+  const b = (import.meta.env?.BASE_URL ?? '/') as string
+  return b.endsWith('/') ? b : `${b}/`
+}
+
 export async function loadCsLocaleDicts(
   fallbackCategory: StringMap,
   fallbackBlockText: StringMap,
 ): Promise<{ category: StringMap; blockText: StringMap }> {
+  const base = publicBase()
   const [strings, targetStrings, bundledStrings, nonGitignored] = await Promise.all([
-    loadJson('/pxt-editor/locales/cs/strings.json'),
-    loadJson('/pxt-editor/locales/cs/target-strings.json'),
-    loadJson('/pxt-editor/locales/cs/bundled-strings.json'),
-    loadJson('/pxt-locales/cs/strings.json'),
+    loadJson(`${base}pxt-editor/locales/cs/strings.json`),
+    loadJson(`${base}pxt-editor/locales/cs/target-strings.json`),
+    loadJson(`${base}pxt-editor/locales/cs/bundled-strings.json`),
+    loadJson(`${base}pxt-locales/cs/strings.json`),
   ])
 
   const category = {

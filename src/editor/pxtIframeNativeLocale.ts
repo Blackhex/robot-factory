@@ -53,6 +53,14 @@ interface IframeWindow extends Window {
 const READY_POLL_MS = 50
 const READY_POLL_MAX = 200 // 10s ceiling
 
+// Vite injects BASE_URL ('/' in dev, '/robot-factory/' on GitHub Pages). The
+// PXT iframe shares the host origin, so root-absolute `/pxt-editor/...` URLs
+// would 404 on Pages.
+function publicBase(): string {
+  const b = (import.meta.env?.BASE_URL ?? '/') as string
+  return b.endsWith('/') ? b : `${b}/`
+}
+
 /**
  * Maps each `symbolPath|block` key from our static `cs/strings.json` to the
  * raw English source string compiled into the block by PXT (from the
@@ -115,12 +123,13 @@ export async function bootstrapPxtNativeLocale(
   util.setUserLanguage('en')
 
   const targetId = w.pxt?.appTarget?.id ?? w.pxtConfig?.targetId ?? 'robot-factory'
+  const base = publicBase()
   try {
     await util.updateLocalizationAsync({
       code: lang,
       force: true,
       targetId,
-      baseUrl: '/pxt-editor/',
+      baseUrl: `${base}pxt-editor/`,
       pxtBranch: 'master',
       targetBranch: 'master',
     })
@@ -150,9 +159,14 @@ async function injectProjectBlockTranslations(
   if (typeof util.setLocalizedStrings !== 'function') return
   const fetchFn = (win as unknown as { fetch?: typeof fetch }).fetch
   if (typeof fetchFn !== 'function') return
+  const base = publicBase()
   let dict: Record<string, unknown>
   try {
-    const response = await fetchFn(`/pxt-editor/locales/${lang}/strings.json`)
+    let response = await fetchFn(`${base}pxt-editor/locales/${lang}/strings.json`)
+    if (!response.ok) {
+      // Fallback to the non-gitignored copy shipped under public/pxt-locales/.
+      response = await fetchFn(`${base}pxt-locales/${lang}/strings.json`)
+    }
     if (!response.ok) return
     dict = (await response.json()) as Record<string, unknown>
   } catch {
