@@ -32,11 +32,16 @@ const CS_FALLBACK_CATEGORY_TRANSLATIONS: StringMap = {
 const CS_FALLBACK_BLOCK_TEXT_TRANSLATIONS: StringMap = {
   'start': 'spustit',
   'stop': 'zastavit',
-  // Suppress the raw `%machine` placeholder token in the flyout so the
-  // localized reporter block can render its own resolved label without
-  // leaking the English placeholder. Translating this token to "stroj"
-  // duplicates the reporter prefix.
-  'machine': '',
+  // Translate the `%machine` picker label to "stroj" instead of removing
+  // it. Mapping it to '' made the DOM patcher delete the label element,
+  // which raced against the `FieldLabel` translator in
+  // pxtIframeNativeLocale.ts that paints "stroj": depending on ordering the
+  // label was either deleted (leaving a blank gap) or painted. Translating
+  // here is non-destructive and agrees with the FieldLabel translator, so
+  // the label deterministically renders "stroj" in every load path. Because
+  // loadCsLocaleDicts spreads this fallback into the final dict first, the
+  // mapping also survives after the static locale files load.
+  'machine': 'stroj',
   // factory_set_recipe: "set recipe of %machine to %recipe"
   'set recipe of': 'nastav recept',
   // factory_set_machine_speed: "set %machine speed to %speed"
