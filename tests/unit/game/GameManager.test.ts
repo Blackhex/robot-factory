@@ -299,7 +299,7 @@ describe('GameManager', () => {
 
   describe('progress tracking', () => {
     it('should store stars after scoring a successful run', () => {
-      // GIVEN — level_2 goal: produce_robots target=3
+      // GIVEN — level_2 goal: produce_parts target=3
       gm.startLevel('level_2')
       gm.startSimulation()
       gm.simulation!.robotsProduced = 5

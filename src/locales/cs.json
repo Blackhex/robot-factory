@@ -119,15 +119,15 @@
     "motor_standard": "Standardní motory"
   },
   "recipes": {
-    "wheel_press_small": "Malá kola",
-    "wheel_press_medium": "Střední kola",
-    "wheel_press_large": "Velká kola",
+    "wheel_press_small": "Malé kolo",
+    "wheel_press_medium": "Střední kolo",
+    "wheel_press_large": "Velké kolo",
     "battery_assembly_standard": "Standardní baterie",
     "battery_assembly_high": "Vysokokapacitní baterie",
     "chassis_stamper_light": "Lehký podvozek",
     "chassis_stamper_heavy": "Těžký podvozek",
-    "circuit_printer_basic": "Základní obvody",
-    "circuit_printer_advanced": "Pokročilé obvody",
+    "circuit_printer_basic": "Základní obvod",
+    "circuit_printer_advanced": "Pokročilý obvod",
     "assemble_drivetrain_basic": "Základní pohon",
     "assemble_drivetrain_advanced": "Pokročilý pohon",
     "assemble_power_unit_standard": "Standardní napájecí jednotka",
@@ -138,11 +138,11 @@
   "levels": {
     "level_1": {
       "name": "První díl",
-        "description": "Umísti Vyráběč, propoj ho s Odesílačem pásem a nezapomeň oba stroje spustit, aby Vyráběč začal vyrábět díly a Odesílač je přijímal."
+      "description": "Umísti Vyráběč, propoj ho s Odesílačem pásem a nezapomeň oba stroje spustit, aby Vyráběč začal vyrábět díly a Odesílač je přijímal."
     },
     "level_2": {
       "name": "Montážní linka",
-      "description": "Propoj stroje pásy a sestav své první roboty."
+      "description": "Z tří Vyráběčů přiváděj díly do Montovače a doruč první sestavy."
     },
     "level_3": {
       "name": "Hromadná výroba",
@@ -253,9 +253,10 @@
     "level1_step5": "Použij blok 'nastav recept <stroj> na <recept>' k nastavení výroby stroje. Přetáhni ho z kategorie Stroje a v rozbalovacím seznamu <stroj> vyber Vyráběč.",
     "level1_step6": "Teď dvakrát přidej blok 'spustit <stroj>' pro Vyráběč i Odesílač. Přetáhni je z kategorie Stroje — v jednom bloku vyber v rozbalovacím seznamu Vyráběč a v druhém Odesílač. Bez nich žádný stroj nepoběží.",
     "level1_step7": "Zavři Editor a stiskni Spustit. Vyráběč i Odesílač se rozběhnou a díly pojedou po pásu.",
-    "level2_step1": "Tentokrát potřebuješ více strojů. Dvojklikem umísti Vyráběč a Montovač.",
-  "level2_step2": "Propoj stroje pásy a směřuj díly do Odesílače. Než čekáš dodávky, spusť ho.",
-    "level2_step3": "Otevři Editor a použij bloky 'nastavit recept', aby každý stroj věděl, co má vyrábět.",
+    "level2_step1": "Dvojklikem na prázdná políčka umísti pět strojů: tři Vyráběče, jeden Montovač a jeden Odesílač. Tip: každý dvojklik přidá Vyráběč — vyber stroj a v panelu stroje přepni jeho typ na Montovač nebo Odesílač.",
+    "level2_step2": "Propoj stroje pásy tak, aby všechny tři Vyráběče vedly do Montovače a z Montovače pak do Odesílače.",
+    "level2_step3": "Otevři Editor a pomocí bloku 'nastav recept <stroj> na <recept>' nastav každému Vyráběči recept (dva na Malé kolo, jeden na Základní obvod) a Montovači recept na Základní pohon. Pak přidej blok 'spustit <stroj>' pro každý stroj, aby všechny běžely.",
+    "level2_step4": "Zavři Editor a stiskni Spustit. Všech pět strojů se rozběhne a díly pojedou po pásech.",
     "level3_step1": "Otevři Editor — máš nové bloky Smyčky! Použij 'opakuj' k efektivní výrobě mnoha dílů.",
     "level3_step2": "Smyčky opakují tvé instrukce automaticky, takže nemusíš psát stejné bloky znovu a znovu.",
     "level4_step1": "Vadné díly kazí tvé skóre Kvality! Použij Rozdělovač a Recyklovač, abys zachytil vadné díly dříve, než se dostanou do Odesílače.",

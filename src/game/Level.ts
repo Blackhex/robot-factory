@@ -50,7 +50,7 @@ const levels: LevelDefinition[] = [
     availableMachines: ['part_fabricator', 'assembler', 'factory_output'],
     unlockedBlocks: 1,
     goals: [
-      { type: 'produce_robots', target: 3, itemType: 'robot_explorer' },
+      { type: 'produce_parts', target: 3, itemType: 'drivetrain_basic' },
     ],
     parScores: { speed: 2, cost: 15, quality: 80 },
   },

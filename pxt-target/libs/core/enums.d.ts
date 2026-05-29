@@ -160,23 +160,23 @@ declare const enum Machine {
 // ─── Recipe types ────────────────────────────────────────────────────────────
 
 declare const enum Recipe {
-    //% block="Small Wheels"
+    //% block="Small Wheel"
     WheelPressSmall = 0,
-    //% block="Medium Wheels"
+    //% block="Medium Wheel"
     WheelPressMedium = 1,
-    //% block="Large Wheels"
+    //% block="Large Wheel"
     WheelPressLarge = 2,
-    //% block="Standard Batteries"
+    //% block="Standard Battery"
     BatteryAssemblyStandard = 3,
-    //% block="High-Cap Batteries"
+    //% block="High-Cap Battery"
     BatteryAssemblyHigh = 4,
     //% block="Light Chassis"
     ChassisStamperLight = 5,
     //% block="Heavy Chassis"
     ChassisStamperHeavy = 6,
-    //% block="Basic Circuits"
+    //% block="Basic Circuit"
     CircuitPrinterBasic = 7,
-    //% block="Advanced Circuits"
+    //% block="Advanced Circuit"
     CircuitPrinterAdvanced = 8,
     //% block="Basic Drivetrain"
     AssembleDrivetrainBasic = 9,

@@ -31,6 +31,7 @@ export function getTutorialSteps(levelIndex: number): TutorialStep[] {
         { messageKey: 'tutorial.level2_step1', highlightSelector: TUTORIAL_TARGETS.canvas, position: 'top' },
         { messageKey: 'tutorial.level2_step2', highlightSelector: TUTORIAL_TARGETS.canvas, position: 'bottom' },
         { messageKey: 'tutorial.level2_step3', highlightSelector: TUTORIAL_TARGETS.editorBtn, position: 'bottom' },
+        { messageKey: 'tutorial.level2_step4', highlightSelector: TUTORIAL_TARGETS.startBtn, position: 'bottom' },
       ]
     case 3:
       return [

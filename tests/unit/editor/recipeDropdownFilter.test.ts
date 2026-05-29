@@ -16,15 +16,15 @@ import { getAllRecipes, getRecipeById } from '../../../src/game/Recipe.ts'
  * FieldDropdown.prototype.getOptions interception point.
  */
 const PXT_RECIPE_OPTIONS: readonly [string, string][] = [
-  ['Small Wheels', 'Recipe.WheelPressSmall'],
-  ['Medium Wheels', 'Recipe.WheelPressMedium'],
-  ['Large Wheels', 'Recipe.WheelPressLarge'],
-  ['Standard Batteries', 'Recipe.BatteryAssemblyStandard'],
-  ['High-Cap Batteries', 'Recipe.BatteryAssemblyHigh'],
+  ['Small Wheel', 'Recipe.WheelPressSmall'],
+  ['Medium Wheel', 'Recipe.WheelPressMedium'],
+  ['Large Wheel', 'Recipe.WheelPressLarge'],
+  ['Standard Battery', 'Recipe.BatteryAssemblyStandard'],
+  ['High-Cap Battery', 'Recipe.BatteryAssemblyHigh'],
   ['Light Chassis', 'Recipe.ChassisStamperLight'],
   ['Heavy Chassis', 'Recipe.ChassisStamperHeavy'],
-  ['Basic Circuits', 'Recipe.CircuitPrinterBasic'],
-  ['Advanced Circuits', 'Recipe.CircuitPrinterAdvanced'],
+  ['Basic Circuit', 'Recipe.CircuitPrinterBasic'],
+  ['Advanced Circuit', 'Recipe.CircuitPrinterAdvanced'],
   ['Basic Drivetrain', 'Recipe.AssembleDrivetrainBasic'],
   ['Adv. Drivetrain', 'Recipe.AssembleDrivetrainAdvanced'],
   ['Std. Power Unit', 'Recipe.AssemblePowerUnitStandard'],
@@ -75,7 +75,7 @@ describe('filterRecipeOptions', () => {
     const expected = PXT_RECIPE_OPTIONS.filter(([, v]) => FABRICATOR_VALUES.includes(v))
     expect(opts).toEqual(expected)
     // Sanity: labels must be the localized PXT labels, NOT enum names.
-    expect(opts.map(([label]) => label)).toContain('Small Wheels')
+    expect(opts.map(([label]) => label)).toContain('Small Wheel')
     expect(opts.map(([label]) => label)).not.toContain('WheelPressSmall')
   })
 
